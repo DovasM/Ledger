@@ -50,3 +50,6 @@ app/src/androidTest/
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# Claude AI generated files
+.claude/
