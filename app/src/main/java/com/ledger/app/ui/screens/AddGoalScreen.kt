@@ -39,6 +39,11 @@ fun AddGoalScreen(navController: NavController) {
     var showDatePicker by remember { mutableStateOf(false) }
     var selectedDeadline by remember { mutableStateOf("") }
     var photoUri by remember { mutableStateOf<Uri?>(null) }
+    var showCalc by remember { mutableStateOf(false) }
+    var showErrors by remember { mutableStateOf(false) }
+
+    val isNameValid = name.isNotBlank()
+    val isAmountValid = targetAmount.toDoubleOrNull()?.let { it > 0 } ?: false
 
     val imagePicker = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent()
@@ -59,6 +64,14 @@ fun AddGoalScreen(navController: NavController) {
 
     // Aggregated wealth mock data
     val totalWealth = 24530.80f
+
+    if (showCalc) {
+        LedgerCalculatorSheet(
+            initial = targetAmount, accentColor = Primary,
+            onDismiss = { showCalc = false },
+            onConfirm = { result -> targetAmount = result; showCalc = false }
+        )
+    }
 
     if (showDatePicker) {
         val datePickerState = rememberDatePickerState()
@@ -172,45 +185,38 @@ fun AddGoalScreen(navController: NavController) {
                 onValueChange = { name = it },
                 label = "Goal Name",
                 placeholder = "e.g. Emergency Fund, Vacation",
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                isError = showErrors && !isNameValid,
+                supportingText = if (showErrors && !isNameValid) "Goal name is required" else null
             )
 
-            // Target amount — large display
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Target Amount", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Text(
-                        "$",
-                        style = MaterialTheme.typography.headlineMedium,
-                        color = OnSurfaceVariant,
-                        fontWeight = FontWeight.Light
-                    )
-                    Text(
-                        if (targetAmount.isBlank()) "0" else targetAmount,
-                        style = MaterialTheme.typography.displayMedium.copy(fontSize = 52.sp),
-                        color = if (targetAmount.isBlank()) OutlineVariant else OnSurface,
-                        fontWeight = FontWeight.Bold
-                    )
+            // Target amount — tap to open calculator
+            Surface(onClick = { showCalc = true }, color = androidx.compose.ui.graphics.Color.Transparent, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("Target Amount", style = MaterialTheme.typography.labelMedium,
+                        color = if (showErrors && !isAmountValid) Error else OnSurfaceVariant)
+                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
+                        Text("$", style = MaterialTheme.typography.headlineMedium,
+                            color = if (showErrors && !isAmountValid) Error else OnSurfaceVariant,
+                            fontWeight = FontWeight.Light)
+                        Text(
+                            if (targetAmount.isBlank()) "0" else targetAmount,
+                            style = MaterialTheme.typography.displayMedium.copy(fontSize = 52.sp),
+                            color = if (showErrors && !isAmountValid) Error else if (targetAmount.isBlank()) OutlineVariant else OnSurface,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Filled.Calculate, null,
+                            tint = if (showErrors && !isAmountValid) Error else OnSurfaceVariant,
+                            modifier = Modifier.size(14.dp))
+                        Text(
+                            if (showErrors && !isAmountValid) "Target amount must be greater than 0" else "Tap to enter target amount",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (showErrors && !isAmountValid) Error else OnSurfaceVariant
+                        )
+                    }
                 }
-                OutlinedTextField(
-                    value = targetAmount,
-                    onValueChange = { v -> if (v.all { it.isDigit() || it == '.' }) targetAmount = v },
-                    label = { Text("Enter amount") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                        keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
-                    ),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Primary,
-                        unfocusedBorderColor = OutlineVariant,
-                        focusedLabelColor = Primary
-                    ),
-                    shape = RoundedCornerShape(8.dp)
-                )
             }
 
             // Deadline picker
@@ -311,11 +317,10 @@ fun AddGoalScreen(navController: NavController) {
 
             Spacer(Modifier.height(8.dp))
             Button(
-                onClick = { navController.popBackStack() },
+                onClick = { showErrors = true; if (isNameValid && isAmountValid) navController.popBackStack() },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                shape = RoundedCornerShape(6.dp),
-                enabled = name.isNotBlank() && targetAmount.isNotBlank()
+                shape = RoundedCornerShape(6.dp)
             ) {
                 Icon(Icons.Filled.EmojiEvents, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))

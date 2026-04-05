@@ -34,6 +34,9 @@ fun AddEditBudgetScreen(navController: NavController, categoryName: String? = nu
     val periods = listOf("Monthly", "Weekly", "Yearly")
     var selectedPeriod by remember { mutableStateOf("Monthly") }
     var showCalc by remember { mutableStateOf(false) }
+    var showErrors by remember { mutableStateOf(false) }
+
+    val isAmountValid = amount.toDoubleOrNull()?.let { it > 0 } ?: false
 
     val categoryColors = mapOf(
         "Housing" to Color(0xFF00513F), "Food & Dining" to Color(0xFF1565C0),
@@ -132,9 +135,10 @@ fun AddEditBudgetScreen(navController: NavController, categoryName: String? = nu
             LedgerCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Limit", style = MaterialTheme.typography.titleSmall, color = OnSurfaceVariant, fontWeight = FontWeight.SemiBold)
+                    val amountError = showErrors && !isAmountValid
                     Surface(
                         onClick = { showCalc = true },
-                        color = SurfaceContainerLow,
+                        color = if (amountError) Error.copy(alpha = 0.06f) else SurfaceContainerLow,
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     ) {
@@ -145,13 +149,16 @@ fun AddEditBudgetScreen(navController: NavController, categoryName: String? = nu
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text(
-                                if (amount.isBlank()) "Set amount…" else "\$$amount",
-                                style = MaterialTheme.typography.headlineSmall,
-                                color = if (amount.isBlank()) OnSurfaceVariant else color,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Icon(Icons.Filled.Calculate, contentDescription = "Open calculator", tint = color, modifier = Modifier.size(22.dp))
+                            Column {
+                                Text(
+                                    if (amount.isBlank()) "Set amount…" else "\$$amount",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    color = if (amountError) Error else if (amount.isBlank()) OnSurfaceVariant else color,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                if (amountError) Text("Budget amount must be greater than 0", style = MaterialTheme.typography.labelSmall, color = Error)
+                            }
+                            Icon(Icons.Filled.Calculate, contentDescription = "Open calculator", tint = if (amountError) Error else color, modifier = Modifier.size(22.dp))
                         }
                     }
                     Text("Period", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
@@ -197,7 +204,10 @@ fun AddEditBudgetScreen(navController: NavController, categoryName: String? = nu
             }
 
             Button(
-                onClick = { navController.popBackStack() },
+                onClick = {
+                    showErrors = true
+                    if (isAmountValid) navController.popBackStack()
+                },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = color),
                 shape = RoundedCornerShape(6.dp)

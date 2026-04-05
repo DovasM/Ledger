@@ -31,7 +31,20 @@ fun AddEditDebtScreen(navController: NavController, debtId: Long? = null) {
     var apr by remember { mutableStateOf(if (isEdit) "24.99" else "") }
     var monthlyPayment by remember { mutableStateOf(if (isEdit) "200" else "") }
     var showCalc by remember { mutableStateOf(false) }
-    var calcTarget by remember { mutableStateOf("total") } // which field the calc is for
+    var calcTarget by remember { mutableStateOf("total") }
+    var showErrors by remember { mutableStateOf(false) }
+
+    val totalVal = totalAmount.toDoubleOrNull()
+    val remainingVal = remaining.toDoubleOrNull()
+    val aprVal = apr.toDoubleOrNull()
+    val paymentVal = monthlyPayment.toDoubleOrNull()
+
+    val isNameValid = name.isNotBlank()
+    val isTotalValid = totalVal != null && totalVal > 0
+    val isRemainingValid = remainingVal != null && remainingVal >= 0 && (totalVal == null || remainingVal <= totalVal)
+    val isAprValid = aprVal != null && aprVal >= 0
+    val isPaymentValid = paymentVal != null && paymentVal > 0
+    val isFormValid = isNameValid && isTotalValid && isRemainingValid && isAprValid && isPaymentValid
 
     val monthsLeft = if (monthlyPayment.toDoubleOrNull() != null && monthlyPayment.toDouble() > 0 && remaining.toDoubleOrNull() != null)
         (remaining.toDouble() / monthlyPayment.toDouble()).toInt() else 0
@@ -64,7 +77,13 @@ fun AddEditDebtScreen(navController: NavController, debtId: Long? = null) {
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            LedgerTextField(value = name, onValueChange = { name = it }, label = "Debt name", placeholder = "e.g. Chase Sapphire", modifier = Modifier.fillMaxWidth())
+            LedgerTextField(
+                value = name, onValueChange = { name = it },
+                label = "Debt name", placeholder = "e.g. Chase Sapphire",
+                modifier = Modifier.fillMaxWidth(),
+                isError = showErrors && !isNameValid,
+                supportingText = if (showErrors && !isNameValid) "Name is required" else null
+            )
 
             ExposedDropdownMenuBox(expanded = typeMenuExpanded, onExpandedChange = { typeMenuExpanded = it }) {
                 LedgerTextField(
@@ -82,25 +101,22 @@ fun AddEditDebtScreen(navController: NavController, debtId: Long? = null) {
             LedgerCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("Amounts", style = MaterialTheme.typography.titleSmall, color = OnSurfaceVariant, fontWeight = FontWeight.SemiBold)
-                    AmountRow("Total amount", totalAmount, Primary) { calcTarget = "total"; showCalc = true }
+                    AmountRow("Total amount", totalAmount, Primary,
+                        errorText = if (showErrors && !isTotalValid) "Must be greater than 0" else null
+                    ) { calcTarget = "total"; showCalc = true }
                     HorizontalDivider(color = OutlineVariant.copy(alpha = 0.2f))
-                    AmountRow("Remaining balance", remaining, Tertiary) { calcTarget = "remaining"; showCalc = true }
+                    AmountRow("Remaining balance", remaining, Tertiary,
+                        errorText = if (showErrors && !isRemainingValid) "Must be 0–total amount" else null
+                    ) { calcTarget = "remaining"; showCalc = true }
                     HorizontalDivider(color = OutlineVariant.copy(alpha = 0.2f))
-                    AmountRow("Monthly payment", monthlyPayment, Color(0xFF1565C0)) { calcTarget = "payment"; showCalc = true }
+                    AmountRow("Monthly payment", monthlyPayment, Color(0xFF1565C0),
+                        errorText = if (showErrors && !isPaymentValid) "Must be greater than 0" else null
+                    ) { calcTarget = "payment"; showCalc = true }
                     HorizontalDivider(color = OutlineVariant.copy(alpha = 0.2f))
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column { Text("Interest rate (APR %)", style = MaterialTheme.typography.bodyMedium, color = OnSurface) }
-                        Surface(onClick = { calcTarget = "apr"; showCalc = true }, color = SurfaceContainerLow, shape = RoundedCornerShape(8.dp)) {
-                            Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Text(if (apr.isBlank()) "0%" else "$apr%", style = MaterialTheme.typography.titleSmall, color = Color(0xFFE65100), fontWeight = FontWeight.Bold)
-                                Icon(Icons.Filled.Calculate, null, tint = Color(0xFFE65100), modifier = Modifier.size(16.dp))
-                            }
-                        }
-                    }
+                    AmountRow("Interest rate (APR %)", if (apr.isBlank()) "" else apr,
+                        Color(0xFFE65100),
+                        errorText = if (showErrors && !isAprValid) "APR must be 0 or greater" else null
+                    ) { calcTarget = "apr"; showCalc = true }
                 }
             }
 
@@ -121,7 +137,10 @@ fun AddEditDebtScreen(navController: NavController, debtId: Long? = null) {
             }
 
             Button(
-                onClick = { navController.popBackStack() },
+                onClick = {
+                    showErrors = true
+                    if (isFormValid) navController.popBackStack()
+                },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Primary),
                 shape = RoundedCornerShape(6.dp)
@@ -146,13 +165,18 @@ fun AddEditDebtScreen(navController: NavController, debtId: Long? = null) {
 }
 
 @Composable
-private fun AmountRow(label: String, value: String, color: Color, onTap: () -> Unit) {
+private fun AmountRow(label: String, value: String, color: Color, errorText: String? = null, onTap: () -> Unit) {
+    val hasError = errorText != null
+    val displayColor = if (hasError) Error else color
     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
-        Text(label, style = MaterialTheme.typography.bodyMedium, color = OnSurface)
-        Surface(onClick = onTap, color = SurfaceContainerLow, shape = RoundedCornerShape(8.dp)) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(label, style = MaterialTheme.typography.bodyMedium, color = if (hasError) Error else OnSurface)
+            if (hasError) Text(errorText!!, style = MaterialTheme.typography.labelSmall, color = Error)
+        }
+        Surface(onClick = onTap, color = if (hasError) Error.copy(alpha = 0.06f) else SurfaceContainerLow, shape = RoundedCornerShape(8.dp)) {
             Row(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(if (value.isBlank()) "$0" else "$$value", style = MaterialTheme.typography.titleSmall, color = color, fontWeight = FontWeight.Bold)
-                Icon(Icons.Filled.Calculate, null, tint = color, modifier = Modifier.size(16.dp))
+                Text(if (value.isBlank()) "$0" else "$$value", style = MaterialTheme.typography.titleSmall, color = displayColor, fontWeight = FontWeight.Bold)
+                Icon(Icons.Filled.Calculate, null, tint = displayColor, modifier = Modifier.size(16.dp))
             }
         }
     }

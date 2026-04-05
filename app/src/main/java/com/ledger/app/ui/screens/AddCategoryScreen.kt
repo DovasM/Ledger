@@ -31,6 +31,8 @@ fun AddCategoryScreen(navController: NavController) {
     var isExpense by remember { mutableStateOf(true) }
     var selectedIconIndex by remember { mutableStateOf(0) }
     var selectedColorIndex by remember { mutableStateOf(0) }
+    var showErrors by remember { mutableStateOf(false) }
+    val isNameValid = name.isNotBlank()
 
     val icons = listOf(
         Icons.Filled.Home, Icons.Filled.Restaurant, Icons.Filled.DirectionsCar,
@@ -86,7 +88,9 @@ fun AddCategoryScreen(navController: NavController) {
             LedgerTextField(
                 value = name, onValueChange = { name = it },
                 label = "Category Name", placeholder = "e.g. Housing, Salary",
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                isError = showErrors && !isNameValid,
+                supportingText = if (showErrors && !isNameValid) "Category name is required" else null
             )
 
             // Icon picker
@@ -156,11 +160,10 @@ fun AddCategoryScreen(navController: NavController) {
 
             Spacer(Modifier.height(8.dp))
             Button(
-                onClick = { navController.popBackStack() },
+                onClick = { showErrors = true; if (isNameValid) navController.popBackStack() },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                shape = RoundedCornerShape(6.dp),
-                enabled = name.isNotBlank()
+                shape = RoundedCornerShape(6.dp)
             ) {
                 Icon(Icons.Filled.LocalOffer, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))

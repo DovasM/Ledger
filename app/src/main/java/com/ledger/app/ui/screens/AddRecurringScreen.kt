@@ -25,7 +25,6 @@ fun AddRecurringScreen(navController: NavController) {
     var isExpense by remember { mutableStateOf(true) }
     var selectedFrequency by remember { mutableStateOf("Monthly") }
     val frequencies = listOf("Daily", "Weekly", "Bi-weekly", "Monthly", "Yearly")
-    var startDate by remember { mutableStateOf("May 1, 2026") }
     var selectedWallet by remember { mutableStateOf("Checking Account") }
     var walletMenuExpanded by remember { mutableStateOf(false) }
     var selectedCategory by remember { mutableStateOf("Housing") }
@@ -33,6 +32,23 @@ fun AddRecurringScreen(navController: NavController) {
     var note by remember { mutableStateOf("") }
     val wallets = listOf("Checking Account", "Savings Account", "Cash")
     val categories = listOf("Housing", "Food & Dining", "Transport", "Entertainment", "Health", "Shopping", "Work", "Other")
+
+    var showCalc by remember { mutableStateOf(false) }
+    var showErrors by remember { mutableStateOf(false) }
+
+    val accentColor = if (isExpense) Tertiary else Primary
+    val isAmountValid = amount.toDoubleOrNull()?.let { it > 0 } ?: false
+    val isTitleValid = title.isNotBlank()
+    val isFormValid = isAmountValid && isTitleValid
+
+    if (showCalc) {
+        LedgerCalculatorSheet(
+            initial = amount,
+            accentColor = accentColor,
+            onDismiss = { showCalc = false },
+            onConfirm = { result -> amount = result; showCalc = false }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -65,27 +81,36 @@ fun AddRecurringScreen(navController: NavController) {
                 )
             }
 
-            Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
-                    Text(if (isExpense) "-\$" else "+\$", style = MaterialTheme.typography.headlineMedium,
-                        color = if (isExpense) Tertiary else Primary, fontWeight = FontWeight.Light)
-                    Text(if (amount.isBlank()) "0.00" else amount,
-                        style = MaterialTheme.typography.displayLarge.copy(fontSize = 60.sp),
-                        color = if (amount.isBlank()) OutlineVariant else if (isExpense) Tertiary else Primary,
-                        fontWeight = FontWeight.Bold)
+            // Amount display — tap to open calculator
+            Surface(onClick = { showCalc = true }, color = androidx.compose.ui.graphics.Color.Transparent, modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
+                        Text(if (isExpense) "-\$" else "+\$", style = MaterialTheme.typography.headlineMedium,
+                            color = accentColor, fontWeight = FontWeight.Light)
+                        Text(if (amount.isBlank()) "0.00" else amount,
+                            style = MaterialTheme.typography.displayLarge.copy(fontSize = 60.sp),
+                            color = if (amount.isBlank()) OutlineVariant else accentColor,
+                            fontWeight = FontWeight.Bold, maxLines = 1)
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Icons.Filled.Calculate, null,
+                            tint = if (showErrors && !isAmountValid) Error else OnSurfaceVariant,
+                            modifier = Modifier.size(14.dp))
+                        Text(
+                            if (showErrors && !isAmountValid) "Amount must be greater than 0" else "Tap to enter amount",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (showErrors && !isAmountValid) Error else OnSurfaceVariant
+                        )
+                    }
                 }
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { v -> if (v.all { it.isDigit() || it == '.' }) amount = v },
-                    label = { Text("Amount") },
-                    modifier = Modifier.fillMaxWidth(),
-                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
-                    colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = if (isExpense) Tertiary else Primary),
-                    shape = RoundedCornerShape(8.dp)
-                )
             }
 
-            LedgerTextField(value = title, onValueChange = { title = it }, label = "Title", modifier = Modifier.fillMaxWidth())
+            LedgerTextField(
+                value = title, onValueChange = { title = it },
+                label = "Title", modifier = Modifier.fillMaxWidth(),
+                isError = showErrors && !isTitleValid,
+                supportingText = if (showErrors && !isTitleValid) "Title is required" else null
+            )
 
             Text("Frequency", style = MaterialTheme.typography.titleSmall, color = OnSurfaceVariant, fontWeight = FontWeight.SemiBold)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -126,7 +151,7 @@ fun AddRecurringScreen(navController: NavController) {
             LedgerTextField(value = note, onValueChange = { note = it }, label = "Note (optional)", singleLine = false, modifier = Modifier.fillMaxWidth())
 
             Button(
-                onClick = { navController.popBackStack() },
+                onClick = { showErrors = true; if (isFormValid) navController.popBackStack() },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Primary),
                 shape = RoundedCornerShape(6.dp)

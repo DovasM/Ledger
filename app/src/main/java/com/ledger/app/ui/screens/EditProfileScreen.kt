@@ -29,6 +29,11 @@ fun EditProfileScreen(navController: NavController) {
     var showCurrencyMenu by remember { mutableStateOf(false) }
     val currencies = listOf("USD", "EUR", "GBP", "LTL", "PLN", "SEK", "NOK", "CHF")
 
+    var showErrors by remember { mutableStateOf(false) }
+    val isNameValid = name.isNotBlank()
+    val isEmailValid = android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
+    val isPhoneValid = phone.isBlank() || phone.length >= 7
+
     var saved by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
 
@@ -92,7 +97,9 @@ fun EditProfileScreen(navController: NavController) {
                         onValueChange = { name = it },
                         label = "Full Name",
                         leadingIcon = { Icon(Icons.Filled.Person, contentDescription = null, tint = OnSurfaceVariant) },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = showErrors && !isNameValid,
+                        supportingText = if (showErrors && !isNameValid) "Name is required" else null
                     )
 
                     LedgerTextField(
@@ -100,15 +107,19 @@ fun EditProfileScreen(navController: NavController) {
                         onValueChange = { email = it },
                         label = "Email Address",
                         leadingIcon = { Icon(Icons.Filled.Email, contentDescription = null, tint = OnSurfaceVariant) },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = showErrors && !isEmailValid,
+                        supportingText = if (showErrors && !isEmailValid) "Enter a valid email address" else null
                     )
 
                     LedgerTextField(
                         value = phone,
                         onValueChange = { phone = it },
-                        label = "Phone Number",
+                        label = "Phone Number (optional)",
                         leadingIcon = { Icon(Icons.Filled.Phone, contentDescription = null, tint = OnSurfaceVariant) },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = showErrors && !isPhoneValid,
+                        supportingText = if (showErrors && !isPhoneValid) "Enter a valid phone number" else null
                     )
                 }
             }
@@ -156,7 +167,10 @@ fun EditProfileScreen(navController: NavController) {
 
             // Save button
             Button(
-                onClick = { saved = true; navController.popBackStack() },
+                onClick = {
+                    showErrors = true
+                    if (isNameValid && isEmailValid && isPhoneValid) { saved = true; navController.popBackStack() }
+                },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Primary)
             ) {

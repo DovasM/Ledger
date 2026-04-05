@@ -159,14 +159,24 @@ private fun HelpNavRow(icon: ImageVector, title: String, subtitle: String, onCli
 private fun FeedbackSheet(onDone: () -> Unit) {
     var rating by remember { mutableStateOf(0) }
     var message by remember { mutableStateOf("") }
+    var showErrors by remember { mutableStateOf(false) }
+
+    val isRatingValid = rating > 0
+
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("Send Feedback", style = MaterialTheme.typography.titleLarge, color = OnSurface, fontWeight = FontWeight.Bold)
-        Text("How would you rate Ledger?", style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant)
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            repeat(5) { i ->
-                IconButton(onClick = { rating = i + 1 }) {
-                    Icon(if (i < rating) Icons.Filled.Star else Icons.Filled.StarOutline, null, tint = Color(0xFFFF9800), modifier = Modifier.size(32.dp))
+        Text("How would you rate Ledger?", style = MaterialTheme.typography.bodyMedium,
+            color = if (showErrors && !isRatingValid) Error else OnSurfaceVariant)
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                repeat(5) { i ->
+                    IconButton(onClick = { rating = i + 1 }) {
+                        Icon(if (i < rating) Icons.Filled.Star else Icons.Filled.StarOutline, null, tint = Color(0xFFFF9800), modifier = Modifier.size(32.dp))
+                    }
                 }
+            }
+            if (showErrors && !isRatingValid) {
+                Text("Please select a rating before submitting", style = MaterialTheme.typography.labelSmall, color = Error)
             }
         }
         OutlinedTextField(
@@ -176,7 +186,11 @@ private fun FeedbackSheet(onDone: () -> Unit) {
             colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary, focusedLabelColor = Primary),
             shape = RoundedCornerShape(8.dp)
         )
-        Button(onClick = onDone, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Primary), shape = RoundedCornerShape(6.dp)) {
+        Button(
+            onClick = { showErrors = true; if (isRatingValid) onDone() },
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Primary), shape = RoundedCornerShape(6.dp)
+        ) {
             Text("Submit Feedback", style = MaterialTheme.typography.labelLarge)
         }
     }
