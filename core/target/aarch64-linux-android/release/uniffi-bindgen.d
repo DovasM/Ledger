@@ -1,0 +1,1 @@
+C:\Users\dedek\Desktop\Ledger\core\target\aarch64-linux-android\release\uniffi-bindgen: C:\Users\dedek\Desktop\Ledger\core\build.rs C:\Users\dedek\Desktop\Ledger\core\src\bin\uniffi_bindgen.rs C:\Users\dedek\Desktop\Ledger\core\src/ledger.udl

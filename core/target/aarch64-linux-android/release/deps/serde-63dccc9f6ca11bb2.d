@@ -1,0 +1,14 @@
+C:\Users\dedek\Desktop\Ledger\core\target\aarch64-linux-android\release\deps\serde-63dccc9f6ca11bb2.d: C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs C:\Users\dedek\Desktop\Ledger\core\target\aarch64-linux-android\release\build\serde-35e833820de3f582\out/private.rs
+
+C:\Users\dedek\Desktop\Ledger\core\target\aarch64-linux-android\release\deps\libserde-63dccc9f6ca11bb2.rlib: C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs C:\Users\dedek\Desktop\Ledger\core\target\aarch64-linux-android\release\build\serde-35e833820de3f582\out/private.rs
+
+C:\Users\dedek\Desktop\Ledger\core\target\aarch64-linux-android\release\deps\libserde-63dccc9f6ca11bb2.rmeta: C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs C:\Users\dedek\Desktop\Ledger\core\target\aarch64-linux-android\release\build\serde-35e833820de3f582\out/private.rs
+
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\lib.rs:
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\integer128.rs:
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\mod.rs:
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\de.rs:
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\serde-1.0.228\src\private\ser.rs:
+C:\Users\dedek\Desktop\Ledger\core\target\aarch64-linux-android\release\build\serde-35e833820de3f582\out/private.rs:
+
+# env-dep:OUT_DIR=C:\\Users\\dedek\\Desktop\\Ledger\\core\\target\\aarch64-linux-android\\release\\build\\serde-35e833820de3f582\\out

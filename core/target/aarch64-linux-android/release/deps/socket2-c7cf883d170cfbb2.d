@@ -1,0 +1,11 @@
+C:\Users\dedek\Desktop\Ledger\core\target\aarch64-linux-android\release\deps\socket2-c7cf883d170cfbb2.d: C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\lib.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\sockaddr.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\socket.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\sockref.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\sys\unix.rs
+
+C:\Users\dedek\Desktop\Ledger\core\target\aarch64-linux-android\release\deps\libsocket2-c7cf883d170cfbb2.rlib: C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\lib.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\sockaddr.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\socket.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\sockref.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\sys\unix.rs
+
+C:\Users\dedek\Desktop\Ledger\core\target\aarch64-linux-android\release\deps\libsocket2-c7cf883d170cfbb2.rmeta: C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\lib.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\sockaddr.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\socket.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\sockref.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\sys\unix.rs
+
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\lib.rs:
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\sockaddr.rs:
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\socket.rs:
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\sockref.rs:
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\socket2-0.6.3\src\sys\unix.rs:

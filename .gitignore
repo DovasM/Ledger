@@ -1,0 +1,52 @@
+# Gradle
+.gradle/
+build/
+**/build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local configuration (contains SDK path — never commit)
+local.properties
+
+# Android Studio / IntelliJ IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+
+# NDK
+*.so
+
+# APKs / AABs / release artifacts
+*.apk
+*.aab
+*.ap_
+
+# Keystore files (NEVER commit these)
+*.jks
+*.keystore
+
+# Proguard / R8 mapping files
+/app/mapping.txt
+
+# JVM crash dumps
+*.hprof
+
+# Navigation SafeArgs generated sources
+app/src/main/java/**/directions/
+app/src/main/java/**/directions
+
+# Kotlin coroutines debug
+kotlin-coroutines-debug*.jar
+
+# Captured heap dumps
+captures/
+
+# Test results
+app/src/test/
+app/src/androidTest/
+
+# OS files
+Thumbs.db
+ehthumbs.db
+Desktop.ini

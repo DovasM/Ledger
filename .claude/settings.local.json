@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo --version)",
+      "Bash(rustup target:*)",
+      "Bash(cargo ndk:*)",
+      "Bash(uniffi-bindgen --version)",
+      "Bash(cmd.exe:*)",
+      "Bash(mv \"Manrope-Regular.ttf\" manrope_regular.ttf)",
+      "Bash(mv \"Manrope-Medium.ttf\" manrope_medium.ttf)",
+      "Bash(mv \"Manrope-SemiBold.ttf\" manrope_semibold.ttf)",
+      "Bash(mv \"Manrope-Bold.ttf\" manrope_bold.ttf)",
+      "Bash(mv \"Manrope-ExtraBold.ttf\" manrope_extrabold.ttf)",
+      "Bash(python3:*)",
+      "mcp__stitch__list_screens",
+      "mcp__stitch__get_project",
+      "mcp__stitch__get_screen"
+    ]
+  }
+}

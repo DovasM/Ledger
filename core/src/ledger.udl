@@ -1,0 +1,90 @@
+// UniFFI Interface Definition Language
+// Defines the Kotlin ↔ Rust FFI boundary
+
+namespace ledger {
+    LedgerDb open_database(string db_path);
+};
+
+[Error]
+enum LedgerError {
+    "DatabaseError",
+    "NotFound",
+    "InvalidInput",
+};
+
+dictionary Transaction {
+    string id;
+    string wallet_id;
+    string title;
+    string category;
+    f64 amount;
+    boolean is_income;
+    string? note;
+    string created_at;
+};
+
+dictionary Wallet {
+    string id;
+    string name;
+    string description;
+    f64 balance;
+    string created_at;
+};
+
+dictionary SavingsGoal {
+    string id;
+    string name;
+    f64 current_amount;
+    f64 target_amount;
+    string? deadline;
+    string created_at;
+};
+
+dictionary MonthSummary {
+    f64 total_income;
+    f64 total_expenses;
+    f64 net_savings;
+    i32 transaction_count;
+};
+
+interface LedgerDb {
+    // Transactions
+    [Throws=LedgerError]
+    sequence<Transaction> list_transactions(string wallet_id, u32 limit, u32 offset);
+
+    [Throws=LedgerError]
+    Transaction create_transaction(string wallet_id, string title, string category, f64 amount, boolean is_income, string? note);
+
+    [Throws=LedgerError]
+    Transaction update_transaction(string id, string title, string category, f64 amount, string? note);
+
+    [Throws=LedgerError]
+    void delete_transaction(string id);
+
+    // Wallets
+    [Throws=LedgerError]
+    sequence<Wallet> list_wallets();
+
+    [Throws=LedgerError]
+    Wallet create_wallet(string name, string description, f64 initial_balance);
+
+    [Throws=LedgerError]
+    Wallet update_wallet(string id, string name, string description);
+
+    [Throws=LedgerError]
+    void delete_wallet(string id);
+
+    // Savings Goals
+    [Throws=LedgerError]
+    sequence<SavingsGoal> list_goals();
+
+    [Throws=LedgerError]
+    SavingsGoal create_goal(string name, f64 target_amount, string? deadline);
+
+    [Throws=LedgerError]
+    SavingsGoal add_contribution(string goal_id, f64 amount);
+
+    // Statistics
+    [Throws=LedgerError]
+    MonthSummary get_month_summary(i32 year, i32 month);
+};

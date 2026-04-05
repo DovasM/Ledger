@@ -1,0 +1,10 @@
+C:\Users\dedek\Desktop\Ledger\core\target\debug\deps\uniffi_meta-f51148f11971924b.d: C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\lib.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\ffi_names.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\group.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\reader.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\types.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\metadata.rs
+
+C:\Users\dedek\Desktop\Ledger\core\target\debug\deps\libuniffi_meta-f51148f11971924b.rmeta: C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\lib.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\ffi_names.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\group.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\reader.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\types.rs C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\metadata.rs
+
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\lib.rs:
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\ffi_names.rs:
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\group.rs:
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\reader.rs:
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\types.rs:
+C:\Users\dedek\.cargo\registry\src\index.crates.io-1949cf8c6b5b557f\uniffi_meta-0.28.3\src\metadata.rs:
