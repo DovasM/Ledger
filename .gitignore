@@ -52,4 +52,5 @@ ehthumbs.db
 Desktop.ini
 
 # Claude AI generated files
-.claude/
+.claude
+.claude/*
