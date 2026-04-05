@@ -143,6 +143,9 @@ private fun AddAlertSheet(onDismiss: () -> Unit) {
     var symbolMenuExpanded by remember { mutableStateOf(false) }
     var targetPrice by remember { mutableStateOf("") }
     var direction by remember { mutableStateOf("above") }
+    var showErrors by remember { mutableStateOf(false) }
+
+    val isPriceValid = targetPrice.toDoubleOrNull()?.let { it > 0 } ?: false
 
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 36.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Text("New Price Alert", style = MaterialTheme.typography.titleLarge, color = OnSurface, fontWeight = FontWeight.Bold)
@@ -169,16 +172,20 @@ private fun AddAlertSheet(onDismiss: () -> Unit) {
                 leadingIcon = { Icon(Icons.Filled.ArrowDownward, null, modifier = Modifier.size(14.dp)) })
         }
 
-        OutlinedTextField(
-            value = targetPrice, onValueChange = { v -> if (v.all { it.isDigit() || it == '.' }) targetPrice = v },
-            label = { Text("Target Price") }, prefix = { Text("\$") },
+        LedgerTextField(
+            value = targetPrice,
+            onValueChange = { v -> if (v.all { it.isDigit() || it == '.' }) targetPrice = v },
+            label = "Target Price (\$)",
             modifier = Modifier.fillMaxWidth(),
-            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
-            colors = OutlinedTextFieldDefaults.colors(focusedBorderColor = Primary), shape = RoundedCornerShape(8.dp)
+            isError = showErrors && !isPriceValid,
+            supportingText = if (showErrors && !isPriceValid) "Enter a price greater than 0" else null
         )
 
-        Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth().height(52.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = Primary), shape = RoundedCornerShape(6.dp)) {
+        Button(
+            onClick = { showErrors = true; if (isPriceValid) onDismiss() },
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Primary), shape = RoundedCornerShape(6.dp)
+        ) {
             Icon(Icons.Filled.NotificationsActive, null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
             Text("Set Alert", style = MaterialTheme.typography.labelLarge)

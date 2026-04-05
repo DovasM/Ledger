@@ -18,15 +18,14 @@ fun LedgerTextField(
     leadingIcon: @Composable (() -> Unit)? = null,
     trailingIcon: @Composable (() -> Unit)? = null,
     singleLine: Boolean = true,
+    isError: Boolean = false,
+    supportingText: String? = null,
 ) {
     OutlinedTextField(
         value = value,
         onValueChange = onValueChange,
         label = {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelMedium
-            )
+            Text(text = label, style = MaterialTheme.typography.labelMedium)
         },
         placeholder = if (placeholder.isNotEmpty()) ({
             Text(placeholder, style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant)
@@ -34,15 +33,23 @@ fun LedgerTextField(
         leadingIcon = leadingIcon,
         trailingIcon = trailingIcon,
         singleLine = singleLine,
+        isError = isError,
+        supportingText = if (supportingText != null) ({
+            Text(supportingText, style = MaterialTheme.typography.labelSmall)
+        }) else null,
         shape = RoundedCornerShape(6.dp),
         colors = OutlinedTextFieldDefaults.colors(
             unfocusedContainerColor = SurfaceContainerHighest,
             focusedContainerColor = SurfaceContainerHighest,
+            errorContainerColor = SurfaceContainerHighest,
             unfocusedBorderColor = OutlineVariant.copy(alpha = 0.15f),
             focusedBorderColor = Primary,
+            errorBorderColor = Error,
             unfocusedLabelColor = OnSurfaceVariant,
             focusedLabelColor = Primary,
+            errorLabelColor = Error,
             cursorColor = Primary,
+            errorCursorColor = Error,
         ),
         modifier = modifier,
     )

@@ -28,6 +28,13 @@ fun AddTransactionScreen(navController: NavController) {
     var isSplit by remember { mutableStateOf(false) }
     var splits by remember { mutableStateOf(listOf("" to "", "" to "")) }
     var showCalc by remember { mutableStateOf(false) }
+    var showErrors by remember { mutableStateOf(false) }
+
+    val amountValue = amount.toDoubleOrNull()
+    val isAmountValid = amountValue != null && amountValue > 0
+    val isTitleValid = title.isNotBlank()
+    val isFormValid = isAmountValid && isTitleValid
+
     val suggestedTags = listOf("#personal", "#business", "#reimbursable", "#vacation", "#subscriptions", "#medical")
     var selectedTags by remember { mutableStateOf(setOf<String>()) }
     var customTag by remember { mutableStateOf("") }
@@ -138,8 +145,12 @@ fun AddTransactionScreen(navController: NavController) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Icon(Icons.Filled.Calculate, contentDescription = null, tint = OnSurfaceVariant, modifier = Modifier.size(14.dp))
-                        Text("Tap to enter amount", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                        Icon(Icons.Filled.Calculate, contentDescription = null, tint = if (showErrors && !isAmountValid) Error else OnSurfaceVariant, modifier = Modifier.size(14.dp))
+                        Text(
+                            if (showErrors && !isAmountValid) "Amount must be greater than 0" else "Tap to enter amount",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (showErrors && !isAmountValid) Error else OnSurfaceVariant
+                        )
                     }
                 }
             }
@@ -148,7 +159,9 @@ fun AddTransactionScreen(navController: NavController) {
                 value = title, onValueChange = { title = it },
                 label = "Title",
                 placeholder = "e.g. Rent, Salary",
-                modifier = Modifier.fillMaxWidth()
+                modifier = Modifier.fillMaxWidth(),
+                isError = showErrors && !isTitleValid,
+                supportingText = if (showErrors && !isTitleValid) "Title is required" else null
             )
 
             // Category selector
@@ -272,7 +285,10 @@ fun AddTransactionScreen(navController: NavController) {
             Spacer(Modifier.height(8.dp))
 
             Button(
-                onClick = { navController.popBackStack() },
+                onClick = {
+                    showErrors = true
+                    if (isFormValid) navController.popBackStack()
+                },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = accentColor),
                 shape = RoundedCornerShape(6.dp)

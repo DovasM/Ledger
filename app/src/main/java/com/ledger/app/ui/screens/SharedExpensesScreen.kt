@@ -175,13 +175,24 @@ private fun AddExpenseSheet(onDismiss: () -> Unit) {
     var description by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("") }
     var paidBy by remember { mutableStateOf("You") }
+    var showErrors by remember { mutableStateOf(false) }
+
+    val isDescriptionValid = description.isNotBlank()
+    val isAmountValid = amount.toDoubleOrNull()?.let { it > 0 } ?: false
+
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 32.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
         Text("Add Expense", style = MaterialTheme.typography.titleLarge, color = OnSurface, fontWeight = FontWeight.Bold)
-        LedgerTextField(value = description, onValueChange = { description = it }, label = "Description", modifier = Modifier.fillMaxWidth())
-        LedgerTextField(value = amount, onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) amount = it }, label = "Amount", modifier = Modifier.fillMaxWidth())
+        LedgerTextField(value = description, onValueChange = { description = it }, label = "Description",
+            modifier = Modifier.fillMaxWidth(),
+            isError = showErrors && !isDescriptionValid,
+            supportingText = if (showErrors && !isDescriptionValid) "Description is required" else null)
+        LedgerTextField(value = amount, onValueChange = { if (it.all { c -> c.isDigit() || c == '.' }) amount = it },
+            label = "Amount", modifier = Modifier.fillMaxWidth(),
+            isError = showErrors && !isAmountValid,
+            supportingText = if (showErrors && !isAmountValid) "Enter an amount greater than 0" else null)
         Text("Paid by", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant)
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             listOf("You", "Sarah", "Mike", "Tom").forEach { person ->
@@ -192,7 +203,11 @@ private fun AddExpenseSheet(onDismiss: () -> Unit) {
                 )
             }
         }
-        Button(onClick = onDismiss, modifier = Modifier.fillMaxWidth().height(52.dp), colors = ButtonDefaults.buttonColors(containerColor = Primary), shape = RoundedCornerShape(6.dp)) {
+        Button(
+            onClick = { showErrors = true; if (isDescriptionValid && isAmountValid) onDismiss() },
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = Primary), shape = RoundedCornerShape(6.dp)
+        ) {
             Text("Add Expense", style = MaterialTheme.typography.labelLarge)
         }
     }

@@ -48,6 +48,10 @@ fun AddWalletScreen(navController: NavController) {
 
     val walletTypes = listOf("Checking", "Savings", "Cash", "Investment", "Credit Card", "Other")
     var selectedType by remember { mutableStateOf(walletTypes[0]) }
+    var showErrors by remember { mutableStateOf(false) }
+
+    val isNameValid = name.isNotBlank()
+    val isBalanceValid = balance.toDoubleOrNull() != null
 
     Scaffold(
         topBar = {
@@ -138,16 +142,21 @@ fun AddWalletScreen(navController: NavController) {
             }
 
             LedgerTextField(value = name, onValueChange = { name = it }, label = "Wallet Name",
-                placeholder = "e.g. Checking Account", modifier = Modifier.fillMaxWidth())
-            LedgerTextField(value = balance, onValueChange = { balance = it }, label = "Initial Balance",
+                placeholder = "e.g. Checking Account", modifier = Modifier.fillMaxWidth(),
+                isError = showErrors && !isNameValid,
+                supportingText = if (showErrors && !isNameValid) "Wallet name is required" else null)
+            LedgerTextField(value = balance, onValueChange = { if (it.all { c -> c.isDigit() || c == '.' || c == '-' }) balance = it },
+                label = "Initial Balance",
                 leadingIcon = { Icon(Icons.Filled.AttachMoney, contentDescription = null, tint = OnSurfaceVariant) },
-                modifier = Modifier.fillMaxWidth())
+                modifier = Modifier.fillMaxWidth(),
+                isError = showErrors && !isBalanceValid,
+                supportingText = if (showErrors && !isBalanceValid) "Enter a valid balance (e.g. 0 or 1500.00)" else null)
             LedgerTextField(value = description, onValueChange = { description = it },
                 label = "Description (optional)", modifier = Modifier.fillMaxWidth())
 
             Spacer(Modifier.height(8.dp))
             Button(
-                onClick = { navController.popBackStack() },
+                onClick = { showErrors = true; if (isNameValid && isBalanceValid) navController.popBackStack() },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Primary),
                 shape = RoundedCornerShape(6.dp)
