@@ -13,15 +13,15 @@ sealed class Screen(val route: String) {
     object Transactions : Screen("transactions")
     object AddTransaction : Screen("add_transaction")
     object EditTransaction : Screen("edit_transaction/{id}") {
-        fun createRoute(id: Long) = "edit_transaction/$id"
+        fun createRoute(id: String) = "edit_transaction/$id"
     }
     object WalletsList : Screen("wallets")
     object WalletDetails : Screen("wallet_details/{id}") {
-        fun createRoute(id: Long) = "wallet_details/$id"
+        fun createRoute(id: String) = "wallet_details/$id"
     }
     object AddWallet : Screen("add_wallet")
     object EditWallet : Screen("edit_wallet/{id}") {
-        fun createRoute(id: Long) = "edit_wallet/$id"
+        fun createRoute(id: String) = "edit_wallet/$id"
     }
     object InvestmentPortfolio : Screen("investments")
     object ConnectAccount : Screen("connect_account")
@@ -33,15 +33,15 @@ sealed class Screen(val route: String) {
     object SavingsGoals : Screen("savings")
     object AddGoal : Screen("add_goal")
     object EditGoal : Screen("edit_goal/{id}") {
-        fun createRoute(id: Long) = "edit_goal/$id"
+        fun createRoute(id: String) = "edit_goal/$id"
     }
     object GoalDetails : Screen("goal/{id}") {
-        fun createRoute(id: Long) = "goal/$id"
+        fun createRoute(id: String) = "goal/$id"
     }
     object CategoriesManagement : Screen("categories")
     object AddCategory : Screen("add_category")
-    object EditCategory : Screen("edit_category/{name}") {
-        fun createRoute(name: String) = "edit_category/$name"
+    object EditCategory : Screen("edit_category/{id}") {
+        fun createRoute(id: String) = "edit_category/$id"
     }
     object CustomReport : Screen("custom_report")
     object CategoryTransactions : Screen("category_transactions/{name}") {
@@ -54,8 +54,8 @@ sealed class Screen(val route: String) {
     }
     object Budgets : Screen("budgets")
     object AddBudget : Screen("add_budget")
-    object EditBudget : Screen("edit_budget/{category}") {
-        fun createRoute(category: String) = "edit_budget/$category"
+    object EditBudget : Screen("edit_budget/{id}") {
+        fun createRoute(id: String) = "edit_budget/$id"
     }
     object RecurringTransactions : Screen("recurring")
     object AddRecurring : Screen("add_recurring")
@@ -65,12 +65,11 @@ sealed class Screen(val route: String) {
     object PriceAlerts : Screen("price_alerts")
     object InvestmentPnL : Screen("investment_pnl")
     object Dividends : Screen("dividends")
-    // New screens
     object NetWorth : Screen("net_worth")
     object DebtTracker : Screen("debt_tracker")
     object AddDebt : Screen("add_debt")
     object EditDebt : Screen("edit_debt/{id}") {
-        fun createRoute(id: Long) = "edit_debt/$id"
+        fun createRoute(id: String) = "edit_debt/$id"
     }
     object SharedExpenses : Screen("shared_expenses")
     object TransactionImport : Screen("import")
@@ -92,17 +91,17 @@ fun LedgerNavGraph(navController: NavHostController) {
         composable(Screen.Transactions.route) { TransactionsScreen(navController) }
         composable(Screen.AddTransaction.route) { AddTransactionScreen(navController) }
         composable(Screen.EditTransaction.route) { backStack ->
-            val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+            val id = backStack.arguments?.getString("id") ?: return@composable
             EditTransactionScreen(navController, id)
         }
         composable(Screen.WalletsList.route) { WalletsListScreen(navController) }
         composable(Screen.WalletDetails.route) { backStack ->
-            val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+            val id = backStack.arguments?.getString("id") ?: return@composable
             WalletDetailsScreen(navController, id)
         }
         composable(Screen.AddWallet.route) { AddWalletScreen(navController) }
         composable(Screen.EditWallet.route) { backStack ->
-            val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+            val id = backStack.arguments?.getString("id") ?: return@composable
             EditWalletScreen(navController, id)
         }
         composable(Screen.InvestmentPortfolio.route) { InvestmentPortfolioScreen(navController) }
@@ -116,18 +115,18 @@ fun LedgerNavGraph(navController: NavHostController) {
         composable(Screen.SavingsGoals.route) { SavingsGoalsScreen(navController) }
         composable(Screen.AddGoal.route) { AddGoalScreen(navController) }
         composable(Screen.EditGoal.route) { backStack ->
-            val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+            val id = backStack.arguments?.getString("id") ?: return@composable
             EditGoalScreen(navController, id)
         }
         composable(Screen.GoalDetails.route) { backStack ->
-            val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+            val id = backStack.arguments?.getString("id") ?: return@composable
             GoalDetailsScreen(navController, id)
         }
         composable(Screen.CategoriesManagement.route) { CategoriesManagementScreen(navController) }
         composable(Screen.AddCategory.route) { AddCategoryScreen(navController) }
         composable(Screen.EditCategory.route) { backStack ->
-            val name = backStack.arguments?.getString("name") ?: return@composable
-            EditCategoryScreen(navController, name)
+            val id = backStack.arguments?.getString("id") ?: return@composable
+            EditCategoryScreen(navController, id)
         }
         composable(Screen.CustomReport.route) { CustomReportScreen(navController) }
         composable(Screen.CategoryTransactions.route) { backStack ->
@@ -143,8 +142,8 @@ fun LedgerNavGraph(navController: NavHostController) {
         composable(Screen.Budgets.route) { BudgetsScreen(navController) }
         composable(Screen.AddBudget.route) { AddEditBudgetScreen(navController) }
         composable(Screen.EditBudget.route) { backStack ->
-            val category = backStack.arguments?.getString("category") ?: return@composable
-            AddEditBudgetScreen(navController, categoryName = category)
+            val id = backStack.arguments?.getString("id") ?: return@composable
+            AddEditBudgetScreen(navController, budgetId = id)
         }
         composable(Screen.RecurringTransactions.route) { RecurringTransactionsScreen(navController) }
         composable(Screen.AddRecurring.route) { AddRecurringScreen(navController) }
@@ -154,12 +153,11 @@ fun LedgerNavGraph(navController: NavHostController) {
         composable(Screen.PriceAlerts.route) { PriceAlertsScreen(navController) }
         composable(Screen.InvestmentPnL.route) { InvestmentPnLScreen(navController) }
         composable(Screen.Dividends.route) { DividendsScreen(navController) }
-        // New screens
         composable(Screen.NetWorth.route) { NetWorthScreen(navController) }
         composable(Screen.DebtTracker.route) { DebtTrackerScreen(navController) }
         composable(Screen.AddDebt.route) { AddEditDebtScreen(navController) }
         composable(Screen.EditDebt.route) { backStack ->
-            val id = backStack.arguments?.getString("id")?.toLongOrNull() ?: return@composable
+            val id = backStack.arguments?.getString("id") ?: return@composable
             AddEditDebtScreen(navController, debtId = id)
         }
         composable(Screen.SharedExpenses.route) { SharedExpensesScreen(navController) }

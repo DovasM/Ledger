@@ -14,8 +14,12 @@ local.properties
 *.ipr
 .DS_Store
 
-# NDK
+# Rust build output — never commit the entire target tree
+core/target/
+
+# NDK — ignore generated .so files everywhere EXCEPT the jniLibs that the app ships
 *.so
+!app/src/main/jniLibs/**/*.so
 
 # APKs / AABs / release artifacts
 *.apk

@@ -47,21 +47,81 @@ dictionary MonthSummary {
     i32 transaction_count;
 };
 
+dictionary Category {
+    string id;
+    string name;
+    string icon_name;
+    string color_hex;
+    boolean is_expense;
+    string created_at;
+};
+
+dictionary Budget {
+    string id;
+    string category_id;
+    f64 limit_amount;
+    string period;
+    f64 alert_threshold;
+    string created_at;
+};
+
+dictionary Debt {
+    string id;
+    string name;
+    string debt_type;
+    f64 total_amount;
+    f64 remaining_amount;
+    f64 apr;
+    f64 monthly_payment;
+    string created_at;
+};
+
+dictionary RecurringTransaction {
+    string id;
+    string title;
+    f64 amount;
+    string category;
+    string wallet_id;
+    boolean is_income;
+    string frequency;
+    string next_date;
+    string created_at;
+};
+
+dictionary Tag {
+    string id;
+    string name;
+    string created_at;
+};
+
+dictionary PriceAlert {
+    string id;
+    string symbol;
+    string asset_name;
+    f64 target_price;
+    string direction;
+    boolean active;
+    string created_at;
+};
+
 interface LedgerDb {
-    // Transactions
+    // ── Transactions ──────────────────────────────────────────────────────────
     [Throws=LedgerError]
     sequence<Transaction> list_transactions(string wallet_id, u32 limit, u32 offset);
+
+    [Throws=LedgerError]
+    sequence<Transaction> list_all_transactions(u32 limit, u32 offset);
 
     [Throws=LedgerError]
     Transaction create_transaction(string wallet_id, string title, string category, f64 amount, boolean is_income, string? note);
 
     [Throws=LedgerError]
-    Transaction update_transaction(string id, string title, string category, f64 amount, string? note);
+    Transaction update_transaction(string id, string title, string category, f64 amount, boolean is_income, string? note);
 
     [Throws=LedgerError]
     void delete_transaction(string id);
 
-    // Wallets
+    // ── Wallets ───────────────────────────────────────────────────────────────
     [Throws=LedgerError]
     sequence<Wallet> list_wallets();
 
@@ -74,7 +134,7 @@ interface LedgerDb {
     [Throws=LedgerError]
     void delete_wallet(string id);
 
-    // Savings Goals
+    // ── Savings Goals ─────────────────────────────────────────────────────────
     [Throws=LedgerError]
     sequence<SavingsGoal> list_goals();
 
@@ -84,7 +144,94 @@ interface LedgerDb {
     [Throws=LedgerError]
     SavingsGoal add_contribution(string goal_id, f64 amount);
 
-    // Statistics
+    [Throws=LedgerError]
+    void delete_goal(string id);
+
+    // ── Statistics ────────────────────────────────────────────────────────────
     [Throws=LedgerError]
     MonthSummary get_month_summary(i32 year, i32 month);
+
+    // ── Categories ────────────────────────────────────────────────────────────
+    [Throws=LedgerError]
+    sequence<Category> list_categories();
+
+    [Throws=LedgerError]
+    Category create_category(string name, string icon_name, string color_hex, boolean is_expense);
+
+    [Throws=LedgerError]
+    Category update_category(string id, string name, string icon_name, string color_hex, boolean is_expense);
+
+    [Throws=LedgerError]
+    void delete_category(string id);
+
+    // ── Budgets ───────────────────────────────────────────────────────────────
+    [Throws=LedgerError]
+    sequence<Budget> list_budgets();
+
+    [Throws=LedgerError]
+    Budget create_budget(string category_id, f64 limit_amount, string period, f64 alert_threshold);
+
+    [Throws=LedgerError]
+    Budget update_budget(string id, f64 limit_amount, string period, f64 alert_threshold);
+
+    [Throws=LedgerError]
+    void delete_budget(string id);
+
+    // ── Debts ─────────────────────────────────────────────────────────────────
+    [Throws=LedgerError]
+    sequence<Debt> list_debts();
+
+    [Throws=LedgerError]
+    Debt create_debt(string name, string debt_type, f64 total_amount, f64 remaining_amount, f64 apr, f64 monthly_payment);
+
+    [Throws=LedgerError]
+    Debt update_debt(string id, string name, string debt_type, f64 total_amount, f64 remaining_amount, f64 apr, f64 monthly_payment);
+
+    [Throws=LedgerError]
+    void delete_debt(string id);
+
+    // ── Recurring Transactions ────────────────────────────────────────────────
+    [Throws=LedgerError]
+    sequence<RecurringTransaction> list_recurring();
+
+    [Throws=LedgerError]
+    RecurringTransaction create_recurring(string title, f64 amount, string category, string wallet_id, boolean is_income, string frequency, string next_date);
+
+    [Throws=LedgerError]
+    RecurringTransaction update_recurring(string id, string title, f64 amount, string category, string frequency, string next_date);
+
+    [Throws=LedgerError]
+    void delete_recurring(string id);
+
+    // ── Tags ──────────────────────────────────────────────────────────────────
+    [Throws=LedgerError]
+    sequence<Tag> list_tags();
+
+    [Throws=LedgerError]
+    Tag create_tag(string name);
+
+    [Throws=LedgerError]
+    void delete_tag(string id);
+
+    [Throws=LedgerError]
+    void add_tag_to_transaction(string transaction_id, string tag_id);
+
+    [Throws=LedgerError]
+    void remove_tag_from_transaction(string transaction_id, string tag_id);
+
+    [Throws=LedgerError]
+    sequence<Tag> list_transaction_tags(string transaction_id);
+
+    // ── Price Alerts ──────────────────────────────────────────────────────────
+    [Throws=LedgerError]
+    sequence<PriceAlert> list_price_alerts();
+
+    [Throws=LedgerError]
+    PriceAlert create_price_alert(string symbol, string asset_name, f64 target_price, string direction);
+
+    [Throws=LedgerError]
+    PriceAlert set_price_alert_active(string id, boolean active);
+
+    [Throws=LedgerError]
+    void delete_price_alert(string id);
 };

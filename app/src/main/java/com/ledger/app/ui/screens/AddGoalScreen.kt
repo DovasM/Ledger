@@ -1,8 +1,5 @@
 package com.ledger.app.ui.screens
 
-import android.net.Uri
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,32 +19,30 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.viewmodel.GoalViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddGoalScreen(navController: NavController) {
+fun AddGoalScreen(
+    navController: NavController,
+    viewModel: GoalViewModel = hiltViewModel()
+) {
     var name by remember { mutableStateOf("") }
     var targetAmount by remember { mutableStateOf("") }
-    var selectedPhotoIndex by remember { mutableStateOf(0) }
+    var selectedIconIndex by remember { mutableStateOf(0) }
     var selectedColorIndex by remember { mutableStateOf(0) }
     var showDatePicker by remember { mutableStateOf(false) }
     var selectedDeadline by remember { mutableStateOf("") }
-    var photoUri by remember { mutableStateOf<Uri?>(null) }
     var showCalc by remember { mutableStateOf(false) }
     var showErrors by remember { mutableStateOf(false) }
 
     val isNameValid = name.isNotBlank()
     val isAmountValid = targetAmount.toDoubleOrNull()?.let { it > 0 } ?: false
-
-    val imagePicker = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> photoUri = uri }
 
     val goalIcons = listOf(
         Icons.Filled.Home, Icons.Filled.Flight, Icons.Filled.DirectionsCar,
@@ -61,9 +56,6 @@ fun AddGoalScreen(navController: NavController) {
         Color(0xFF920009), Color(0xFFE65100), Color(0xFF00838F),
         Color(0xFF558B2F), Color(0xFFF9A825), Color(0xFF4E342E),
     )
-
-    // Aggregated wealth mock data
-    val totalWealth = 24530.80f
 
     if (showCalc) {
         LedgerCalculatorSheet(
@@ -119,66 +111,6 @@ fun AddGoalScreen(navController: NavController) {
                 .padding(horizontal = 20.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Photo upload
-            Text("Goal Photo", style = MaterialTheme.typography.titleMedium, color = OnSurface)
-            LedgerCard(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(64.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (photoUri != null) goalColors[selectedColorIndex].copy(alpha = 0.2f) else SurfaceContainerHighest),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            if (photoUri != null) Icons.Filled.CheckCircle else Icons.Filled.Image,
-                            contentDescription = null,
-                            tint = if (photoUri != null) Primary else OnSurfaceVariant,
-                            modifier = Modifier.size(28.dp)
-                        )
-                    }
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(
-                            if (photoUri != null) "Photo selected" else "Optional cover photo",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = if (photoUri != null) OnSurface else OnSurfaceVariant
-                        )
-                        OutlinedButton(
-                            onClick = { imagePicker.launch("image/*") },
-                            shape = RoundedCornerShape(6.dp)
-                        ) {
-                            Icon(Icons.Filled.Upload, contentDescription = null, tint = Primary, modifier = Modifier.size(16.dp))
-                            Spacer(Modifier.width(6.dp))
-                            Text(if (photoUri != null) "Change" else "Upload Photo", color = Primary, style = MaterialTheme.typography.labelMedium)
-                        }
-                    }
-                }
-            }
-
-            // Aggregated wealth banner
-            LedgerCard(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.padding(16.dp).fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column {
-                        Text("AGGREGATED WEALTH", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text(
-                            "$${"%.2f".format(totalWealth)}",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = OnSurface,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Icon(Icons.Filled.AccountBalance, contentDescription = null, tint = Primary, modifier = Modifier.size(28.dp))
-                }
-            }
-
             // Goal name
             LedgerTextField(
                 value = name,
@@ -190,34 +122,13 @@ fun AddGoalScreen(navController: NavController) {
                 supportingText = if (showErrors && !isNameValid) "Goal name is required" else null
             )
 
-            // Target amount — tap to open calculator
-            Surface(onClick = { showCalc = true }, color = androidx.compose.ui.graphics.Color.Transparent, modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Target Amount", style = MaterialTheme.typography.labelMedium,
-                        color = if (showErrors && !isAmountValid) Error else OnSurfaceVariant)
-                    Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.Center) {
-                        Text("$", style = MaterialTheme.typography.headlineMedium,
-                            color = if (showErrors && !isAmountValid) Error else OnSurfaceVariant,
-                            fontWeight = FontWeight.Light)
-                        Text(
-                            if (targetAmount.isBlank()) "0" else targetAmount,
-                            style = MaterialTheme.typography.displayMedium.copy(fontSize = 52.sp),
-                            color = if (showErrors && !isAmountValid) Error else if (targetAmount.isBlank()) OutlineVariant else OnSurface,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Icon(Icons.Filled.Calculate, null,
-                            tint = if (showErrors && !isAmountValid) Error else OnSurfaceVariant,
-                            modifier = Modifier.size(14.dp))
-                        Text(
-                            if (showErrors && !isAmountValid) "Target amount must be greater than 0" else "Tap to enter target amount",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = if (showErrors && !isAmountValid) Error else OnSurfaceVariant
-                        )
-                    }
-                }
-            }
+            LedgerAmountField(
+                amount = targetAmount,
+                onAmountChange = { targetAmount = it },
+                onCalculatorOpen = { showCalc = true },
+                showError = showErrors && !isAmountValid,
+                errorMessage = "Target amount must be greater than 0"
+            )
 
             // Deadline picker
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -230,14 +141,14 @@ fun AddGoalScreen(navController: NavController) {
                     Icon(Icons.Filled.CalendarMonth, contentDescription = null, tint = Primary, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        if (selectedDeadline.isBlank()) "Pick a deadline" else selectedDeadline,
+                        if (selectedDeadline.isBlank()) "Pick a deadline (optional)" else selectedDeadline,
                         color = if (selectedDeadline.isBlank()) OnSurfaceVariant else OnSurface,
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }
             }
 
-            // Goal icon picker
+            // Icon picker
             Text("Goal Icon", style = MaterialTheme.typography.titleMedium, color = OnSurface)
             LazyVerticalGrid(
                 columns = GridCells.Fixed(6),
@@ -246,20 +157,17 @@ fun AddGoalScreen(navController: NavController) {
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(goalIcons.indices.toList()) { i ->
-                    val selected = i == selectedPhotoIndex
+                    val selected = i == selectedIconIndex
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
+                            .size(48.dp).clip(CircleShape)
                             .background(if (selected) goalColors[selectedColorIndex] else SurfaceContainerHighest)
-                            .clickable { selectedPhotoIndex = i },
+                            .clickable { selectedIconIndex = i },
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(
-                            goalIcons[i], contentDescription = null,
+                        Icon(goalIcons[i], null,
                             tint = if (selected) Color.White else OnSurfaceVariant,
-                            modifier = Modifier.size(22.dp)
-                        )
+                            modifier = Modifier.size(22.dp))
                     }
                 }
             }
@@ -270,9 +178,7 @@ fun AddGoalScreen(navController: NavController) {
                 goalColors.forEachIndexed { i, color ->
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(color)
+                            .size(36.dp).clip(CircleShape).background(color)
                             .border(if (i == selectedColorIndex) 3.dp else 0.dp, OnSurface, CircleShape)
                             .clickable { selectedColorIndex = i }
                     )
@@ -291,7 +197,7 @@ fun AddGoalScreen(navController: NavController) {
                         modifier = Modifier.size(52.dp).clip(CircleShape).background(goalColors[selectedColorIndex]),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(goalIcons[selectedPhotoIndex], contentDescription = null, tint = Color.White, modifier = Modifier.size(26.dp))
+                        Icon(goalIcons[selectedIconIndex], null, tint = Color.White, modifier = Modifier.size(26.dp))
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
@@ -301,7 +207,7 @@ fun AddGoalScreen(navController: NavController) {
                         )
                         Text(
                             buildString {
-                                if (targetAmount.isNotBlank()) append("Target: $$targetAmount")
+                                if (targetAmount.isNotBlank()) append("Target: \$$targetAmount")
                                 if (selectedDeadline.isNotBlank()) {
                                     if (targetAmount.isNotBlank()) append(" · ")
                                     append("Due $selectedDeadline")
@@ -317,12 +223,22 @@ fun AddGoalScreen(navController: NavController) {
 
             Spacer(Modifier.height(8.dp))
             Button(
-                onClick = { showErrors = true; if (isNameValid && isAmountValid) navController.popBackStack() },
+                onClick = {
+                    showErrors = true
+                    val amount = targetAmount.toDoubleOrNull()
+                    if (isNameValid && isAmountValid && amount != null) {
+                        viewModel.createGoal(
+                            name = name,
+                            targetAmount = amount,
+                            deadline = selectedDeadline.ifBlank { null }
+                        ) { navController.popBackStack() }
+                    }
+                },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Primary),
                 shape = RoundedCornerShape(6.dp)
             ) {
-                Icon(Icons.Filled.EmojiEvents, contentDescription = null, modifier = Modifier.size(18.dp))
+                Icon(Icons.Filled.EmojiEvents, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
                 Text("Create Goal", style = MaterialTheme.typography.labelLarge)
             }
