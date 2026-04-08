@@ -17,38 +17,36 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.viewmodel.WalletViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AddWalletScreen(navController: NavController) {
+fun AddWalletScreen(
+    navController: NavController,
+    viewModel: WalletViewModel = hiltViewModel()
+) {
     var name by remember { mutableStateOf("") }
     var balance by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
+    var selectedIconIndex by remember { mutableStateOf(0) }
+    var selectedType by remember { mutableStateOf("Checking") }
+    var showErrors by remember { mutableStateOf(false) }
 
     val walletIcons = listOf(
-        Icons.Filled.AccountBalance,
-        Icons.Filled.Savings,
-        Icons.Filled.Money,
-        Icons.Filled.TrendingUp,
-        Icons.Filled.CreditCard,
-        Icons.Filled.AccountBalanceWallet,
-        Icons.Filled.Business,
-        Icons.Filled.ShoppingCart,
-        Icons.Filled.Home,
-        Icons.Filled.Work,
-        Icons.Filled.LocalAtm,
-        Icons.Filled.Payments,
+        Icons.Filled.AccountBalance, Icons.Filled.Savings, Icons.Filled.Money,
+        Icons.Filled.TrendingUp, Icons.Filled.CreditCard, Icons.Filled.AccountBalanceWallet,
+        Icons.Filled.Business, Icons.Filled.ShoppingCart, Icons.Filled.Home,
+        Icons.Filled.Work, Icons.Filled.LocalAtm, Icons.Filled.Payments,
     )
-    var selectedIconIndex by remember { mutableStateOf(0) }
-
     val walletTypes = listOf("Checking", "Savings", "Cash", "Investment", "Credit Card", "Other")
-    var selectedType by remember { mutableStateOf(walletTypes[0]) }
-    var showErrors by remember { mutableStateOf(false) }
 
     val isNameValid = name.isNotBlank()
     val isBalanceValid = balance.toDoubleOrNull() != null
@@ -75,7 +73,6 @@ fun AddWalletScreen(navController: NavController) {
                 .padding(horizontal = 20.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Icon selection
             Text("Choose Icon", style = MaterialTheme.typography.titleMedium, color = OnSurface)
             LedgerCard(modifier = Modifier.fillMaxWidth()) {
                 LazyVerticalGrid(
@@ -87,57 +84,35 @@ fun AddWalletScreen(navController: NavController) {
                     items(walletIcons.indices.toList()) { i ->
                         val isSelected = i == selectedIconIndex
                         Box(
-                            modifier = Modifier
-                                .size(44.dp)
-                                .clip(CircleShape)
+                            modifier = Modifier.size(44.dp).clip(CircleShape)
                                 .background(if (isSelected) Primary else SurfaceContainerHighest)
-                                .border(
-                                    width = if (isSelected) 0.dp else 1.dp,
-                                    color = OutlineVariant.copy(alpha = 0.15f),
-                                    shape = CircleShape
-                                )
+                                .border(if (isSelected) 0.dp else 1.dp, OutlineVariant.copy(alpha = 0.15f), CircleShape)
                                 .clickable { selectedIconIndex = i },
                             contentAlignment = Alignment.Center
                         ) {
-                            Icon(
-                                walletIcons[i],
-                                contentDescription = null,
+                            Icon(walletIcons[i], contentDescription = null,
                                 tint = if (isSelected) OnPrimary else OnSurfaceVariant,
-                                modifier = Modifier.size(22.dp)
-                            )
+                                modifier = Modifier.size(22.dp))
                         }
                     }
                 }
             }
 
-            // Wallet type chips
             Text("Wallet Type", style = MaterialTheme.typography.titleMedium, color = OnSurface)
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 walletTypes.take(3).forEach { type ->
-                    FilterChip(
-                        selected = selectedType == type,
-                        onClick = { selectedType = type },
+                    FilterChip(selected = selectedType == type, onClick = { selectedType = type },
                         label = { Text(type, style = MaterialTheme.typography.labelSmall) },
                         modifier = Modifier.weight(1f),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Primary,
-                            selectedLabelColor = OnPrimary
-                        )
-                    )
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Primary, selectedLabelColor = OnPrimary))
                 }
             }
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 walletTypes.drop(3).forEach { type ->
-                    FilterChip(
-                        selected = selectedType == type,
-                        onClick = { selectedType = type },
+                    FilterChip(selected = selectedType == type, onClick = { selectedType = type },
                         label = { Text(type, style = MaterialTheme.typography.labelSmall) },
                         modifier = Modifier.weight(1f),
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = Primary,
-                            selectedLabelColor = OnPrimary
-                        )
-                    )
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Primary, selectedLabelColor = OnPrimary))
                 }
             }
 
@@ -145,9 +120,12 @@ fun AddWalletScreen(navController: NavController) {
                 placeholder = "e.g. Checking Account", modifier = Modifier.fillMaxWidth(),
                 isError = showErrors && !isNameValid,
                 supportingText = if (showErrors && !isNameValid) "Wallet name is required" else null)
-            LedgerTextField(value = balance, onValueChange = { if (it.all { c -> c.isDigit() || c == '.' || c == '-' }) balance = it },
+            LedgerTextField(
+                value = balance,
+                onValueChange = { if (it.all { c -> c.isDigit() || c == '.' || c == '-' }) balance = it },
                 label = "Initial Balance",
                 leadingIcon = { Icon(Icons.Filled.AttachMoney, contentDescription = null, tint = OnSurfaceVariant) },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                 modifier = Modifier.fillMaxWidth(),
                 isError = showErrors && !isBalanceValid,
                 supportingText = if (showErrors && !isBalanceValid) "Enter a valid balance (e.g. 0 or 1500.00)" else null)
@@ -156,7 +134,14 @@ fun AddWalletScreen(navController: NavController) {
 
             Spacer(Modifier.height(8.dp))
             Button(
-                onClick = { showErrors = true; if (isNameValid && isBalanceValid) navController.popBackStack() },
+                onClick = {
+                    showErrors = true
+                    if (isNameValid && isBalanceValid) {
+                        viewModel.createWallet(name, description.ifBlank { selectedType }, balance.toDouble()) {
+                            navController.popBackStack()
+                        }
+                    }
+                },
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Primary),
                 shape = RoundedCornerShape(6.dp)

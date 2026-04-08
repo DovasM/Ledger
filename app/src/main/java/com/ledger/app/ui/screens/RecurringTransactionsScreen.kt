@@ -12,48 +12,53 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
-
-private data class RecurringTx(
-    val title: String, val category: String, val icon: ImageVector, val color: Color,
-    val amount: String, val isIncome: Boolean, val frequency: String,
-    val nextDate: String, val wallet: String, val active: Boolean = true
-)
-
-private val recurringList = listOf(
-    RecurringTx("Salary",        "Work",          Icons.Filled.Work,             Color(0xFF00513F), "+\$5,200.00", true,  "Monthly",    "May 1, 2026",  "Checking Account"),
-    RecurringTx("Rent",          "Housing",       Icons.Filled.Home,             Color(0xFF00513F), "-\$1,200.00", false, "Monthly",    "May 1, 2026",  "Checking Account"),
-    RecurringTx("Netflix",       "Entertainment", Icons.Filled.Movie,            Color(0xFFE65100), "-\$15.99",    false, "Monthly",    "May 1, 2026",  "Checking Account"),
-    RecurringTx("Spotify",       "Entertainment", Icons.Filled.MusicNote,        Color(0xFFE65100), "-\$9.99",     false, "Monthly",    "May 4, 2026",  "Checking Account"),
-    RecurringTx("Gym",           "Health",        Icons.Filled.FitnessCenter,    Color(0xFF920009), "-\$40.00",    false, "Monthly",    "May 5, 2026",  "Checking Account"),
-    RecurringTx("Internet",      "Housing",       Icons.Filled.Wifi,             Color(0xFF00513F), "-\$45.00",    false, "Monthly",    "May 5, 2026",  "Checking Account"),
-    RecurringTx("Bus Pass",      "Transport",     Icons.Filled.DirectionsBus,    Color(0xFF6A1B9A), "-\$45.00",    false, "Monthly",    "May 1, 2026",  "Cash"),
-    RecurringTx("Freelance",     "Work",          Icons.Filled.Laptop,           Color(0xFF1565C0), "+\$800.00",   true,  "Bi-weekly",  "Apr 18, 2026", "Checking Account", active = false),
-)
+import com.ledger.app.ui.util.iconNameToVector
+import com.ledger.app.ui.viewmodel.CategoryViewModel
+import com.ledger.app.ui.viewmodel.RecurringViewModel
+import com.ledger.app.ui.viewmodel.WalletViewModel
+import uniffi.ledger.RecurringTransaction
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun RecurringTransactionsScreen(navController: NavController) {
-    var showActiveOnly by remember { mutableStateOf(false) }
+fun RecurringTransactionsScreen(
+    navController: NavController,
+    viewModel: RecurringViewModel = hiltViewModel(),
+    walletViewModel: WalletViewModel = hiltViewModel(),
+    categoryViewModel: CategoryViewModel = hiltViewModel()
+) {
+    val state          by viewModel.state.collectAsStateWithLifecycle()
+    val walletState    by walletViewModel.state.collectAsStateWithLifecycle()
+    val categoryState  by categoryViewModel.state.collectAsStateWithLifecycle()
+    val currentEntry by navController.currentBackStackEntryAsState()
+    LaunchedEffect(currentEntry?.destination?.route) { viewModel.load() }
 
-    val active   = recurringList.filter { it.active }
-    val inactive = recurringList.filter { !it.active }
-    val monthly  = active.filter { !it.isIncome }.sumOf { it.amount.replace("-\$","").replace(",","").toDoubleOrNull() ?: 0.0 }
-    val income   = active.filter { it.isIncome }.sumOf { it.amount.replace("+\$","").replace(",","").toDoubleOrNull() ?: 0.0 }
+    val recurring = state.recurring
+    val income    = recurring.filter { it.isIncome }.sumOf { it.amount }
+    val expenses  = recurring.filter { !it.isIncome }.sumOf { it.amount }
+    val net       = income - expenses
+
+    fun walletName(id: String) = walletState.wallets.find { it.id == id }?.name ?: id
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Recurring", style = MaterialTheme.typography.headlineSmall) },
-                navigationIcon = { IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Filled.ArrowBack, null) } },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Filled.ArrowBack, null) }
+                },
                 actions = {
                     IconButton(onClick = { navController.navigate(Screen.AddRecurring.route) }) {
                         Icon(Icons.Filled.Add, contentDescription = "Add recurring")
@@ -62,15 +67,23 @@ fun RecurringTransactionsScreen(navController: NavController) {
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceContainerLow)
             )
         },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = { navController.navigate(Screen.AddRecurring.route) },
+                containerColor = Primary, contentColor = OnPrimary
+            ) { Icon(Icons.Filled.Add, contentDescription = "Add recurring") }
+        },
         containerColor = SurfaceContainerLow
     ) { padding ->
         Column(
-            modifier = Modifier.fillMaxSize().padding(padding)
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Summary
+            // Summary card
             LedgerFloatingCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("MONTHLY RECURRING", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
@@ -81,13 +94,12 @@ fun RecurringTransactionsScreen(navController: NavController) {
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Expenses", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                            Text("-\$${"%.2f".format(monthly)}", style = MaterialTheme.typography.titleLarge, color = Tertiary, fontWeight = FontWeight.Bold)
+                            Text("-\$${"%.2f".format(expenses)}", style = MaterialTheme.typography.titleLarge, color = Tertiary, fontWeight = FontWeight.Bold)
                         }
                     }
                     HorizontalDivider(color = OutlineVariant.copy(alpha = 0.2f))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Net monthly recurring", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
-                        val net = income - monthly
                         Text(
                             "${if (net >= 0) "+" else ""}\$${"%.2f".format(net)}",
                             style = MaterialTheme.typography.titleSmall,
@@ -98,24 +110,40 @@ fun RecurringTransactionsScreen(navController: NavController) {
                 }
             }
 
-            // Upcoming this month
-            Text("Upcoming", style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.SemiBold)
-            LedgerCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-                    active.forEachIndexed { idx, tx ->
-                        RecurringRow(tx) {}
-                        if (idx < active.size - 1) HorizontalDivider(modifier = Modifier.padding(horizontal = 4.dp), color = OutlineVariant.copy(alpha = 0.15f))
+            if (state.isLoading) {
+                Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(color = Primary)
+                }
+            } else if (recurring.isEmpty()) {
+                LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                        Text("No recurring transactions yet. Add one to get started.", style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant)
                     }
                 }
-            }
+            } else {
+                val incomeItems  = recurring.filter { it.isIncome }
+                val expenseItems = recurring.filter { !it.isIncome }
 
-            if (inactive.isNotEmpty()) {
-                Text("Paused", style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.SemiBold)
-                LedgerCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-                        inactive.forEachIndexed { idx, tx ->
-                            RecurringRow(tx) {}
-                            if (idx < inactive.size - 1) HorizontalDivider(modifier = Modifier.padding(horizontal = 4.dp), color = OutlineVariant.copy(alpha = 0.15f))
+                if (incomeItems.isNotEmpty()) {
+                    Text("Income", style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.SemiBold)
+                    LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                            incomeItems.forEachIndexed { idx, tx ->
+                                RecurringRow(tx, walletName(tx.walletId), categoryState.categories, viewModel)
+                                if (idx < incomeItems.lastIndex) HorizontalDivider(modifier = Modifier.padding(horizontal = 4.dp), color = OutlineVariant.copy(alpha = 0.15f))
+                            }
+                        }
+                    }
+                }
+
+                if (expenseItems.isNotEmpty()) {
+                    Text("Expenses", style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.SemiBold)
+                    LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
+                            expenseItems.forEachIndexed { idx, tx ->
+                                RecurringRow(tx, walletName(tx.walletId), categoryState.categories, viewModel)
+                                if (idx < expenseItems.lastIndex) HorizontalDivider(modifier = Modifier.padding(horizontal = 4.dp), color = OutlineVariant.copy(alpha = 0.15f))
+                            }
                         }
                     }
                 }
@@ -125,34 +153,161 @@ fun RecurringTransactionsScreen(navController: NavController) {
 }
 
 @Composable
-private fun RecurringRow(tx: RecurringTx, onClick: () -> Unit) {
-    Surface(onClick = onClick, color = Color.Transparent, modifier = Modifier.fillMaxWidth()) {
-        Row(modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+private fun RecurringRow(
+    tx: RecurringTransaction,
+    walletName: String,
+    categories: List<uniffi.ledger.Category>,
+    viewModel: RecurringViewModel
+) {
+    var showOptionsDialog by remember { mutableStateOf(false) }
+    var showDeleteDialog by remember { mutableStateOf(false) }
+    var showEditDialog by remember { mutableStateOf(false) }
+
+    var editTitle by remember { mutableStateOf(tx.title) }
+    var editAmount by remember { mutableStateOf(tx.amount.toString()) }
+    var editFrequency by remember { mutableStateOf(tx.frequency) }
+    var editNextDate by remember { mutableStateOf(tx.nextDate) }
+
+    val accentColor = if (tx.isIncome) Primary else Tertiary
+    val matchedCategory = categories.find { it.name.equals(tx.category, ignoreCase = true) }
+    val icon = matchedCategory?.let { iconNameToVector(it.iconName) }
+        ?: if (tx.isIncome) Icons.Filled.TrendingUp else Icons.Filled.ShoppingCart
+
+    if (showOptionsDialog) {
+        AlertDialog(
+            onDismissRequest = { showOptionsDialog = false },
+            title = { Text(tx.title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text("${tx.frequency.replaceFirstChar { it.uppercase() }} · Next: ${tx.nextDate}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                    Text("${if (tx.isIncome) "+" else "-"}\$${"%.2f".format(tx.amount)}", style = MaterialTheme.typography.bodyMedium, color = accentColor)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showOptionsDialog = false; showDeleteDialog = true }) {
+                    Text("Delete", color = Tertiary)
+                }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = { showOptionsDialog = false }) { Text("Cancel", color = OnSurfaceVariant) }
+                    TextButton(onClick = {
+                        editTitle = tx.title; editAmount = tx.amount.toString()
+                        editFrequency = tx.frequency; editNextDate = tx.nextDate
+                        showOptionsDialog = false; showEditDialog = true
+                    }) { Text("Edit", color = accentColor) }
+                }
+            }
+        )
+    }
+
+    if (showEditDialog) {
+        val frequencies = listOf("daily", "weekly", "biweekly", "monthly", "yearly")
+        AlertDialog(
+            onDismissRequest = { showEditDialog = false },
+            title = { Text("Edit Recurring") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LedgerTextField(
+                        value = editTitle, onValueChange = { editTitle = it },
+                        label = "Title", modifier = Modifier.fillMaxWidth()
+                    )
+                    LedgerTextField(
+                        value = editAmount,
+                        onValueChange = { v -> if (v.all { it.isDigit() || it == '.' } && v.count { it == '.' } <= 1) editAmount = v },
+                        label = "Amount",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text("Frequency", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        frequencies.take(3).forEach { f ->
+                            FilterChip(
+                                selected = editFrequency == f,
+                                onClick = { editFrequency = f },
+                                label = { Text(f.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) },
+                                modifier = Modifier.weight(1f),
+                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = accentColor, selectedLabelColor = if (tx.isIncome) OnPrimary else OnTertiary)
+                            )
+                        }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        frequencies.drop(3).forEach { f ->
+                            FilterChip(
+                                selected = editFrequency == f,
+                                onClick = { editFrequency = f },
+                                label = { Text(f.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall) },
+                                modifier = Modifier.weight(1f),
+                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = accentColor, selectedLabelColor = if (tx.isIncome) OnPrimary else OnTertiary)
+                            )
+                        }
+                    }
+                    LedgerTextField(
+                        value = editNextDate, onValueChange = { editNextDate = it },
+                        label = "Next Date (YYYY-MM-DD)", modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val amt = editAmount.toDoubleOrNull()
+                    if (editTitle.isNotBlank() && amt != null && amt > 0) {
+                        viewModel.updateRecurring(tx.id, editTitle, amt, tx.category, editFrequency, editNextDate)
+                        showEditDialog = false
+                    }
+                }) { Text("Save", color = accentColor) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showEditDialog = false }) { Text("Cancel", color = OnSurfaceVariant) }
+            }
+        )
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text("Delete Recurring") },
+            text = { Text("Delete \"${tx.title}\"? This will not affect past transactions.", style = MaterialTheme.typography.bodyMedium) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.deleteRecurring(tx.id) { showDeleteDialog = false } }) {
+                    Text("Delete", color = Tertiary)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) { Text("Cancel", color = Primary) }
+            }
+        )
+    }
+
+    Surface(onClick = { showOptionsDialog = true }, color = Color.Transparent, modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
             Box(
-                modifier = Modifier.size(40.dp).clip(CircleShape)
-                    .background(if (tx.active) tx.color.copy(alpha = 0.12f) else SurfaceContainerHighest),
+                modifier = Modifier.size(40.dp).clip(CircleShape).background(accentColor.copy(alpha = 0.12f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(tx.icon, contentDescription = null, tint = if (tx.active) tx.color else OnSurfaceVariant, modifier = Modifier.size(20.dp))
+                Icon(icon, null, tint = accentColor, modifier = Modifier.size(20.dp))
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(tx.title, style = MaterialTheme.typography.titleSmall, color = if (tx.active) OnSurface else OnSurfaceVariant, fontWeight = FontWeight.Medium)
+                Text(tx.title, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.Medium)
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text(tx.frequency, style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Text(tx.frequency.replaceFirstChar { it.uppercase() }, style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     Text("·", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     Text("Next: ${tx.nextDate}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                 }
+                Text(walletName, style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
             }
-            Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Text(tx.amount, style = MaterialTheme.typography.titleSmall,
-                    color = if (!tx.active) OnSurfaceVariant else if (tx.isIncome) Primary else Tertiary,
-                    fontWeight = FontWeight.SemiBold)
-                if (!tx.active) {
-                    Surface(shape = RoundedCornerShape(4.dp), color = SurfaceContainerHighest) {
-                        Text("Paused", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                    }
-                }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "${if (tx.isIncome) "+" else "-"}\$${"%.2f".format(tx.amount)}",
+                    style = MaterialTheme.typography.titleSmall,
+                    color = accentColor,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Icon(Icons.Filled.MoreVert, null, tint = OnSurfaceVariant, modifier = Modifier.size(16.dp))
             }
         }
     }

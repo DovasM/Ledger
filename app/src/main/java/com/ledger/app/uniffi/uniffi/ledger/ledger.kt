@@ -59,7 +59,7 @@ open class RustBuffer : Structure() {
     companion object {
         internal fun alloc(size: ULong = 0UL) = uniffiRustCall() { status ->
             // Note: need to convert the size to a `Long` value to make this work with JVM.
-            UniffiLib.INSTANCE.ffi_ledger_core_rustbuffer_alloc(size.toLong(), status)
+            UniffiLib.INSTANCE.ffi_uniffi_ledger_rustbuffer_alloc(size.toLong(), status)
         }.also {
             if(it.data == null) {
                throw RuntimeException("RustBuffer.alloc() returned null data pointer (size=${size})")
@@ -75,7 +75,7 @@ open class RustBuffer : Structure() {
         }
 
         internal fun free(buf: RustBuffer.ByValue) = uniffiRustCall() { status ->
-            UniffiLib.INSTANCE.ffi_ledger_core_rustbuffer_free(buf, status)
+            UniffiLib.INSTANCE.ffi_uniffi_ledger_rustbuffer_free(buf, status)
         }
     }
 
@@ -375,7 +375,7 @@ private fun findLibraryName(componentName: String): String {
     if (libOverride != null) {
         return libOverride
     }
-    return "ledger_core"
+    return "uniffi_ledger"
 }
 
 private inline fun <reified Lib : Library> loadIndirect(
@@ -740,6 +740,62 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -759,175 +815,287 @@ internal interface UniffiLib : Library {
         }
     }
 
-    fun uniffi_ledger_core_fn_clone_ledgerdb(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_clone_ledgerdb(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
-    fun uniffi_ledger_core_fn_free_ledgerdb(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_free_ledgerdb(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    fun uniffi_ledger_core_fn_method_ledgerdb_add_contribution(`ptr`: Pointer,`goalId`: RustBuffer.ByValue,`amount`: Double,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_add_contribution(`ptr`: Pointer,`goalId`: RustBuffer.ByValue,`amount`: Double,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_ledger_core_fn_method_ledgerdb_create_goal(`ptr`: Pointer,`name`: RustBuffer.ByValue,`targetAmount`: Double,`deadline`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun uniffi_ledger_core_fn_method_ledgerdb_create_transaction(`ptr`: Pointer,`walletId`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`amount`: Double,`isIncome`: Byte,`note`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun uniffi_ledger_core_fn_method_ledgerdb_create_wallet(`ptr`: Pointer,`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`initialBalance`: Double,uniffi_out_err: UniffiRustCallStatus, 
-    ): RustBuffer.ByValue
-    fun uniffi_ledger_core_fn_method_ledgerdb_delete_transaction(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_add_tag_to_transaction(`ptr`: Pointer,`transactionId`: RustBuffer.ByValue,`tagId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    fun uniffi_ledger_core_fn_method_ledgerdb_delete_wallet(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_budget(`ptr`: Pointer,`categoryId`: RustBuffer.ByValue,`limitAmount`: Double,`period`: RustBuffer.ByValue,`alertThreshold`: Double,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_category(`ptr`: Pointer,`name`: RustBuffer.ByValue,`iconName`: RustBuffer.ByValue,`colorHex`: RustBuffer.ByValue,`isExpense`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_debt(`ptr`: Pointer,`name`: RustBuffer.ByValue,`debtType`: RustBuffer.ByValue,`totalAmount`: Double,`remainingAmount`: Double,`apr`: Double,`monthlyPayment`: Double,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_goal(`ptr`: Pointer,`name`: RustBuffer.ByValue,`targetAmount`: Double,`deadline`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_price_alert(`ptr`: Pointer,`symbol`: RustBuffer.ByValue,`assetName`: RustBuffer.ByValue,`targetPrice`: Double,`direction`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_recurring(`ptr`: Pointer,`title`: RustBuffer.ByValue,`amount`: Double,`category`: RustBuffer.ByValue,`walletId`: RustBuffer.ByValue,`isIncome`: Byte,`frequency`: RustBuffer.ByValue,`nextDate`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_tag(`ptr`: Pointer,`name`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_transaction(`ptr`: Pointer,`walletId`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`amount`: Double,`isIncome`: Byte,`note`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_wallet(`ptr`: Pointer,`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`initialBalance`: Double,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_budget(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    fun uniffi_ledger_core_fn_method_ledgerdb_get_month_summary(`ptr`: Pointer,`year`: Int,`month`: Int,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_category(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_debt(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_goal(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_price_alert(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_recurring(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_tag(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_transaction(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_wallet(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_get_month_summary(`ptr`: Pointer,`year`: Int,`month`: Int,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_ledger_core_fn_method_ledgerdb_list_goals(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_all_transactions(`ptr`: Pointer,`limit`: Int,`offset`: Int,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_ledger_core_fn_method_ledgerdb_list_transactions(`ptr`: Pointer,`walletId`: RustBuffer.ByValue,`limit`: Int,`offset`: Int,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_budgets(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_ledger_core_fn_method_ledgerdb_list_wallets(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_categories(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_ledger_core_fn_method_ledgerdb_update_transaction(`ptr`: Pointer,`id`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`amount`: Double,`note`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_debts(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_ledger_core_fn_method_ledgerdb_update_wallet(`ptr`: Pointer,`id`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_goals(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_ledger_core_fn_func_open_database(`dbPath`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_price_alerts(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_recurring(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_tags(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_transaction_tags(`ptr`: Pointer,`transactionId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_transactions(`ptr`: Pointer,`walletId`: RustBuffer.ByValue,`limit`: Int,`offset`: Int,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_wallets(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_remove_tag_from_transaction(`ptr`: Pointer,`transactionId`: RustBuffer.ByValue,`tagId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_set_price_alert_active(`ptr`: Pointer,`id`: RustBuffer.ByValue,`active`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_budget(`ptr`: Pointer,`id`: RustBuffer.ByValue,`limitAmount`: Double,`period`: RustBuffer.ByValue,`alertThreshold`: Double,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_category(`ptr`: Pointer,`id`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,`iconName`: RustBuffer.ByValue,`colorHex`: RustBuffer.ByValue,`isExpense`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_debt(`ptr`: Pointer,`id`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,`debtType`: RustBuffer.ByValue,`totalAmount`: Double,`remainingAmount`: Double,`apr`: Double,`monthlyPayment`: Double,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_recurring(`ptr`: Pointer,`id`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`amount`: Double,`category`: RustBuffer.ByValue,`frequency`: RustBuffer.ByValue,`nextDate`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_transaction(`ptr`: Pointer,`id`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`amount`: Double,`isIncome`: Byte,`note`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_wallet(`ptr`: Pointer,`id`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_func_open_database(`dbPath`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
-    fun ffi_ledger_core_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun ffi_ledger_core_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rustbuffer_from_bytes(`bytes`: ForeignBytes.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun ffi_ledger_core_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rustbuffer_free(`buf`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    fun ffi_ledger_core_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rustbuffer_reserve(`buf`: RustBuffer.ByValue,`additional`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun ffi_ledger_core_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_uniffi_ledger_rust_future_poll_u8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_cancel_u8(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_cancel_u8(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_free_u8(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_free_u8(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rust_future_complete_u8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Byte
-    fun ffi_ledger_core_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_uniffi_ledger_rust_future_poll_i8(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_cancel_i8(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_cancel_i8(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_free_i8(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_free_i8(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rust_future_complete_i8(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Byte
-    fun ffi_ledger_core_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_uniffi_ledger_rust_future_poll_u16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_cancel_u16(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_cancel_u16(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_free_u16(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_free_u16(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rust_future_complete_u16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Short
-    fun ffi_ledger_core_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_uniffi_ledger_rust_future_poll_i16(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_cancel_i16(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_cancel_i16(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_free_i16(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_free_i16(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rust_future_complete_i16(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Short
-    fun ffi_ledger_core_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_uniffi_ledger_rust_future_poll_u32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_cancel_u32(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_cancel_u32(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_free_u32(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_free_u32(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rust_future_complete_u32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-    fun ffi_ledger_core_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_uniffi_ledger_rust_future_poll_i32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_cancel_i32(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_cancel_i32(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_free_i32(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_free_i32(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rust_future_complete_i32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
-    fun ffi_ledger_core_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_uniffi_ledger_rust_future_poll_u64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_cancel_u64(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_cancel_u64(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_free_u64(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_free_u64(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rust_future_complete_u64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-    fun ffi_ledger_core_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_uniffi_ledger_rust_future_poll_i64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_cancel_i64(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_cancel_i64(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_free_i64(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_free_i64(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rust_future_complete_i64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Long
-    fun ffi_ledger_core_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_uniffi_ledger_rust_future_poll_f32(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_cancel_f32(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_cancel_f32(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_free_f32(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_free_f32(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rust_future_complete_f32(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Float
-    fun ffi_ledger_core_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_uniffi_ledger_rust_future_poll_f64(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_cancel_f64(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_cancel_f64(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_free_f64(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_free_f64(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rust_future_complete_f64(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Double
-    fun ffi_ledger_core_rust_future_poll_pointer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_uniffi_ledger_rust_future_poll_pointer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_cancel_pointer(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_cancel_pointer(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_free_pointer(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_free_pointer(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_complete_pointer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rust_future_complete_pointer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
-    fun ffi_ledger_core_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_uniffi_ledger_rust_future_poll_rust_buffer(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_cancel_rust_buffer(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_cancel_rust_buffer(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_free_rust_buffer(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_free_rust_buffer(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rust_future_complete_rust_buffer(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun ffi_ledger_core_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
+    fun ffi_uniffi_ledger_rust_future_poll_void(`handle`: Long,`callback`: UniffiRustFutureContinuationCallback,`callbackData`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_cancel_void(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_cancel_void(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_free_void(`handle`: Long,
+    fun ffi_uniffi_ledger_rust_future_free_void(`handle`: Long,
     ): Unit
-    fun ffi_ledger_core_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    fun ffi_uniffi_ledger_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    fun uniffi_ledger_core_checksum_func_open_database(
+    fun uniffi_uniffi_ledger_checksum_func_open_database(
     ): Short
-    fun uniffi_ledger_core_checksum_method_ledgerdb_add_contribution(
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_add_contribution(
     ): Short
-    fun uniffi_ledger_core_checksum_method_ledgerdb_create_goal(
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_add_tag_to_transaction(
     ): Short
-    fun uniffi_ledger_core_checksum_method_ledgerdb_create_transaction(
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_create_budget(
     ): Short
-    fun uniffi_ledger_core_checksum_method_ledgerdb_create_wallet(
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_create_category(
     ): Short
-    fun uniffi_ledger_core_checksum_method_ledgerdb_delete_transaction(
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_create_debt(
     ): Short
-    fun uniffi_ledger_core_checksum_method_ledgerdb_delete_wallet(
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_create_goal(
     ): Short
-    fun uniffi_ledger_core_checksum_method_ledgerdb_get_month_summary(
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_create_price_alert(
     ): Short
-    fun uniffi_ledger_core_checksum_method_ledgerdb_list_goals(
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_create_recurring(
     ): Short
-    fun uniffi_ledger_core_checksum_method_ledgerdb_list_transactions(
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_create_tag(
     ): Short
-    fun uniffi_ledger_core_checksum_method_ledgerdb_list_wallets(
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_create_transaction(
     ): Short
-    fun uniffi_ledger_core_checksum_method_ledgerdb_update_transaction(
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_create_wallet(
     ): Short
-    fun uniffi_ledger_core_checksum_method_ledgerdb_update_wallet(
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_budget(
     ): Short
-    fun ffi_ledger_core_uniffi_contract_version(
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_category(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_debt(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_goal(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_price_alert(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_recurring(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_tag(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_transaction(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_wallet(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_get_month_summary(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_all_transactions(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_budgets(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_categories(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_debts(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_goals(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_price_alerts(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_recurring(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_tags(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_transaction_tags(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_transactions(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_wallets(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_remove_tag_from_transaction(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_set_price_alert_active(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_budget(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_category(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_debt(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_recurring(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_transaction(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_wallet(
+    ): Short
+    fun ffi_uniffi_ledger_uniffi_contract_version(
     ): Int
     
 }
@@ -936,7 +1104,7 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
     // Get the bindings contract version from our ComponentInterface
     val bindings_contract_version = 26
     // Get the scaffolding contract version by calling the into the dylib
-    val scaffolding_contract_version = lib.ffi_ledger_core_uniffi_contract_version()
+    val scaffolding_contract_version = lib.ffi_uniffi_ledger_uniffi_contract_version()
     if (bindings_contract_version != scaffolding_contract_version) {
         throw RuntimeException("UniFFI contract version mismatch: try cleaning and rebuilding your project")
     }
@@ -944,43 +1112,127 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: UniffiLib) {
-    if (lib.uniffi_ledger_core_checksum_func_open_database() != 31768.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_func_open_database() != 59108.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_ledger_core_checksum_method_ledgerdb_add_contribution() != 9828.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_add_contribution() != 25308.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_ledger_core_checksum_method_ledgerdb_create_goal() != 7733.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_add_tag_to_transaction() != 47708.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_ledger_core_checksum_method_ledgerdb_create_transaction() != 5875.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_budget() != 60661.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_ledger_core_checksum_method_ledgerdb_create_wallet() != 16880.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_category() != 7266.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_ledger_core_checksum_method_ledgerdb_delete_transaction() != 20919.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_debt() != 2252.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_ledger_core_checksum_method_ledgerdb_delete_wallet() != 59303.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_goal() != 41895.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_ledger_core_checksum_method_ledgerdb_get_month_summary() != 24805.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_price_alert() != 47761.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_ledger_core_checksum_method_ledgerdb_list_goals() != 56812.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_recurring() != 54104.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_ledger_core_checksum_method_ledgerdb_list_transactions() != 43899.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_tag() != 63035.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_ledger_core_checksum_method_ledgerdb_list_wallets() != 22901.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_transaction() != 11483.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_ledger_core_checksum_method_ledgerdb_update_transaction() != 20496.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_wallet() != 63488.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_ledger_core_checksum_method_ledgerdb_update_wallet() != 43601.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_budget() != 15213.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_category() != 40842.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_debt() != 22250.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_goal() != 54324.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_price_alert() != 26219.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_recurring() != 172.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_tag() != 42138.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_transaction() != 48373.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_wallet() != 65429.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_get_month_summary() != 2681.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_all_transactions() != 15133.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_budgets() != 5805.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_categories() != 45469.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_debts() != 65210.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_goals() != 24107.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_price_alerts() != 34921.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_recurring() != 53704.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_tags() != 10992.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_transaction_tags() != 57612.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_transactions() != 10817.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_wallets() != 51314.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_remove_tag_from_transaction() != 901.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_set_price_alert_active() != 45458.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_budget() != 38933.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_category() != 2029.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_debt() != 11449.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_recurring() != 6109.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_transaction() != 22720.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_wallet() != 35354.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1345,11 +1597,39 @@ public interface LedgerDbInterface {
     
     fun `addContribution`(`goalId`: kotlin.String, `amount`: kotlin.Double): SavingsGoal
     
+    fun `addTagToTransaction`(`transactionId`: kotlin.String, `tagId`: kotlin.String)
+    
+    fun `createBudget`(`categoryId`: kotlin.String, `limitAmount`: kotlin.Double, `period`: kotlin.String, `alertThreshold`: kotlin.Double): Budget
+    
+    fun `createCategory`(`name`: kotlin.String, `iconName`: kotlin.String, `colorHex`: kotlin.String, `isExpense`: kotlin.Boolean): Category
+    
+    fun `createDebt`(`name`: kotlin.String, `debtType`: kotlin.String, `totalAmount`: kotlin.Double, `remainingAmount`: kotlin.Double, `apr`: kotlin.Double, `monthlyPayment`: kotlin.Double): Debt
+    
     fun `createGoal`(`name`: kotlin.String, `targetAmount`: kotlin.Double, `deadline`: kotlin.String?): SavingsGoal
+    
+    fun `createPriceAlert`(`symbol`: kotlin.String, `assetName`: kotlin.String, `targetPrice`: kotlin.Double, `direction`: kotlin.String): PriceAlert
+    
+    fun `createRecurring`(`title`: kotlin.String, `amount`: kotlin.Double, `category`: kotlin.String, `walletId`: kotlin.String, `isIncome`: kotlin.Boolean, `frequency`: kotlin.String, `nextDate`: kotlin.String): RecurringTransaction
+    
+    fun `createTag`(`name`: kotlin.String): Tag
     
     fun `createTransaction`(`walletId`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `isIncome`: kotlin.Boolean, `note`: kotlin.String?): Transaction
     
     fun `createWallet`(`name`: kotlin.String, `description`: kotlin.String, `initialBalance`: kotlin.Double): Wallet
+    
+    fun `deleteBudget`(`id`: kotlin.String)
+    
+    fun `deleteCategory`(`id`: kotlin.String)
+    
+    fun `deleteDebt`(`id`: kotlin.String)
+    
+    fun `deleteGoal`(`id`: kotlin.String)
+    
+    fun `deletePriceAlert`(`id`: kotlin.String)
+    
+    fun `deleteRecurring`(`id`: kotlin.String)
+    
+    fun `deleteTag`(`id`: kotlin.String)
     
     fun `deleteTransaction`(`id`: kotlin.String)
     
@@ -1357,13 +1637,41 @@ public interface LedgerDbInterface {
     
     fun `getMonthSummary`(`year`: kotlin.Int, `month`: kotlin.Int): MonthSummary
     
+    fun `listAllTransactions`(`limit`: kotlin.UInt, `offset`: kotlin.UInt): List<Transaction>
+    
+    fun `listBudgets`(): List<Budget>
+    
+    fun `listCategories`(): List<Category>
+    
+    fun `listDebts`(): List<Debt>
+    
     fun `listGoals`(): List<SavingsGoal>
+    
+    fun `listPriceAlerts`(): List<PriceAlert>
+    
+    fun `listRecurring`(): List<RecurringTransaction>
+    
+    fun `listTags`(): List<Tag>
+    
+    fun `listTransactionTags`(`transactionId`: kotlin.String): List<Tag>
     
     fun `listTransactions`(`walletId`: kotlin.String, `limit`: kotlin.UInt, `offset`: kotlin.UInt): List<Transaction>
     
     fun `listWallets`(): List<Wallet>
     
-    fun `updateTransaction`(`id`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `note`: kotlin.String?): Transaction
+    fun `removeTagFromTransaction`(`transactionId`: kotlin.String, `tagId`: kotlin.String)
+    
+    fun `setPriceAlertActive`(`id`: kotlin.String, `active`: kotlin.Boolean): PriceAlert
+    
+    fun `updateBudget`(`id`: kotlin.String, `limitAmount`: kotlin.Double, `period`: kotlin.String, `alertThreshold`: kotlin.Double): Budget
+    
+    fun `updateCategory`(`id`: kotlin.String, `name`: kotlin.String, `iconName`: kotlin.String, `colorHex`: kotlin.String, `isExpense`: kotlin.Boolean): Category
+    
+    fun `updateDebt`(`id`: kotlin.String, `name`: kotlin.String, `debtType`: kotlin.String, `totalAmount`: kotlin.Double, `remainingAmount`: kotlin.Double, `apr`: kotlin.Double, `monthlyPayment`: kotlin.Double): Debt
+    
+    fun `updateRecurring`(`id`: kotlin.String, `title`: kotlin.String, `amount`: kotlin.Double, `category`: kotlin.String, `frequency`: kotlin.String, `nextDate`: kotlin.String): RecurringTransaction
+    
+    fun `updateTransaction`(`id`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `isIncome`: kotlin.Boolean, `note`: kotlin.String?): Transaction
     
     fun `updateWallet`(`id`: kotlin.String, `name`: kotlin.String, `description`: kotlin.String): Wallet
     
@@ -1439,7 +1747,7 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
         override fun run() {
             pointer?.let { ptr ->
                 uniffiRustCall { status ->
-                    UniffiLib.INSTANCE.uniffi_ledger_core_fn_free_ledgerdb(ptr, status)
+                    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_free_ledgerdb(ptr, status)
                 }
             }
         }
@@ -1447,7 +1755,7 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
 
     fun uniffiClonePointer(): Pointer {
         return uniffiRustCall() { status ->
-            UniffiLib.INSTANCE.uniffi_ledger_core_fn_clone_ledgerdb(pointer!!, status)
+            UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_clone_ledgerdb(pointer!!, status)
         }
     }
 
@@ -1456,8 +1764,59 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
             return FfiConverterTypeSavingsGoal.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
-    UniffiLib.INSTANCE.uniffi_ledger_core_fn_method_ledgerdb_add_contribution(
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_add_contribution(
         it, FfiConverterString.lower(`goalId`),FfiConverterDouble.lower(`amount`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `addTagToTransaction`(`transactionId`: kotlin.String, `tagId`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_add_tag_to_transaction(
+        it, FfiConverterString.lower(`transactionId`),FfiConverterString.lower(`tagId`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(LedgerException::class)override fun `createBudget`(`categoryId`: kotlin.String, `limitAmount`: kotlin.Double, `period`: kotlin.String, `alertThreshold`: kotlin.Double): Budget {
+            return FfiConverterTypeBudget.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_create_budget(
+        it, FfiConverterString.lower(`categoryId`),FfiConverterDouble.lower(`limitAmount`),FfiConverterString.lower(`period`),FfiConverterDouble.lower(`alertThreshold`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `createCategory`(`name`: kotlin.String, `iconName`: kotlin.String, `colorHex`: kotlin.String, `isExpense`: kotlin.Boolean): Category {
+            return FfiConverterTypeCategory.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_create_category(
+        it, FfiConverterString.lower(`name`),FfiConverterString.lower(`iconName`),FfiConverterString.lower(`colorHex`),FfiConverterBoolean.lower(`isExpense`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `createDebt`(`name`: kotlin.String, `debtType`: kotlin.String, `totalAmount`: kotlin.Double, `remainingAmount`: kotlin.Double, `apr`: kotlin.Double, `monthlyPayment`: kotlin.Double): Debt {
+            return FfiConverterTypeDebt.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_create_debt(
+        it, FfiConverterString.lower(`name`),FfiConverterString.lower(`debtType`),FfiConverterDouble.lower(`totalAmount`),FfiConverterDouble.lower(`remainingAmount`),FfiConverterDouble.lower(`apr`),FfiConverterDouble.lower(`monthlyPayment`),_status)
 }
     }
     )
@@ -1469,8 +1828,47 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
             return FfiConverterTypeSavingsGoal.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
-    UniffiLib.INSTANCE.uniffi_ledger_core_fn_method_ledgerdb_create_goal(
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_create_goal(
         it, FfiConverterString.lower(`name`),FfiConverterDouble.lower(`targetAmount`),FfiConverterOptionalString.lower(`deadline`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `createPriceAlert`(`symbol`: kotlin.String, `assetName`: kotlin.String, `targetPrice`: kotlin.Double, `direction`: kotlin.String): PriceAlert {
+            return FfiConverterTypePriceAlert.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_create_price_alert(
+        it, FfiConverterString.lower(`symbol`),FfiConverterString.lower(`assetName`),FfiConverterDouble.lower(`targetPrice`),FfiConverterString.lower(`direction`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `createRecurring`(`title`: kotlin.String, `amount`: kotlin.Double, `category`: kotlin.String, `walletId`: kotlin.String, `isIncome`: kotlin.Boolean, `frequency`: kotlin.String, `nextDate`: kotlin.String): RecurringTransaction {
+            return FfiConverterTypeRecurringTransaction.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_create_recurring(
+        it, FfiConverterString.lower(`title`),FfiConverterDouble.lower(`amount`),FfiConverterString.lower(`category`),FfiConverterString.lower(`walletId`),FfiConverterBoolean.lower(`isIncome`),FfiConverterString.lower(`frequency`),FfiConverterString.lower(`nextDate`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `createTag`(`name`: kotlin.String): Tag {
+            return FfiConverterTypeTag.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_create_tag(
+        it, FfiConverterString.lower(`name`),_status)
 }
     }
     )
@@ -1482,7 +1880,7 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
             return FfiConverterTypeTransaction.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
-    UniffiLib.INSTANCE.uniffi_ledger_core_fn_method_ledgerdb_create_transaction(
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_create_transaction(
         it, FfiConverterString.lower(`walletId`),FfiConverterString.lower(`title`),FfiConverterString.lower(`category`),FfiConverterDouble.lower(`amount`),FfiConverterBoolean.lower(`isIncome`),FfiConverterOptionalString.lower(`note`),_status)
 }
     }
@@ -1495,7 +1893,7 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
             return FfiConverterTypeWallet.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
-    UniffiLib.INSTANCE.uniffi_ledger_core_fn_method_ledgerdb_create_wallet(
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_create_wallet(
         it, FfiConverterString.lower(`name`),FfiConverterString.lower(`description`),FfiConverterDouble.lower(`initialBalance`),_status)
 }
     }
@@ -1504,11 +1902,95 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     
 
     
+    @Throws(LedgerException::class)override fun `deleteBudget`(`id`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_budget(
+        it, FfiConverterString.lower(`id`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(LedgerException::class)override fun `deleteCategory`(`id`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_category(
+        it, FfiConverterString.lower(`id`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(LedgerException::class)override fun `deleteDebt`(`id`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_debt(
+        it, FfiConverterString.lower(`id`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(LedgerException::class)override fun `deleteGoal`(`id`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_goal(
+        it, FfiConverterString.lower(`id`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(LedgerException::class)override fun `deletePriceAlert`(`id`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_price_alert(
+        it, FfiConverterString.lower(`id`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(LedgerException::class)override fun `deleteRecurring`(`id`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_recurring(
+        it, FfiConverterString.lower(`id`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(LedgerException::class)override fun `deleteTag`(`id`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_tag(
+        it, FfiConverterString.lower(`id`),_status)
+}
+    }
+    
+    
+
+    
     @Throws(LedgerException::class)override fun `deleteTransaction`(`id`: kotlin.String)
         = 
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
-    UniffiLib.INSTANCE.uniffi_ledger_core_fn_method_ledgerdb_delete_transaction(
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_transaction(
         it, FfiConverterString.lower(`id`),_status)
 }
     }
@@ -1520,7 +2002,7 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
         = 
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
-    UniffiLib.INSTANCE.uniffi_ledger_core_fn_method_ledgerdb_delete_wallet(
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_wallet(
         it, FfiConverterString.lower(`id`),_status)
 }
     }
@@ -1532,8 +2014,60 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
             return FfiConverterTypeMonthSummary.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
-    UniffiLib.INSTANCE.uniffi_ledger_core_fn_method_ledgerdb_get_month_summary(
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_get_month_summary(
         it, FfiConverterInt.lower(`year`),FfiConverterInt.lower(`month`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `listAllTransactions`(`limit`: kotlin.UInt, `offset`: kotlin.UInt): List<Transaction> {
+            return FfiConverterSequenceTypeTransaction.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_all_transactions(
+        it, FfiConverterUInt.lower(`limit`),FfiConverterUInt.lower(`offset`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `listBudgets`(): List<Budget> {
+            return FfiConverterSequenceTypeBudget.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_budgets(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `listCategories`(): List<Category> {
+            return FfiConverterSequenceTypeCategory.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_categories(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `listDebts`(): List<Debt> {
+            return FfiConverterSequenceTypeDebt.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_debts(
+        it, _status)
 }
     }
     )
@@ -1545,8 +2079,60 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
             return FfiConverterSequenceTypeSavingsGoal.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
-    UniffiLib.INSTANCE.uniffi_ledger_core_fn_method_ledgerdb_list_goals(
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_goals(
         it, _status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `listPriceAlerts`(): List<PriceAlert> {
+            return FfiConverterSequenceTypePriceAlert.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_price_alerts(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `listRecurring`(): List<RecurringTransaction> {
+            return FfiConverterSequenceTypeRecurringTransaction.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_recurring(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `listTags`(): List<Tag> {
+            return FfiConverterSequenceTypeTag.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_tags(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `listTransactionTags`(`transactionId`: kotlin.String): List<Tag> {
+            return FfiConverterSequenceTypeTag.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_transaction_tags(
+        it, FfiConverterString.lower(`transactionId`),_status)
 }
     }
     )
@@ -1558,7 +2144,7 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
             return FfiConverterSequenceTypeTransaction.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
-    UniffiLib.INSTANCE.uniffi_ledger_core_fn_method_ledgerdb_list_transactions(
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_transactions(
         it, FfiConverterString.lower(`walletId`),FfiConverterUInt.lower(`limit`),FfiConverterUInt.lower(`offset`),_status)
 }
     }
@@ -1571,7 +2157,7 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
             return FfiConverterSequenceTypeWallet.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
-    UniffiLib.INSTANCE.uniffi_ledger_core_fn_method_ledgerdb_list_wallets(
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_wallets(
         it, _status)
 }
     }
@@ -1580,12 +2166,89 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     
 
     
-    @Throws(LedgerException::class)override fun `updateTransaction`(`id`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `note`: kotlin.String?): Transaction {
+    @Throws(LedgerException::class)override fun `removeTagFromTransaction`(`transactionId`: kotlin.String, `tagId`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_remove_tag_from_transaction(
+        it, FfiConverterString.lower(`transactionId`),FfiConverterString.lower(`tagId`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(LedgerException::class)override fun `setPriceAlertActive`(`id`: kotlin.String, `active`: kotlin.Boolean): PriceAlert {
+            return FfiConverterTypePriceAlert.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_set_price_alert_active(
+        it, FfiConverterString.lower(`id`),FfiConverterBoolean.lower(`active`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `updateBudget`(`id`: kotlin.String, `limitAmount`: kotlin.Double, `period`: kotlin.String, `alertThreshold`: kotlin.Double): Budget {
+            return FfiConverterTypeBudget.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_update_budget(
+        it, FfiConverterString.lower(`id`),FfiConverterDouble.lower(`limitAmount`),FfiConverterString.lower(`period`),FfiConverterDouble.lower(`alertThreshold`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `updateCategory`(`id`: kotlin.String, `name`: kotlin.String, `iconName`: kotlin.String, `colorHex`: kotlin.String, `isExpense`: kotlin.Boolean): Category {
+            return FfiConverterTypeCategory.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_update_category(
+        it, FfiConverterString.lower(`id`),FfiConverterString.lower(`name`),FfiConverterString.lower(`iconName`),FfiConverterString.lower(`colorHex`),FfiConverterBoolean.lower(`isExpense`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `updateDebt`(`id`: kotlin.String, `name`: kotlin.String, `debtType`: kotlin.String, `totalAmount`: kotlin.Double, `remainingAmount`: kotlin.Double, `apr`: kotlin.Double, `monthlyPayment`: kotlin.Double): Debt {
+            return FfiConverterTypeDebt.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_update_debt(
+        it, FfiConverterString.lower(`id`),FfiConverterString.lower(`name`),FfiConverterString.lower(`debtType`),FfiConverterDouble.lower(`totalAmount`),FfiConverterDouble.lower(`remainingAmount`),FfiConverterDouble.lower(`apr`),FfiConverterDouble.lower(`monthlyPayment`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `updateRecurring`(`id`: kotlin.String, `title`: kotlin.String, `amount`: kotlin.Double, `category`: kotlin.String, `frequency`: kotlin.String, `nextDate`: kotlin.String): RecurringTransaction {
+            return FfiConverterTypeRecurringTransaction.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_update_recurring(
+        it, FfiConverterString.lower(`id`),FfiConverterString.lower(`title`),FfiConverterDouble.lower(`amount`),FfiConverterString.lower(`category`),FfiConverterString.lower(`frequency`),FfiConverterString.lower(`nextDate`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `updateTransaction`(`id`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `isIncome`: kotlin.Boolean, `note`: kotlin.String?): Transaction {
             return FfiConverterTypeTransaction.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
-    UniffiLib.INSTANCE.uniffi_ledger_core_fn_method_ledgerdb_update_transaction(
-        it, FfiConverterString.lower(`id`),FfiConverterString.lower(`title`),FfiConverterString.lower(`category`),FfiConverterDouble.lower(`amount`),FfiConverterOptionalString.lower(`note`),_status)
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_update_transaction(
+        it, FfiConverterString.lower(`id`),FfiConverterString.lower(`title`),FfiConverterString.lower(`category`),FfiConverterDouble.lower(`amount`),FfiConverterBoolean.lower(`isIncome`),FfiConverterOptionalString.lower(`note`),_status)
 }
     }
     )
@@ -1597,7 +2260,7 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
             return FfiConverterTypeWallet.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
-    UniffiLib.INSTANCE.uniffi_ledger_core_fn_method_ledgerdb_update_wallet(
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_update_wallet(
         it, FfiConverterString.lower(`id`),FfiConverterString.lower(`name`),FfiConverterString.lower(`description`),_status)
 }
     }
@@ -1643,6 +2306,158 @@ public object FfiConverterTypeLedgerDb: FfiConverter<LedgerDb, Pointer> {
 
 
 
+data class Budget (
+    var `id`: kotlin.String,
+    var `categoryId`: kotlin.String,
+    var `limitAmount`: kotlin.Double,
+    var `period`: kotlin.String,
+    var `alertThreshold`: kotlin.Double,
+    var `createdAt`: kotlin.String
+) {
+
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeBudget: FfiConverterRustBuffer<Budget> {
+    override fun read(buf: ByteBuffer): Budget {
+        return Budget(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterDouble.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterDouble.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: Budget) = (
+            FfiConverterString.allocationSize(value.`id`) +
+            FfiConverterString.allocationSize(value.`categoryId`) +
+            FfiConverterDouble.allocationSize(value.`limitAmount`) +
+            FfiConverterString.allocationSize(value.`period`) +
+            FfiConverterDouble.allocationSize(value.`alertThreshold`) +
+            FfiConverterString.allocationSize(value.`createdAt`)
+    )
+
+    override fun write(value: Budget, buf: ByteBuffer) {
+            FfiConverterString.write(value.`id`, buf)
+            FfiConverterString.write(value.`categoryId`, buf)
+            FfiConverterDouble.write(value.`limitAmount`, buf)
+            FfiConverterString.write(value.`period`, buf)
+            FfiConverterDouble.write(value.`alertThreshold`, buf)
+            FfiConverterString.write(value.`createdAt`, buf)
+    }
+}
+
+
+
+data class Category (
+    var `id`: kotlin.String, 
+    var `name`: kotlin.String, 
+    var `iconName`: kotlin.String, 
+    var `colorHex`: kotlin.String, 
+    var `isExpense`: kotlin.Boolean, 
+    var `createdAt`: kotlin.String
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeCategory: FfiConverterRustBuffer<Category> {
+    override fun read(buf: ByteBuffer): Category {
+        return Category(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: Category) = (
+            FfiConverterString.allocationSize(value.`id`) +
+            FfiConverterString.allocationSize(value.`name`) +
+            FfiConverterString.allocationSize(value.`iconName`) +
+            FfiConverterString.allocationSize(value.`colorHex`) +
+            FfiConverterBoolean.allocationSize(value.`isExpense`) +
+            FfiConverterString.allocationSize(value.`createdAt`)
+    )
+
+    override fun write(value: Category, buf: ByteBuffer) {
+            FfiConverterString.write(value.`id`, buf)
+            FfiConverterString.write(value.`name`, buf)
+            FfiConverterString.write(value.`iconName`, buf)
+            FfiConverterString.write(value.`colorHex`, buf)
+            FfiConverterBoolean.write(value.`isExpense`, buf)
+            FfiConverterString.write(value.`createdAt`, buf)
+    }
+}
+
+
+
+data class Debt (
+    var `id`: kotlin.String, 
+    var `name`: kotlin.String, 
+    var `debtType`: kotlin.String, 
+    var `totalAmount`: kotlin.Double, 
+    var `remainingAmount`: kotlin.Double, 
+    var `apr`: kotlin.Double, 
+    var `monthlyPayment`: kotlin.Double, 
+    var `createdAt`: kotlin.String
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeDebt: FfiConverterRustBuffer<Debt> {
+    override fun read(buf: ByteBuffer): Debt {
+        return Debt(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterDouble.read(buf),
+            FfiConverterDouble.read(buf),
+            FfiConverterDouble.read(buf),
+            FfiConverterDouble.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: Debt) = (
+            FfiConverterString.allocationSize(value.`id`) +
+            FfiConverterString.allocationSize(value.`name`) +
+            FfiConverterString.allocationSize(value.`debtType`) +
+            FfiConverterDouble.allocationSize(value.`totalAmount`) +
+            FfiConverterDouble.allocationSize(value.`remainingAmount`) +
+            FfiConverterDouble.allocationSize(value.`apr`) +
+            FfiConverterDouble.allocationSize(value.`monthlyPayment`) +
+            FfiConverterString.allocationSize(value.`createdAt`)
+    )
+
+    override fun write(value: Debt, buf: ByteBuffer) {
+            FfiConverterString.write(value.`id`, buf)
+            FfiConverterString.write(value.`name`, buf)
+            FfiConverterString.write(value.`debtType`, buf)
+            FfiConverterDouble.write(value.`totalAmount`, buf)
+            FfiConverterDouble.write(value.`remainingAmount`, buf)
+            FfiConverterDouble.write(value.`apr`, buf)
+            FfiConverterDouble.write(value.`monthlyPayment`, buf)
+            FfiConverterString.write(value.`createdAt`, buf)
+    }
+}
+
+
+
 data class MonthSummary (
     var `totalIncome`: kotlin.Double, 
     var `totalExpenses`: kotlin.Double, 
@@ -1678,6 +2493,118 @@ public object FfiConverterTypeMonthSummary: FfiConverterRustBuffer<MonthSummary>
             FfiConverterDouble.write(value.`totalExpenses`, buf)
             FfiConverterDouble.write(value.`netSavings`, buf)
             FfiConverterInt.write(value.`transactionCount`, buf)
+    }
+}
+
+
+
+data class PriceAlert (
+    var `id`: kotlin.String, 
+    var `symbol`: kotlin.String, 
+    var `assetName`: kotlin.String, 
+    var `targetPrice`: kotlin.Double, 
+    var `direction`: kotlin.String, 
+    var `active`: kotlin.Boolean, 
+    var `createdAt`: kotlin.String
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypePriceAlert: FfiConverterRustBuffer<PriceAlert> {
+    override fun read(buf: ByteBuffer): PriceAlert {
+        return PriceAlert(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterDouble.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: PriceAlert) = (
+            FfiConverterString.allocationSize(value.`id`) +
+            FfiConverterString.allocationSize(value.`symbol`) +
+            FfiConverterString.allocationSize(value.`assetName`) +
+            FfiConverterDouble.allocationSize(value.`targetPrice`) +
+            FfiConverterString.allocationSize(value.`direction`) +
+            FfiConverterBoolean.allocationSize(value.`active`) +
+            FfiConverterString.allocationSize(value.`createdAt`)
+    )
+
+    override fun write(value: PriceAlert, buf: ByteBuffer) {
+            FfiConverterString.write(value.`id`, buf)
+            FfiConverterString.write(value.`symbol`, buf)
+            FfiConverterString.write(value.`assetName`, buf)
+            FfiConverterDouble.write(value.`targetPrice`, buf)
+            FfiConverterString.write(value.`direction`, buf)
+            FfiConverterBoolean.write(value.`active`, buf)
+            FfiConverterString.write(value.`createdAt`, buf)
+    }
+}
+
+
+
+data class RecurringTransaction (
+    var `id`: kotlin.String, 
+    var `title`: kotlin.String, 
+    var `amount`: kotlin.Double, 
+    var `category`: kotlin.String, 
+    var `walletId`: kotlin.String, 
+    var `isIncome`: kotlin.Boolean, 
+    var `frequency`: kotlin.String, 
+    var `nextDate`: kotlin.String, 
+    var `createdAt`: kotlin.String
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeRecurringTransaction: FfiConverterRustBuffer<RecurringTransaction> {
+    override fun read(buf: ByteBuffer): RecurringTransaction {
+        return RecurringTransaction(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterDouble.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: RecurringTransaction) = (
+            FfiConverterString.allocationSize(value.`id`) +
+            FfiConverterString.allocationSize(value.`title`) +
+            FfiConverterDouble.allocationSize(value.`amount`) +
+            FfiConverterString.allocationSize(value.`category`) +
+            FfiConverterString.allocationSize(value.`walletId`) +
+            FfiConverterBoolean.allocationSize(value.`isIncome`) +
+            FfiConverterString.allocationSize(value.`frequency`) +
+            FfiConverterString.allocationSize(value.`nextDate`) +
+            FfiConverterString.allocationSize(value.`createdAt`)
+    )
+
+    override fun write(value: RecurringTransaction, buf: ByteBuffer) {
+            FfiConverterString.write(value.`id`, buf)
+            FfiConverterString.write(value.`title`, buf)
+            FfiConverterDouble.write(value.`amount`, buf)
+            FfiConverterString.write(value.`category`, buf)
+            FfiConverterString.write(value.`walletId`, buf)
+            FfiConverterBoolean.write(value.`isIncome`, buf)
+            FfiConverterString.write(value.`frequency`, buf)
+            FfiConverterString.write(value.`nextDate`, buf)
+            FfiConverterString.write(value.`createdAt`, buf)
     }
 }
 
@@ -1725,6 +2652,42 @@ public object FfiConverterTypeSavingsGoal: FfiConverterRustBuffer<SavingsGoal> {
             FfiConverterDouble.write(value.`currentAmount`, buf)
             FfiConverterDouble.write(value.`targetAmount`, buf)
             FfiConverterOptionalString.write(value.`deadline`, buf)
+            FfiConverterString.write(value.`createdAt`, buf)
+    }
+}
+
+
+
+data class Tag (
+    var `id`: kotlin.String, 
+    var `name`: kotlin.String, 
+    var `createdAt`: kotlin.String
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeTag: FfiConverterRustBuffer<Tag> {
+    override fun read(buf: ByteBuffer): Tag {
+        return Tag(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: Tag) = (
+            FfiConverterString.allocationSize(value.`id`) +
+            FfiConverterString.allocationSize(value.`name`) +
+            FfiConverterString.allocationSize(value.`createdAt`)
+    )
+
+    override fun write(value: Tag, buf: ByteBuffer) {
+            FfiConverterString.write(value.`id`, buf)
+            FfiConverterString.write(value.`name`, buf)
             FfiConverterString.write(value.`createdAt`, buf)
     }
 }
@@ -1923,6 +2886,146 @@ public object FfiConverterOptionalString: FfiConverterRustBuffer<kotlin.String?>
 /**
  * @suppress
  */
+public object FfiConverterSequenceTypeBudget: FfiConverterRustBuffer<List<Budget>> {
+    override fun read(buf: ByteBuffer): List<Budget> {
+        val len = buf.getInt()
+        return List<Budget>(len) {
+            FfiConverterTypeBudget.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<Budget>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeBudget.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<Budget>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeBudget.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeCategory: FfiConverterRustBuffer<List<Category>> {
+    override fun read(buf: ByteBuffer): List<Category> {
+        val len = buf.getInt()
+        return List<Category>(len) {
+            FfiConverterTypeCategory.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<Category>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeCategory.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<Category>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeCategory.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeDebt: FfiConverterRustBuffer<List<Debt>> {
+    override fun read(buf: ByteBuffer): List<Debt> {
+        val len = buf.getInt()
+        return List<Debt>(len) {
+            FfiConverterTypeDebt.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<Debt>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeDebt.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<Debt>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeDebt.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypePriceAlert: FfiConverterRustBuffer<List<PriceAlert>> {
+    override fun read(buf: ByteBuffer): List<PriceAlert> {
+        val len = buf.getInt()
+        return List<PriceAlert>(len) {
+            FfiConverterTypePriceAlert.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<PriceAlert>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypePriceAlert.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<PriceAlert>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypePriceAlert.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeRecurringTransaction: FfiConverterRustBuffer<List<RecurringTransaction>> {
+    override fun read(buf: ByteBuffer): List<RecurringTransaction> {
+        val len = buf.getInt()
+        return List<RecurringTransaction>(len) {
+            FfiConverterTypeRecurringTransaction.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<RecurringTransaction>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeRecurringTransaction.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<RecurringTransaction>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeRecurringTransaction.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterSequenceTypeSavingsGoal: FfiConverterRustBuffer<List<SavingsGoal>> {
     override fun read(buf: ByteBuffer): List<SavingsGoal> {
         val len = buf.getInt()
@@ -1941,6 +3044,34 @@ public object FfiConverterSequenceTypeSavingsGoal: FfiConverterRustBuffer<List<S
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeSavingsGoal.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeTag: FfiConverterRustBuffer<List<Tag>> {
+    override fun read(buf: ByteBuffer): List<Tag> {
+        val len = buf.getInt()
+        return List<Tag>(len) {
+            FfiConverterTypeTag.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<Tag>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeTag.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<Tag>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeTag.write(it, buf)
         }
     }
 }
@@ -2002,7 +3133,7 @@ public object FfiConverterSequenceTypeWallet: FfiConverterRustBuffer<List<Wallet
 } fun `openDatabase`(`dbPath`: kotlin.String): LedgerDb {
             return FfiConverterTypeLedgerDb.lift(
     uniffiRustCall() { _status ->
-    UniffiLib.INSTANCE.uniffi_ledger_core_fn_func_open_database(
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_func_open_database(
         FfiConverterString.lower(`dbPath`),_status)
 }
     )
