@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -14,9 +15,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.ledger.app.ui.util.GoalImageStore
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -175,6 +180,8 @@ private fun GoalCard(goal: SavingsGoal, navController: NavController) {
     val progress = if (goal.targetAmount > 0) (goal.currentAmount / goal.targetAmount).toFloat().coerceIn(0f, 1f) else 0f
     val color = goalColor(goal)
     val icon  = goalIcon(goal)
+    val context = LocalContext.current
+    val goalBitmap = remember(goal.name) { GoalImageStore.loadBitmap(context, goal.name)?.asImageBitmap() }
 
     LedgerCard(
         modifier = Modifier.fillMaxWidth(),
@@ -189,7 +196,16 @@ private fun GoalCard(goal: SavingsGoal, navController: NavController) {
                 modifier = Modifier.size(48.dp).clip(CircleShape).background(color),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                if (goalBitmap != null) {
+                    Image(
+                        bitmap = goalBitmap,
+                        contentDescription = null,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize().clip(CircleShape)
+                    )
+                } else {
+                    Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(24.dp))
+                }
             }
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {

@@ -52,6 +52,18 @@ class GoalViewModel @Inject constructor(
         }
     }
 
+    fun updateGoal(id: String, name: String, targetAmount: Double, deadline: String?, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                bridge.updateGoal(id, name, targetAmount, deadline)
+                load()
+                launch(Dispatchers.Main) { onSuccess() }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message)
+            }
+        }
+    }
+
     fun addContribution(goalId: String, amount: Double, onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {

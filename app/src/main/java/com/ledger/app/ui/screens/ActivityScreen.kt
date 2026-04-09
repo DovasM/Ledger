@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -74,12 +75,38 @@ fun ActivityScreen(
         }
     }
 
+    val activityPeriods = listOf("1W", "1M", "2M", "3M", "6M", "1Y", "All")
+    var selectedPeriod by remember { mutableStateOf("1M") }
+    val today = java.time.LocalDate.now()
+
+    val periodStart: java.time.LocalDate? = when (selectedPeriod) {
+        "1W"  -> today.minusDays(6)
+        "1M"  -> today.minusDays(29)
+        "2M"  -> today.minusDays(59)
+        "3M"  -> today.minusDays(89)
+        "6M"  -> today.minusDays(179)
+        "1Y"  -> today.minusDays(364)
+        else  -> null
+    }
+
+    val periodLabel = when (selectedPeriod) {
+        "1W" -> "Last 7 days"; "1M" -> "Last 30 days"; "2M" -> "Last 60 days"
+        "3M" -> "Last 90 days"; "6M" -> "Last 6 months"; "1Y" -> "Last year"
+        else -> "All time"
+    }
+
+    val visibleTxs = if (periodStart != null) {
+        state.transactions.filter {
+            runCatching { java.time.LocalDate.parse(it.createdAt.take(10)) >= periodStart }.getOrElse { false }
+        }
+    } else state.transactions
+
     // Group transactions by date (first 10 chars of createdAt ISO string)
-    val grouped = state.transactions.groupBy { it.createdAt.take(10) }
+    val grouped = visibleTxs.groupBy { it.createdAt.take(10) }
         .entries.sortedByDescending { it.key }
 
-    val totalIncome = state.transactions.filter { it.isIncome }.sumOf { it.amount }
-    val totalExpenses = state.transactions.filter { !it.isIncome }.sumOf { it.amount }
+    val totalIncome = visibleTxs.filter { it.isIncome }.sumOf { it.amount }
+    val totalExpenses = visibleTxs.filter { !it.isIncome }.sumOf { it.amount }
 
     Scaffold(
         topBar = {
@@ -119,7 +146,28 @@ fun ActivityScreen(
             // Summary card
             LedgerFloatingCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Text("SUMMARY", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("SUMMARY", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                        Text(periodLabel, style = MaterialTheme.typography.labelSmall, color = Primary, fontWeight = FontWeight.SemiBold)
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        activityPeriods.forEach { p ->
+                            val sel = p == selectedPeriod
+                            Surface(
+                                onClick = { selectedPeriod = p },
+                                shape = RoundedCornerShape(4.dp),
+                                color = if (sel) Primary.copy(alpha = 0.15f) else Color.Transparent
+                            ) {
+                                Text(
+                                    p,
+                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (sel) Primary else OnSurfaceVariant,
+                                    fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal
+                                )
+                            }
+                        }
+                    }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
                             Text("Income", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)

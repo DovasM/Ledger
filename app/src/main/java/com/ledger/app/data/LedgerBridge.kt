@@ -25,11 +25,11 @@ class LedgerBridge @Inject constructor() {
     fun listAllTransactions(limit: UInt = 100u, offset: UInt = 0u) =
         db.listAllTransactions(limit, offset)
 
-    fun createTransaction(walletId: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?) =
-        db.createTransaction(walletId, title, category, amount, isIncome, note)
+    fun createTransaction(walletId: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, createdAt: String? = null) =
+        db.createTransaction(walletId, title, category, amount, isIncome, note, createdAt)
 
-    fun updateTransaction(id: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?) =
-        db.updateTransaction(id, title, category, amount, isIncome, note)
+    fun updateTransaction(id: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, createdAt: String? = null) =
+        db.updateTransaction(id, title, category, amount, isIncome, note, createdAt)
 
     fun deleteTransaction(id: String) = db.deleteTransaction(id)
 
@@ -51,6 +51,9 @@ class LedgerBridge @Inject constructor() {
 
     fun createGoal(name: String, targetAmount: Double, deadline: String?) =
         db.createGoal(name, targetAmount, deadline)
+
+    fun updateGoal(id: String, name: String, targetAmount: Double, deadline: String?) =
+        db.updateGoal(id, name, targetAmount, deadline)
 
     fun addContribution(goalId: String, amount: Double) =
         db.addContribution(goalId, amount)

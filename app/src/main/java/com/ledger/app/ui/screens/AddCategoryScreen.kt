@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.LedgerTextField
 import com.ledger.app.ui.theme.*
@@ -29,19 +30,33 @@ import com.ledger.app.ui.util.categoryColors
 import com.ledger.app.ui.util.categoryIconNames
 import com.ledger.app.ui.util.categoryIcons
 import com.ledger.app.ui.viewmodel.CategoryViewModel
+import com.ledger.app.ui.viewmodel.TransactionViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddCategoryScreen(
     navController: NavController,
-    viewModel: CategoryViewModel = hiltViewModel()
+    viewModel: CategoryViewModel = hiltViewModel(),
+    txViewModel: TransactionViewModel = hiltViewModel()
 ) {
+    val txState by txViewModel.state.collectAsStateWithLifecycle()
     var name by remember { mutableStateOf("") }
     var isExpense by remember { mutableStateOf(true) }
     var selectedIconIndex by remember { mutableStateOf(0) }
     var selectedColorIndex by remember { mutableStateOf(0) }
     var showErrors by remember { mutableStateOf(false) }
+    var showSuggestions by remember { mutableStateOf(false) }
     val isNameValid = name.isNotBlank()
+
+    // Suggestions: unique titles + category names from past transactions, filtered by current input
+    val allSuggestions = remember(txState.transactions) {
+        (txState.transactions.map { it.title } + txState.transactions.map { it.category })
+            .filter { it.isNotBlank() }.distinct().sorted()
+    }
+    val filteredSuggestions = remember(name, allSuggestions) {
+        if (name.isBlank()) allSuggestions.take(8)
+        else allSuggestions.filter { it.contains(name, ignoreCase = true) && !it.equals(name, ignoreCase = true) }.take(8)
+    }
 
     Scaffold(
         topBar = {
@@ -74,13 +89,30 @@ fun AddCategoryScreen(
                     colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Primary, selectedLabelColor = OnPrimary))
             }
 
-            LedgerTextField(
-                value = name, onValueChange = { name = it },
-                label = "Category Name", placeholder = "e.g. Housing, Salary",
-                modifier = Modifier.fillMaxWidth(),
-                isError = showErrors && !isNameValid,
-                supportingText = if (showErrors && !isNameValid) "Category name is required" else null
-            )
+            ExposedDropdownMenuBox(
+                expanded = showSuggestions && filteredSuggestions.isNotEmpty(),
+                onExpandedChange = {}
+            ) {
+                LedgerTextField(
+                    value = name,
+                    onValueChange = { name = it; showSuggestions = true },
+                    label = "Category Name", placeholder = "e.g. Housing, Salary",
+                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    isError = showErrors && !isNameValid,
+                    supportingText = if (showErrors && !isNameValid) "Category name is required" else null
+                )
+                ExposedDropdownMenu(
+                    expanded = showSuggestions && filteredSuggestions.isNotEmpty(),
+                    onDismissRequest = { showSuggestions = false }
+                ) {
+                    filteredSuggestions.forEach { suggestion ->
+                        DropdownMenuItem(
+                            text = { Text(suggestion, style = MaterialTheme.typography.bodyMedium) },
+                            onClick = { name = suggestion; showSuggestions = false }
+                        )
+                    }
+                }
+            }
 
             Text("Icon", style = MaterialTheme.typography.titleMedium, color = OnSurface)
             LazyVerticalGrid(

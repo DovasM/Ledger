@@ -22,6 +22,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.viewmodel.TransactionViewModel
 import com.ledger.app.ui.viewmodel.WalletViewModel
 import uniffi.ledger.Wallet
 
@@ -29,11 +30,13 @@ import uniffi.ledger.Wallet
 @Composable
 fun WalletsListScreen(
     navController: NavController,
-    viewModel: WalletViewModel = hiltViewModel()
+    viewModel: WalletViewModel = hiltViewModel(),
+    txViewModel: TransactionViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val txState by txViewModel.state.collectAsStateWithLifecycle()
     val currentEntry by navController.currentBackStackEntryAsState()
-    LaunchedEffect(currentEntry?.destination?.route) { viewModel.load() }
+    LaunchedEffect(currentEntry?.destination?.route) { viewModel.load(); txViewModel.loadAll() }
 
     Scaffold(
         topBar = {
@@ -71,6 +74,12 @@ fun WalletsListScreen(
                         fontWeight = FontWeight.Bold
                     )
                     WalletDistributionBar(wallets = state.wallets)
+                    Spacer(Modifier.height(4.dp))
+                    LedgerTrendChart(
+                        transactions = txState.transactions,
+                        currentBalance = totalBalance,
+                        accentColor = Primary
+                    )
                 }
             }
 

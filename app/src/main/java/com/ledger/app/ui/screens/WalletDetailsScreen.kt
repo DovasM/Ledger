@@ -1,6 +1,5 @@
 package com.ledger.app.ui.screens
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -10,11 +9,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -38,15 +33,18 @@ fun WalletDetailsScreen(
     val txState by transactionViewModel.state.collectAsStateWithLifecycle()
     val wallet = walletState.wallets.find { it.id == walletId }
 
-    var selectedPeriod by remember { mutableStateOf("1M") }
-    val periods = listOf("1W", "1M", "3M", "6M", "1Y")
+    val today = java.time.LocalDate.now()
+    var chartPeriodStart by remember { mutableStateOf(today.minusDays(29)) }
 
     LaunchedEffect(walletId) {
         transactionViewModel.loadForWallet(walletId)
     }
 
-    val monthIncome = txState.transactions.filter { it.isIncome }.sumOf { it.amount }
-    val monthExpenses = txState.transactions.filter { !it.isIncome }.sumOf { it.amount }
+    val periodTxs = txState.transactions.filter {
+        try { java.time.LocalDate.parse(it.createdAt.take(10)) >= chartPeriodStart } catch (e: Exception) { false }
+    }
+    val monthIncome = periodTxs.filter { it.isIncome }.sumOf { it.amount }
+    val monthExpenses = periodTxs.filter { !it.isIncome }.sumOf { it.amount }
     val recentTxns = txState.transactions.take(5)
 
     Scaffold(
@@ -93,23 +91,20 @@ fun WalletDetailsScreen(
                         }
                         Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null, tint = Primary, modifier = Modifier.size(28.dp))
                     }
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        periods.forEach { period ->
-                            FilterChip(
-                                selected = selectedPeriod == period,
-                                onClick = { selectedPeriod = period },
-                                label = { Text(period, style = MaterialTheme.typography.labelSmall) },
-                                colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Primary, selectedLabelColor = OnPrimary)
-                            )
-                        }
-                    }
-                    WalletBalanceChart()
+                    LedgerTrendChart(
+                        transactions = txState.transactions,
+                        currentBalance = wallet?.balance ?: 0.0,
+                        periods = listOf("1W", "1M", "3M", "6M", "1Y"),
+                        defaultPeriod = "1M",
+                        accentColor = Primary,
+                        onPeriodChanged = { chartPeriodStart = it }
+                    )
                 }
             }
 
             LedgerCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text("This Period", style = MaterialTheme.typography.titleMedium, color = OnSurface)
+                    Text("Period Stats", style = MaterialTheme.typography.titleMedium, color = OnSurface)
                     HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                         WalletStatCol("Income", "+${"$%,.2f".format(monthIncome)}", Primary)
@@ -163,27 +158,6 @@ fun WalletDetailsScreen(
     }
 }
 
-@Composable
-private fun WalletBalanceChart() {
-    val points = listOf(11800f, 12100f, 11900f, 12300f, 12000f, 12250f, 12430f)
-    Canvas(modifier = Modifier.fillMaxWidth().height(80.dp)) {
-        val w = size.width; val h = size.height
-        val min = points.min(); val max = points.max()
-        val range = (max - min).takeIf { it > 0f } ?: 1f
-        fun xOf(i: Int) = w * i / (points.size - 1)
-        fun yOf(v: Float) = h - (h * (v - min) / range) * 0.8f - h * 0.1f
-        val path = Path().apply {
-            moveTo(xOf(0), yOf(points[0]))
-            points.forEachIndexed { i, v -> if (i > 0) lineTo(xOf(i), yOf(v)) }
-        }
-        drawPath(
-            Path().apply { addPath(path); lineTo(xOf(points.size - 1), h); lineTo(xOf(0), h); close() },
-            brush = Brush.verticalGradient(listOf(Color(0xFF00513F).copy(alpha = 0.18f), Color.Transparent))
-        )
-        drawPath(path, color = Color(0xFF00513F), style = Stroke(width = 2.dp.toPx()))
-        drawCircle(color = Color(0xFF00513F), radius = 4.dp.toPx(), center = Offset(xOf(points.size - 1), yOf(points.last())))
-    }
-}
 
 @Composable
 private fun WalletStatCol(label: String, value: String, color: Color) {

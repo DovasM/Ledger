@@ -7,6 +7,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -18,6 +22,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.viewmodel.CategoryViewModel
 import com.ledger.app.ui.viewmodel.TagViewModel
 import com.ledger.app.ui.viewmodel.TransactionViewModel
 
@@ -27,18 +32,39 @@ fun EditTransactionScreen(
     navController: NavController,
     transactionId: String,
     viewModel: TransactionViewModel = hiltViewModel(),
-    tagViewModel: TagViewModel = hiltViewModel()
+    tagViewModel: TagViewModel = hiltViewModel(),
+    categoryViewModel: CategoryViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val tagState by tagViewModel.state.collectAsStateWithLifecycle()
+    val categoryState by categoryViewModel.state.collectAsStateWithLifecycle()
     val tx = state.transactions.find { it.id == transactionId }
+
+    val titleSuggestions = remember(state.transactions) {
+        state.transactions.map { it.title }.filter { it.isNotBlank() }.distinct().sorted()
+    }
+    var titleSuggestionsVisible by remember { mutableStateOf(false) }
 
     var title by remember(tx) { mutableStateOf(tx?.title ?: "") }
     var category by remember(tx) { mutableStateOf(tx?.category ?: "") }
     var note by remember(tx) { mutableStateOf(tx?.note ?: "") }
     var isIncome by remember(tx) { mutableStateOf(tx?.isIncome ?: false) }
+    var selectedDate by remember(tx) {
+        mutableStateOf(
+            tx?.createdAt?.let { runCatching { LocalDate.parse(it.take(10)) }.getOrNull() } ?: LocalDate.now()
+        )
+    }
+    var showDatePicker by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showErrors by remember { mutableStateOf(false) }
+    var categoryMenuExpanded by remember { mutableStateOf(false) }
+
+    val expenseCategoryNames = categoryState.categories.filter { it.isExpense }.map { it.name }
+        .let { list -> if (tx != null && !isIncome && tx.category.isNotBlank() && tx.category !in list) list + tx.category else list }
+        .ifEmpty { listOf("Housing", "Food & Dining", "Transportation", "Entertainment", "Health", "Shopping", "Other") }
+    val incomeCategoryNames = categoryState.categories.filter { !it.isExpense }.map { it.name }
+        .let { list -> if (tx != null && isIncome && tx.category.isNotBlank() && tx.category !in list) list + tx.category else list }
+        .ifEmpty { listOf("Salary", "Freelance", "Investments", "Other Income") }
 
     // Tags: set of tag names currently attached
     var selectedTagNames by remember { mutableStateOf(setOf<String>()) }
@@ -54,8 +80,29 @@ fun EditTransactionScreen(
         tagsLoaded = true
     }
 
-    val isTitleValid = title.isNotBlank()
     val accentColor = if (isIncome) Primary else Tertiary
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDate.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli(),
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long) =
+                    utcTimeMillis <= System.currentTimeMillis()
+            }
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let {
+                        selectedDate = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()
+                    }
+                    showDatePicker = false
+                }) { Text("OK", color = accentColor) }
+            },
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } }
+        ) { DatePicker(state = datePickerState) }
+    }
 
     if (showDeleteDialog) {
         AlertDialog(
@@ -131,15 +178,60 @@ fun EditTransactionScreen(
                 }
             }
 
+            // Category dropdown — most important field, shown first
+            ExposedDropdownMenuBox(expanded = categoryMenuExpanded, onExpandedChange = { categoryMenuExpanded = it }) {
+                LedgerTextField(
+                    value = category, onValueChange = {},
+                    label = "Category",
+                    leadingIcon = { Icon(Icons.Filled.Category, null, tint = OnSurfaceVariant) },
+                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryMenuExpanded) },
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                ExposedDropdownMenu(expanded = categoryMenuExpanded, onDismissRequest = { categoryMenuExpanded = false }) {
+                    val cats = if (isIncome) incomeCategoryNames else expenseCategoryNames
+                    cats.forEach { cat ->
+                        DropdownMenuItem(text = { Text(cat) }, onClick = { category = cat; categoryMenuExpanded = false })
+                    }
+                }
+            }
+
+            val filteredTitleSuggestions = remember(title, titleSuggestions) {
+                if (title.isBlank()) titleSuggestions.take(6)
+                else titleSuggestions.filter { it.contains(title, ignoreCase = true) && !it.equals(title, ignoreCase = true) }.take(6)
+            }
+            ExposedDropdownMenuBox(
+                expanded = titleSuggestionsVisible && filteredTitleSuggestions.isNotEmpty(),
+                onExpandedChange = {}
+            ) {
+                LedgerTextField(
+                    value = title,
+                    onValueChange = { title = it; titleSuggestionsVisible = true },
+                    label = "Title (optional)",
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = titleSuggestionsVisible && filteredTitleSuggestions.isNotEmpty(),
+                    onDismissRequest = { titleSuggestionsVisible = false }
+                ) {
+                    filteredTitleSuggestions.forEach { suggestion ->
+                        DropdownMenuItem(
+                            text = { Text(suggestion, style = MaterialTheme.typography.bodyMedium) },
+                            onClick = { title = suggestion; titleSuggestionsVisible = false }
+                        )
+                    }
+                }
+            }
             LedgerTextField(
-                value = title, onValueChange = { title = it },
-                label = "Title", modifier = Modifier.fillMaxWidth(),
-                isError = showErrors && !isTitleValid,
-                supportingText = if (showErrors && !isTitleValid) "Title is required" else null
-            )
-            LedgerTextField(
-                value = category, onValueChange = { category = it },
-                label = "Category", modifier = Modifier.fillMaxWidth()
+                value = selectedDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy")),
+                onValueChange = {},
+                label = "Date",
+                leadingIcon = { Icon(Icons.Filled.CalendarToday, null, tint = OnSurfaceVariant) },
+                trailingIcon = {
+                    IconButton(onClick = { showDatePicker = true }) {
+                        Icon(Icons.Filled.EditCalendar, null, tint = accentColor)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
             )
             LedgerTextField(
                 value = note, onValueChange = { note = it },
@@ -191,8 +283,10 @@ fun EditTransactionScreen(
             Button(
                 onClick = {
                     showErrors = true
-                    if (isTitleValid && tx != null) {
-                        viewModel.updateTransaction(transactionId, title, category, tx.amount, isIncome, note.ifBlank { null }) {}
+                    if (tx != null) {
+                        val dateStr = selectedDate.atStartOfDay().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+                        val effectiveTitle = title.ifBlank { category }
+                        viewModel.updateTransaction(transactionId, effectiveTitle, category, tx.amount, isIncome, note.ifBlank { null }, dateStr) {}
                         // Sync tags async via TagViewModel
                         val allDbTags = tagState.tags
                         val currentTagNames = tagState.transactionTags.map { it.name }.toSet()

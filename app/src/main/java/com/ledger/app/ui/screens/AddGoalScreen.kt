@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,11 +18,17 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.NavController
+import com.ledger.app.ui.util.GoalImageStore
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.viewmodel.GoalViewModel
@@ -32,6 +39,7 @@ fun AddGoalScreen(
     navController: NavController,
     viewModel: GoalViewModel = hiltViewModel()
 ) {
+    val context = LocalContext.current
     var name by remember { mutableStateOf("") }
     var targetAmount by remember { mutableStateOf("") }
     var selectedIconIndex by remember { mutableStateOf(0) }
@@ -40,6 +48,17 @@ fun AddGoalScreen(
     var selectedDeadline by remember { mutableStateOf("") }
     var showCalc by remember { mutableStateOf(false) }
     var showErrors by remember { mutableStateOf(false) }
+    var pendingImageUri by remember { mutableStateOf<android.net.Uri?>(null) }
+    val pendingBitmap = remember(pendingImageUri) {
+        pendingImageUri?.let { uri ->
+            context.contentResolver.openInputStream(uri)?.use {
+                android.graphics.BitmapFactory.decodeStream(it)
+            }
+        }
+    }
+    val imageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        pendingImageUri = uri
+    }
 
     val isNameValid = name.isNotBlank()
     val isAmountValid = targetAmount.toDoubleOrNull()?.let { it > 0 } ?: false
@@ -185,6 +204,37 @@ fun AddGoalScreen(
                 }
             }
 
+            // Photo picker
+            Text("Photo (optional)", style = MaterialTheme.typography.titleMedium, color = OnSurface)
+            Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier.size(72.dp).clip(RoundedCornerShape(12.dp))
+                        .background(SurfaceContainerHighest)
+                        .clickable { imageLauncher.launch("image/*") },
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (pendingBitmap != null) {
+                        Image(
+                            bitmap = pendingBitmap.asImageBitmap(),
+                            contentDescription = null,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize().clip(RoundedCornerShape(12.dp))
+                        )
+                    } else {
+                        Icon(Icons.Filled.AddPhotoAlternate, null, tint = OnSurfaceVariant, modifier = Modifier.size(32.dp))
+                    }
+                }
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(if (pendingImageUri != null) "Photo selected" else "Tap to add a photo", style = MaterialTheme.typography.bodyMedium, color = OnSurface)
+                    Text("Shown on the goal card", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                    if (pendingImageUri != null) {
+                        TextButton(onClick = { pendingImageUri = null }, contentPadding = PaddingValues(0.dp)) {
+                            Text("Remove", color = Tertiary, style = MaterialTheme.typography.labelSmall)
+                        }
+                    }
+                }
+            }
+
             // Preview
             Text("Preview", style = MaterialTheme.typography.titleMedium, color = OnSurface)
             LedgerCard(modifier = Modifier.fillMaxWidth()) {
@@ -197,7 +247,16 @@ fun AddGoalScreen(
                         modifier = Modifier.size(52.dp).clip(CircleShape).background(goalColors[selectedColorIndex]),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(goalIcons[selectedIconIndex], null, tint = Color.White, modifier = Modifier.size(26.dp))
+                        if (pendingBitmap != null) {
+                            Image(
+                                bitmap = pendingBitmap.asImageBitmap(),
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize().clip(CircleShape)
+                            )
+                        } else {
+                            Icon(goalIcons[selectedIconIndex], null, tint = Color.White, modifier = Modifier.size(26.dp))
+                        }
                     }
                     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(
@@ -227,11 +286,16 @@ fun AddGoalScreen(
                     showErrors = true
                     val amount = targetAmount.toDoubleOrNull()
                     if (isNameValid && isAmountValid && amount != null) {
+                        val capturedUri = pendingImageUri
+                        val capturedName = name
                         viewModel.createGoal(
-                            name = name,
+                            name = capturedName,
                             targetAmount = amount,
                             deadline = selectedDeadline.ifBlank { null }
-                        ) { navController.popBackStack() }
+                        ) {
+                            if (capturedUri != null) GoalImageStore.save(context, capturedName, capturedUri)
+                            navController.popBackStack()
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),

@@ -30,15 +30,18 @@ import com.ledger.app.ui.util.categoryColors
 import com.ledger.app.ui.util.categoryIconNames
 import com.ledger.app.ui.util.categoryIcons
 import com.ledger.app.ui.viewmodel.CategoryViewModel
+import com.ledger.app.ui.viewmodel.TransactionViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun EditCategoryScreen(
     navController: NavController,
     categoryId: String,
-    viewModel: CategoryViewModel = hiltViewModel()
+    viewModel: CategoryViewModel = hiltViewModel(),
+    txViewModel: TransactionViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val txState by txViewModel.state.collectAsStateWithLifecycle()
     val category = state.categories.find { it.id == categoryId }
 
     var name by remember(category) { mutableStateOf(category?.name ?: "") }
@@ -51,7 +54,17 @@ fun EditCategoryScreen(
     }
     var showErrors by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var showSuggestions by remember { mutableStateOf(false) }
     val isNameValid = name.isNotBlank()
+
+    val allSuggestions = remember(txState.transactions) {
+        (txState.transactions.map { it.title } + txState.transactions.map { it.category })
+            .filter { it.isNotBlank() }.distinct().sorted()
+    }
+    val filteredSuggestions = remember(name, allSuggestions) {
+        if (name.isBlank()) allSuggestions.take(8)
+        else allSuggestions.filter { it.contains(name, ignoreCase = true) && !it.equals(name, ignoreCase = true) }.take(8)
+    }
 
     if (showDeleteDialog) {
         AlertDialog(
@@ -105,12 +118,30 @@ fun EditCategoryScreen(
                     colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Primary, selectedLabelColor = OnPrimary))
             }
 
-            LedgerTextField(
-                value = name, onValueChange = { name = it },
-                label = "Category Name", modifier = Modifier.fillMaxWidth(),
-                isError = showErrors && !isNameValid,
-                supportingText = if (showErrors && !isNameValid) "Category name is required" else null
-            )
+            ExposedDropdownMenuBox(
+                expanded = showSuggestions && filteredSuggestions.isNotEmpty(),
+                onExpandedChange = {}
+            ) {
+                LedgerTextField(
+                    value = name,
+                    onValueChange = { name = it; showSuggestions = true },
+                    label = "Category Name",
+                    modifier = Modifier.fillMaxWidth().menuAnchor(),
+                    isError = showErrors && !isNameValid,
+                    supportingText = if (showErrors && !isNameValid) "Category name is required" else null
+                )
+                ExposedDropdownMenu(
+                    expanded = showSuggestions && filteredSuggestions.isNotEmpty(),
+                    onDismissRequest = { showSuggestions = false }
+                ) {
+                    filteredSuggestions.forEach { suggestion ->
+                        DropdownMenuItem(
+                            text = { Text(suggestion, style = MaterialTheme.typography.bodyMedium) },
+                            onClick = { name = suggestion; showSuggestions = false }
+                        )
+                    }
+                }
+            }
 
             Text("Icon", style = MaterialTheme.typography.titleMedium, color = OnSurface)
             LazyVerticalGrid(

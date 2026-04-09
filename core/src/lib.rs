@@ -164,20 +164,20 @@ impl LedgerDb {
         })
     }
 
-    pub fn create_transaction(&self, wallet_id: String, title: String, category: String, amount: f64, is_income: bool, note: Option<String>) -> Result<Transaction, LedgerError> {
+    pub fn create_transaction(&self, wallet_id: String, title: String, category: String, amount: f64, is_income: bool, note: Option<String>, created_at: Option<String>) -> Result<Transaction, LedgerError> {
         if title.is_empty() { return Err(LedgerError::InvalidInput("title is required".into())); }
         if amount <= 0.0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
 
         self.rt.block_on(async {
             let id = Uuid::new_v4().to_string();
-            let now = Utc::now().to_rfc3339();
+            let date = created_at.unwrap_or_else(|| Utc::now().to_rfc3339());
             let sign: f64 = if is_income { amount } else { -amount };
 
             sqlx::query(
                 "INSERT INTO transactions (id, wallet_id, title, category, amount, is_income, note, created_at) VALUES (?,?,?,?,?,?,?,?)"
             )
             .bind(&id).bind(&wallet_id).bind(&title).bind(&category)
-            .bind(amount).bind(is_income).bind(&note).bind(&now)
+            .bind(amount).bind(is_income).bind(&note).bind(&date)
             .execute(&self.pool).await?;
 
             sqlx::query("UPDATE wallets SET balance = balance + ? WHERE id = ?")
@@ -192,10 +192,10 @@ impl LedgerDb {
         })
     }
 
-    pub fn update_transaction(&self, id: String, title: String, category: String, amount: f64, is_income: bool, note: Option<String>) -> Result<Transaction, LedgerError> {
+    pub fn update_transaction(&self, id: String, title: String, category: String, amount: f64, is_income: bool, note: Option<String>, created_at: Option<String>) -> Result<Transaction, LedgerError> {
         self.rt.block_on(async {
-            sqlx::query("UPDATE transactions SET title=?, category=?, amount=?, is_income=?, note=? WHERE id=?")
-                .bind(&title).bind(&category).bind(amount).bind(is_income).bind(&note).bind(&id)
+            sqlx::query("UPDATE transactions SET title=?, category=?, amount=?, is_income=?, note=?, created_at=COALESCE(?,created_at) WHERE id=?")
+                .bind(&title).bind(&category).bind(amount).bind(is_income).bind(&note).bind(&created_at).bind(&id)
                 .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, TransactionRow>(
@@ -311,6 +311,20 @@ impl LedgerDb {
             )
             .bind(&goal_id).fetch_optional(&self.pool).await?
             .ok_or(LedgerError::NotFound)?;
+            Ok(row_to_goal(row))
+        })
+    }
+
+    pub fn update_goal(&self, id: String, name: String, target_amount: f64, deadline: Option<String>) -> Result<SavingsGoal, LedgerError> {
+        if name.is_empty() { return Err(LedgerError::InvalidInput("name is required".into())); }
+        if target_amount <= 0.0 { return Err(LedgerError::InvalidInput("target must be positive".into())); }
+        self.rt.block_on(async {
+            sqlx::query("UPDATE savings_goals SET name=?, target_amount=?, deadline=? WHERE id=?")
+                .bind(&name).bind(target_amount).bind(&deadline).bind(&id)
+                .execute(&self.pool).await?;
+            let row = sqlx::query_as::<_, SavingsGoalRow>(
+                "SELECT id, name, current_amount, target_amount, deadline, created_at FROM savings_goals WHERE id=?"
+            ).bind(&id).fetch_one(&self.pool).await?;
             Ok(row_to_goal(row))
         })
     }
