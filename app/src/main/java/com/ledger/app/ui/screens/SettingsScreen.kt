@@ -80,7 +80,7 @@ fun SettingsScreen(navController: NavController) {
                 SettingsDivider()
                 SettingsNavItem(Icons.Filled.Group, Color(0xFF1565C0), "Shared Expenses", "Split bills and track group spending") { navController.navigate(Screen.SharedExpenses.route) }
                 SettingsDivider()
-                SettingsNavItem(Icons.Filled.CalendarMonth, Color(0xFF6A1B9A), "Financial Calendar", "View bills, income and events by date") { navController.navigate(Screen.FinancialCalendar.route) }
+                SettingsNavItem(Icons.Filled.CalendarMonth, Color(0xFF6A1B9A), "Financial Calendar", "View bills, income and events by date") { navController.navigate(Screen.CashFlowForecast.route) }
                 SettingsDivider()
                 SettingsNavItem(Icons.Filled.EmojiEvents, Color(0xFFE65100), "Spending Streaks", "Streak tracking and achievements") { navController.navigate(Screen.SpendingStreaks.route) }
             }
