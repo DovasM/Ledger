@@ -46,7 +46,7 @@ fun NetWorthScreen(
     val txState     by txViewModel.state.collectAsStateWithLifecycle()
     val context     = LocalContext.current
 
-    LaunchedEffect(Unit) { txViewModel.loadAll(1000u) }
+    LaunchedEffect(Unit) { txViewModel.loadAll() }
 
     val today            = LocalDate.now()
     val totalAssets      = walletState.wallets.sumOf { it.balance }

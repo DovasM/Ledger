@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.viewmodel.ImportViewModel
@@ -116,7 +117,9 @@ fun TransactionImportScreen(
                     count = state.importedCount,
                     onDone = {
                         viewModel.reset()
-                        navController.popBackStack()
+                        navController.navigate(Screen.Dashboard.route) {
+                            popUpTo(Screen.Dashboard.route) { inclusive = true }
+                        }
                     }
                 )
             }

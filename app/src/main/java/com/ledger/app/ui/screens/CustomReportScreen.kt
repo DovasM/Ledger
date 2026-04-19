@@ -39,7 +39,7 @@ fun CustomReportScreen(
     val txState  by txViewModel.state.collectAsStateWithLifecycle()
     val context  = LocalContext.current
 
-    LaunchedEffect(Unit) { txViewModel.loadAll(1000u) }
+    LaunchedEffect(Unit) { txViewModel.loadAll() }
 
     val now = LocalDate.now()
     val ymFmt = DateTimeFormatter.ofPattern("MMM yyyy")

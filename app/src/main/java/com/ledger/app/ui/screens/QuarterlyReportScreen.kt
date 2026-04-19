@@ -37,7 +37,7 @@ fun QuarterlyReportScreen(
     val context = LocalContext.current
     val today   = LocalDate.now()
 
-    LaunchedEffect(Unit) { txViewModel.loadAll(1000u) }
+    LaunchedEffect(Unit) { txViewModel.loadAll() }
 
     val currentQuarter = (today.monthValue - 1) / 3 + 1
     var selectedYear    by rememberSaveable { mutableStateOf(today.year) }

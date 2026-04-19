@@ -58,3 +58,6 @@ Desktop.ini
 # Claude AI generated files
 .claude
 .claude/*
+
+# Test folder
+test/

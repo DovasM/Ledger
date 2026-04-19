@@ -46,7 +46,7 @@ fun CategoryTransactionsScreen(
 
     val currentEntry by navController.currentBackStackEntryAsState()
     LaunchedEffect(currentEntry?.destination?.route) {
-        txViewModel.loadAll(1000u)
+        txViewModel.loadAll()
         categoryViewModel.load()
     }
 

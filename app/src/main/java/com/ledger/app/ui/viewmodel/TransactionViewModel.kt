@@ -30,7 +30,7 @@ class TransactionViewModel @Inject constructor(
 
     init { loadAll() }
 
-    fun loadAll(limit: UInt = 100u, offset: UInt = 0u) {
+    fun loadAll(limit: UInt = 10000u, offset: UInt = 0u) {
         viewModelScope.launch(Dispatchers.IO) {
             _state.value = _state.value.copy(isLoading = true, error = null)
             try {

@@ -54,7 +54,7 @@ fun GlobalSearchScreen(
     val debtState      by debtViewModel.state.collectAsStateWithLifecycle()
     val recurringState by recurringViewModel.state.collectAsStateWithLifecycle()
 
-    LaunchedEffect(Unit) { txViewModel.loadAll(1000u) }
+    LaunchedEffect(Unit) { txViewModel.loadAll() }
 
     var query        by remember { mutableStateOf("") }
     var typeFilter   by remember { mutableStateOf(TxFilter.ALL) }

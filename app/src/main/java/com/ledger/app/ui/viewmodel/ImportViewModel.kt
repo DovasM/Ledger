@@ -234,12 +234,30 @@ class ImportViewModel @Inject constructor(
     // ── Internal parsing ──────────────────────────────────────────────────────
 
     private fun parseAccounts(db: SQLiteDatabase): List<MmAccount> {
-        val balances = mutableMapOf<String, Double>()
+        // account_balance stores the balance AT BACKUP TIME (current balance).
+        // Since Ledger computes wallet balance as initialBalance + transaction net,
+        // we must derive the opening balance as: current - net_transactions,
+        // so that after importing all transactions the final balance matches MM.
+        val currentBalances = mutableMapOf<String, Long>()
         db.rawQuery("SELECT uid, value FROM account_balance", null).use { c ->
-            while (c.moveToNext()) {
-                balances[c.getString(0)] = c.getLong(1) / 100.0
-            }
+            while (c.moveToNext()) currentBalances[c.getString(0)] = c.getLong(1)
         }
+
+        // Net transaction amount per account (income − expense, in raw integer cents)
+        val txNets = mutableMapOf<String, Long>()
+        db.rawQuery("""
+            SELECT la.otherUid,
+                   SUM(CASE WHEN t.type='Income'  THEN  t.amountInDefaultCurrency ELSE 0 END) -
+                   SUM(CASE WHEN t.type='Expense' THEN  t.amountInDefaultCurrency ELSE 0 END)
+            FROM "transaction" t
+            JOIN sync_link la ON la.entityType='Transaction' AND la.entityUid=t.uid
+                              AND la.otherType='Account' AND la.isRemoved=0
+            WHERE t.isRemoved=0
+            GROUP BY la.otherUid
+        """.trimIndent(), null).use { c ->
+            while (c.moveToNext()) txNets[c.getString(0)] = c.getLong(1)
+        }
+
         val accounts = mutableListOf<MmAccount>()
         db.rawQuery(
             "SELECT uid, title, currencyCode FROM account WHERE isRemoved=0 AND isActive=1",
@@ -247,12 +265,15 @@ class ImportViewModel @Inject constructor(
         ).use { c ->
             while (c.moveToNext()) {
                 val uid = c.getString(0)
+                val currentCents = currentBalances[uid] ?: 0L
+                val netCents     = txNets[uid] ?: 0L
+                val openingBalance = (currentCents - netCents) / 100.0
                 accounts.add(
                     MmAccount(
                         uid = uid,
                         title = c.getString(1) ?: "Account",
                         currencyCode = c.getString(2) ?: "EUR",
-                        balance = balances[uid] ?: 0.0
+                        balance = openingBalance
                     )
                 )
             }

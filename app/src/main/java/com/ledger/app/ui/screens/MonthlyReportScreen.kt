@@ -39,7 +39,7 @@ fun MonthlyReportScreen(
     val context = LocalContext.current
     val today   = LocalDate.now()
 
-    LaunchedEffect(Unit) { txViewModel.loadAll(1000u) }
+    LaunchedEffect(Unit) { txViewModel.loadAll() }
 
     var selectedYear  by rememberSaveable { mutableStateOf(today.year) }
     var selectedMonth by rememberSaveable { mutableStateOf(today.monthValue) }
