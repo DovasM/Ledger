@@ -75,7 +75,6 @@ sealed class Screen(val route: String) {
     }
     object SharedExpenses : Screen("shared_expenses")
     object TransactionImport : Screen("import")
-    object FinancialCalendar : Screen("calendar")
     object SpendingStreaks : Screen("streaks")
     object AppearanceSettings : Screen("appearance")
     object NotificationSettings : Screen("notification_settings")
@@ -166,7 +165,6 @@ fun LedgerNavGraph(navController: NavHostController) {
         }
         composable(Screen.SharedExpenses.route) { SharedExpensesScreen(navController) }
         composable(Screen.TransactionImport.route) { TransactionImportScreen(navController) }
-        composable(Screen.FinancialCalendar.route) { FinancialCalendarScreen(navController) }
         composable(Screen.SpendingStreaks.route) { SpendingStreaksScreen(navController) }
         composable(Screen.AppearanceSettings.route) { AppearanceSettingsScreen(navController) }
         composable(Screen.NotificationSettings.route) { NotificationSettingsScreen(navController) }
