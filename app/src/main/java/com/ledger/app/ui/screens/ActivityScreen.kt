@@ -14,6 +14,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -74,12 +75,72 @@ fun ActivityScreen(
         }
     }
 
+    val today = java.time.LocalDate.now()
+    var fromDate by remember { mutableStateOf(today.minusDays(29)) }
+    var toDate by remember { mutableStateOf(today) }
+    var showFromPicker by remember { mutableStateOf(false) }
+    var showToPicker by remember { mutableStateOf(false) }
+
+    val dateFmt = java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy")
+
+    val visibleTxs = state.transactions.filter {
+        runCatching {
+            val d = java.time.LocalDate.parse(it.createdAt.take(10))
+            d >= fromDate && d <= toDate
+        }.getOrElse { false }
+    }
+
+    if (showFromPicker) {
+        val pickerState = rememberDatePickerState(
+            initialSelectedDateMillis = fromDate.toEpochDay() * 86_400_000L,
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long) =
+                    utcTimeMillis <= toDate.toEpochDay() * 86_400_000L
+            }
+        )
+        DatePickerDialog(
+            onDismissRequest = { showFromPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let {
+                        fromDate = java.time.LocalDate.ofEpochDay(it / 86_400_000L)
+                    }
+                    showFromPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showFromPicker = false }) { Text("Cancel") } }
+        ) { DatePicker(state = pickerState) }
+    }
+
+    if (showToPicker) {
+        val pickerState = rememberDatePickerState(
+            initialSelectedDateMillis = toDate.toEpochDay() * 86_400_000L,
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long) =
+                    utcTimeMillis >= fromDate.toEpochDay() * 86_400_000L &&
+                    utcTimeMillis <= today.toEpochDay() * 86_400_000L
+            }
+        )
+        DatePickerDialog(
+            onDismissRequest = { showToPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let {
+                        toDate = java.time.LocalDate.ofEpochDay(it / 86_400_000L)
+                    }
+                    showToPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showToPicker = false }) { Text("Cancel") } }
+        ) { DatePicker(state = pickerState) }
+    }
+
     // Group transactions by date (first 10 chars of createdAt ISO string)
-    val grouped = state.transactions.groupBy { it.createdAt.take(10) }
+    val grouped = visibleTxs.groupBy { it.createdAt.take(10) }
         .entries.sortedByDescending { it.key }
 
-    val totalIncome = state.transactions.filter { it.isIncome }.sumOf { it.amount }
-    val totalExpenses = state.transactions.filter { !it.isIncome }.sumOf { it.amount }
+    val totalIncome = visibleTxs.filter { it.isIncome }.sumOf { it.amount }
+    val totalExpenses = visibleTxs.filter { !it.isIncome }.sumOf { it.amount }
 
     Scaffold(
         topBar = {
@@ -120,6 +181,49 @@ fun ActivityScreen(
             LedgerFloatingCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     Text("SUMMARY", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            onClick = { showFromPicker = true },
+                            shape = RoundedCornerShape(6.dp),
+                            color = Primary.copy(alpha = 0.10f),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Filled.CalendarToday, null, tint = Primary, modifier = Modifier.size(14.dp))
+                                Column {
+                                    Text("From", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                    Text(fromDate.format(dateFmt), style = MaterialTheme.typography.labelMedium, color = Primary, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                        Icon(Icons.Filled.ArrowForward, null, tint = OnSurfaceVariant, modifier = Modifier.size(16.dp))
+                        Surface(
+                            onClick = { showToPicker = true },
+                            shape = RoundedCornerShape(6.dp),
+                            color = Primary.copy(alpha = 0.10f),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Filled.CalendarToday, null, tint = Primary, modifier = Modifier.size(14.dp))
+                                Column {
+                                    Text("To", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                    Text(toDate.format(dateFmt), style = MaterialTheme.typography.labelMedium, color = Primary, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                    }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
                             Text("Income", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)

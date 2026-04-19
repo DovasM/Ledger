@@ -4,6 +4,7 @@ import android.content.Context
 import uniffi.ledger.LedgerDb
 import uniffi.ledger.openDatabase
 import java.io.File
+import java.time.LocalDate
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -25,11 +26,11 @@ class LedgerBridge @Inject constructor() {
     fun listAllTransactions(limit: UInt = 100u, offset: UInt = 0u) =
         db.listAllTransactions(limit, offset)
 
-    fun createTransaction(walletId: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?) =
-        db.createTransaction(walletId, title, category, amount, isIncome, note)
+    fun createTransaction(walletId: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, createdAt: String? = null) =
+        db.createTransaction(walletId, title, category, amount, isIncome, note, createdAt)
 
-    fun updateTransaction(id: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?) =
-        db.updateTransaction(id, title, category, amount, isIncome, note)
+    fun updateTransaction(id: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, createdAt: String? = null) =
+        db.updateTransaction(id, title, category, amount, isIncome, note, createdAt)
 
     fun deleteTransaction(id: String) = db.deleteTransaction(id)
 
@@ -51,6 +52,59 @@ class LedgerBridge @Inject constructor() {
 
     fun createGoal(name: String, targetAmount: Double, deadline: String?) =
         db.createGoal(name, targetAmount, deadline)
+
+    fun updateGoal(id: String, name: String, targetAmount: Double, deadline: String?) =
+        try {
+            db.updateGoal(id, name, targetAmount, deadline)
+        } catch (_: UnsatisfiedLinkError) {
+            // Rust .so not yet rebuilt — fallback: delete and recreate preserving currentAmount
+            val existing = db.listGoals().find { it.id == id }
+            val savedAmount = existing?.currentAmount ?: 0.0
+            db.deleteGoal(id)
+            val newGoal = db.createGoal(name, targetAmount, deadline)
+            if (savedAmount > 0.0) db.addContribution(newGoal.id, savedAmount)
+            newGoal
+        }
+
+    /**
+     * Finds all recurring transactions whose next_date is today or in the past,
+     * posts them as real transactions, and advances next_date by their frequency.
+     * Handles multiple missed periods (e.g. a monthly item missed for 3 months posts 3 times).
+     * Returns the titles of every transaction that was posted.
+     */
+    fun applyDueRecurring(): List<String> {
+        val today = LocalDate.now()
+        val applied = mutableListOf<String>()
+        for (r in listRecurring()) {
+            var nextDate = runCatching { LocalDate.parse(r.nextDate.take(10)) }.getOrNull() ?: continue
+            while (!nextDate.isAfter(today)) {
+                createTransaction(
+                    walletId  = r.walletId,
+                    title     = r.title,
+                    category  = r.category,
+                    amount    = r.amount,
+                    isIncome  = r.isIncome,
+                    note      = "Auto-posted recurring",
+                    createdAt = nextDate.toString()
+                )
+                applied.add(r.title)
+                nextDate = advanceDate(nextDate, r.frequency)
+            }
+            // Persist the new next_date
+            updateRecurring(r.id, r.title, r.amount, r.category, r.frequency, nextDate.toString())
+        }
+        return applied
+    }
+
+    private fun advanceDate(date: LocalDate, frequency: String): LocalDate = when (frequency.lowercase()) {
+        "daily"      -> date.plusDays(1)
+        "weekly"     -> date.plusWeeks(1)
+        "biweekly"   -> date.plusWeeks(2)
+        "monthly"    -> date.plusMonths(1)
+        "quarterly"  -> date.plusMonths(3)
+        "yearly"     -> date.plusYears(1)
+        else         -> date.plusMonths(1)
+    }
 
     fun addContribution(goalId: String, amount: Double) =
         db.addContribution(goalId, amount)

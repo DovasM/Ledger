@@ -30,6 +30,7 @@ import com.ledger.app.ui.viewmodel.CategoryViewModel
 import com.ledger.app.ui.viewmodel.TransactionViewModel
 import uniffi.ledger.Budget
 import uniffi.ledger.Category
+import java.time.LocalDate
 
 // Computed view model combining DB Budget + Category + spent amount
 private data class BudgetRow(
@@ -69,10 +70,17 @@ fun BudgetsScreen(
     val currentEntry by navController.currentBackStackEntryAsState()
     LaunchedEffect(currentEntry?.destination?.route) { budgetViewModel.load(); categoryViewModel.load(); transactionViewModel.loadAll() }
 
-    // Build rows by joining budget → category → spent
+    // Build rows by joining budget → category → spent (current month only)
+    val today = LocalDate.now()
+    val currentMonthTxs = txState.transactions.filter {
+        try {
+            val d = LocalDate.parse(it.createdAt.take(10))
+            d.year == today.year && d.monthValue == today.monthValue
+        } catch (e: Exception) { false }
+    }
     val rows = budgetState.budgets.map { budget ->
         val category = categoryState.categories.find { it.id == budget.categoryId }
-        val spent = txState.transactions
+        val spent = currentMonthTxs
             .filter { !it.isIncome && it.category.equals(category?.name, ignoreCase = true) }
             .sumOf { it.amount }
         BudgetRow(budget, category, spent)

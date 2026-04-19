@@ -2,6 +2,7 @@ package com.ledger.app.data.di
 
 import android.content.Context
 import com.ledger.app.data.LedgerBridge
+import com.ledger.app.data.SeedDataUtil
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -16,6 +17,9 @@ object AppModule {
     @Provides
     @Singleton
     fun provideLedgerBridge(@ApplicationContext context: Context): LedgerBridge {
-        return LedgerBridge().also { it.open(context) }
+        return LedgerBridge().also {
+            it.open(context)
+            SeedDataUtil.seed(it)
+        }
     }
 }

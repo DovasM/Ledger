@@ -113,10 +113,10 @@ interface LedgerDb {
     sequence<Transaction> list_all_transactions(u32 limit, u32 offset);
 
     [Throws=LedgerError]
-    Transaction create_transaction(string wallet_id, string title, string category, f64 amount, boolean is_income, string? note);
+    Transaction create_transaction(string wallet_id, string title, string category, f64 amount, boolean is_income, string? note, string? created_at);
 
     [Throws=LedgerError]
-    Transaction update_transaction(string id, string title, string category, f64 amount, boolean is_income, string? note);
+    Transaction update_transaction(string id, string title, string category, f64 amount, boolean is_income, string? note, string? created_at);
 
     [Throws=LedgerError]
     void delete_transaction(string id);
@@ -143,6 +143,9 @@ interface LedgerDb {
 
     [Throws=LedgerError]
     SavingsGoal add_contribution(string goal_id, f64 amount);
+
+    [Throws=LedgerError]
+    SavingsGoal update_goal(string id, string name, f64 target_amount, string? deadline);
 
     [Throws=LedgerError]
     void delete_goal(string id);

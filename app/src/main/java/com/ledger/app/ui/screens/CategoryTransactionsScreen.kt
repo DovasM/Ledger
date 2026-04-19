@@ -2,10 +2,9 @@ package com.ledger.app.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -14,90 +13,79 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ledger.app.ui.components.*
+import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
-
-private data class CatTx(
-    val title: String, val subtitle: String, val amount: String, val isIncome: Boolean,
-    val date: String, val wallet: String, val note: String = ""
-)
-
-private data class CategoryMeta(val icon: ImageVector, val color: Color, val transactions: List<CatTx>)
-
-private val categoryData: Map<String, CategoryMeta> = mapOf(
-    "Housing" to CategoryMeta(
-        Icons.Filled.Home, Color(0xFF00513F),
-        listOf(
-            CatTx("Rent", "Apr 1 · Housing", "-\$1,200.00", false, "Apr 1, 2026", "Checking Account", "Monthly rent"),
-            CatTx("Electricity", "Mar 18 · Housing", "-\$85.00", false, "Mar 18, 2026", "Checking Account"),
-            CatTx("Internet", "Mar 5 · Housing", "-\$45.00", false, "Mar 5, 2026", "Checking Account"),
-            CatTx("Rent", "Mar 1 · Housing", "-\$1,200.00", false, "Mar 1, 2026", "Checking Account", "Monthly rent"),
-        )
-    ),
-    "Food & Dining" to CategoryMeta(
-        Icons.Filled.Restaurant, Color(0xFF1565C0),
-        listOf(
-            CatTx("Groceries", "Apr 3 · Food", "-\$124.50", false, "Apr 3, 2026", "Checking Account"),
-            CatTx("Coffee", "Apr 2 · Food", "-\$4.50", false, "Apr 2, 2026", "Cash"),
-            CatTx("Restaurant", "Mar 28 · Food", "-\$62.00", false, "Mar 28, 2026", "Checking Account", "Dinner with friends"),
-            CatTx("Groceries", "Mar 15 · Food", "-\$98.30", false, "Mar 15, 2026", "Checking Account"),
-        )
-    ),
-    "Transport" to CategoryMeta(
-        Icons.Filled.DirectionsCar, Color(0xFF6A1B9A),
-        listOf(
-            CatTx("Bus pass", "Apr 3 · Transport", "-\$45.00", false, "Apr 3, 2026", "Cash", "Monthly bus pass"),
-            CatTx("Taxi", "Mar 22 · Transport", "-\$18.00", false, "Mar 22, 2026", "Cash"),
-            CatTx("Fuel", "Mar 10 · Transport", "-\$72.00", false, "Mar 10, 2026", "Checking Account"),
-            CatTx("Bus pass", "Mar 1 · Transport", "-\$45.00", false, "Mar 1, 2026", "Cash", "Monthly bus pass"),
-        )
-    ),
-    "Entertainment" to CategoryMeta(
-        Icons.Filled.Movie, Color(0xFFE65100),
-        listOf(
-            CatTx("Spotify", "Apr 4 · Entertainment", "-\$9.99", false, "Apr 4, 2026", "Checking Account"),
-            CatTx("Netflix", "Apr 1 · Entertainment", "-\$15.99", false, "Apr 1, 2026", "Checking Account"),
-            CatTx("Cinema", "Mar 25 · Entertainment", "-\$24.00", false, "Mar 25, 2026", "Cash"),
-            CatTx("Spotify", "Mar 4 · Entertainment", "-\$9.99", false, "Mar 4, 2026", "Checking Account"),
-        )
-    ),
-    "Health" to CategoryMeta(
-        Icons.Filled.HealthAndSafety, Color(0xFF920009),
-        listOf(
-            CatTx("Pharmacy", "Mar 31 · Health", "-\$22.00", false, "Mar 31, 2026", "Savings Account"),
-            CatTx("Doctor", "Mar 14 · Health", "-\$50.00", false, "Mar 14, 2026", "Savings Account", "Checkup"),
-        )
-    ),
-    "Work" to CategoryMeta(
-        Icons.Filled.Work, Color(0xFF00513F),
-        listOf(
-            CatTx("Salary", "Apr 1 · Work", "+\$5,200.00", true, "Apr 1, 2026", "Checking Account", "April paycheck"),
-            CatTx("Freelance", "Mar 30 · Work", "+\$800.00", true, "Mar 30, 2026", "Checking Account", "Web project invoice"),
-            CatTx("Salary", "Mar 1 · Work", "+\$5,200.00", true, "Mar 1, 2026", "Checking Account", "March paycheck"),
-        )
-    ),
-)
+import com.ledger.app.ui.util.colorHexToColor
+import com.ledger.app.ui.util.iconNameToVector
+import com.ledger.app.ui.viewmodel.CategoryViewModel
+import com.ledger.app.ui.viewmodel.TransactionViewModel
+import uniffi.ledger.Transaction
+import java.time.LocalDate
+import java.time.YearMonth
+import java.time.format.DateTimeFormatter
+import java.time.format.TextStyle
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun CategoryTransactionsScreen(navController: NavController, categoryName: String) {
-    val meta = categoryData[categoryName]
-    val icon = meta?.icon ?: Icons.Filled.Category
-    val color = meta?.color ?: Color(0xFF00513F)
-    val transactions = meta?.transactions ?: emptyList()
+fun CategoryTransactionsScreen(
+    navController: NavController,
+    categoryName: String,
+    txViewModel: TransactionViewModel = hiltViewModel(),
+    categoryViewModel: CategoryViewModel = hiltViewModel()
+) {
+    val txState  by txViewModel.state.collectAsStateWithLifecycle()
+    val catState by categoryViewModel.state.collectAsStateWithLifecycle()
 
-    val totalSpent = transactions
-        .filter { !it.isIncome }
-        .sumOf { it.amount.replace("-\$", "").replace(",", "").toDoubleOrNull() ?: 0.0 }
-    val totalEarned = transactions
-        .filter { it.isIncome }
-        .sumOf { it.amount.replace("+\$", "").replace(",", "").toDoubleOrNull() ?: 0.0 }
+    val currentEntry by navController.currentBackStackEntryAsState()
+    LaunchedEffect(currentEntry?.destination?.route) {
+        txViewModel.loadAll()
+        categoryViewModel.load()
+    }
 
-    var sheetTx by remember { mutableStateOf<CatTx?>(null) }
+    // Resolve icon + color from the DB category; fall back to generic if not found
+    val category = remember(catState.categories, categoryName) {
+        catState.categories.find { it.name == categoryName }
+    }
+    val icon  = remember(category) { category?.let { iconNameToVector(it.iconName) } ?: Icons.Filled.Category }
+    val color = remember(category) { category?.let { colorHexToColor(it.colorHex) } ?: Color(0xFF00513F) }
+
+    // All transactions for this category, newest first
+    val allTxs = remember(txState.transactions, categoryName) {
+        txState.transactions
+            .filter { it.category == categoryName }
+            .sortedByDescending { it.createdAt }
+    }
+
+    val totalSpent  = allTxs.filter { !it.isIncome }.sumOf { it.amount }
+    val totalEarned = allTxs.filter { it.isIncome }.sumOf { it.amount }
+
+    // Group by year-month label, newest month first
+    val monthFmt = DateTimeFormatter.ofPattern("MMMM yyyy")
+    val grouped: List<Pair<String, List<Transaction>>> = remember(allTxs) {
+        allTxs
+            .groupBy {
+                runCatching {
+                    val d = LocalDate.parse(it.createdAt.take(10))
+                    YearMonth.of(d.year, d.monthValue)
+                }.getOrNull()
+            }
+            .entries
+            .filter { it.key != null }
+            .sortedByDescending { it.key }
+            .map { (ym, txs) -> ym!!.format(monthFmt) to txs }
+    }
+
+    val dayFmt = DateTimeFormatter.ofPattern("MMM d")
+
+    var sheetTx by remember { mutableStateOf<Transaction?>(null) }
 
     if (sheetTx != null) {
         val tx = sheetTx!!
@@ -106,7 +94,21 @@ fun CategoryTransactionsScreen(navController: NavController, categoryName: Strin
             containerColor = SurfaceContainerLowest,
             tonalElevation = 0.dp
         ) {
-            CatTxDetailSheet(tx, icon, color, categoryName) { sheetTx = null }
+            CatTxDetailSheet(
+                tx = tx,
+                icon = icon,
+                color = color,
+                categoryName = categoryName,
+                onDismiss = { sheetTx = null },
+                onEdit = {
+                    sheetTx = null
+                    navController.navigate(Screen.EditTransaction.createRoute(tx.id))
+                },
+                onDelete = {
+                    txViewModel.deleteTransaction(tx.id)
+                    sheetTx = null
+                }
+            )
         }
     }
 
@@ -124,74 +126,96 @@ fun CategoryTransactionsScreen(navController: NavController, categoryName: Strin
         },
         containerColor = SurfaceContainerLow
     ) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+        LazyColumn(
+            modifier = Modifier.fillMaxSize().padding(padding),
+            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Category header card
-            LedgerFloatingCard(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.padding(20.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier.size(56.dp).clip(CircleShape).background(color),
-                        contentAlignment = Alignment.Center
+            // Header card
+            item {
+                LedgerFloatingCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.padding(20.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
-                    }
-                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        Text(categoryName, style = MaterialTheme.typography.titleLarge, color = OnSurface, fontWeight = FontWeight.Bold)
-                        Text("${transactions.size} transactions", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
-                    }
-                    Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                        if (totalSpent > 0) {
-                            Text(
-                                "-\$${"%.2f".format(totalSpent)}",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Tertiary,
-                                fontWeight = FontWeight.Bold
-                            )
+                        Box(
+                            modifier = Modifier.size(56.dp).clip(CircleShape).background(color),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(icon, contentDescription = null, tint = Color.White, modifier = Modifier.size(28.dp))
                         }
-                        if (totalEarned > 0) {
-                            Text(
-                                "+\$${"%.2f".format(totalEarned)}",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = Primary,
-                                fontWeight = FontWeight.Bold
-                            )
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(categoryName, style = MaterialTheme.typography.titleLarge, color = OnSurface, fontWeight = FontWeight.Bold)
+                            if (txState.isLoading) {
+                                Text("Loading…", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                            } else {
+                                Text("${allTxs.size} transaction${if (allTxs.size != 1) "s" else ""}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                            }
+                        }
+                        Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            if (totalSpent > 0)
+                                Text("-${"$%,.2f".format(totalSpent)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
+                            if (totalEarned > 0)
+                                Text("+${"$%,.2f".format(totalEarned)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
             }
 
-            // Transaction list
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                Text("All Transactions", style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.SemiBold)
-                Text("Tap for details", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-            }
-
-            if (transactions.isEmpty()) {
-                LedgerCard(modifier = Modifier.fillMaxWidth()) {
-                    Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                        Text("No transactions in this category", style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant)
+            if (txState.isLoading) {
+                item {
+                    Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = Primary)
+                    }
+                }
+            } else if (allTxs.isEmpty()) {
+                item {
+                    LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                        Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                            Text("No transactions in this category yet.", style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant)
+                        }
                     }
                 }
             } else {
-                LedgerCard(modifier = Modifier.fillMaxWidth()) {
-                    Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-                        transactions.forEachIndexed { idx, tx ->
-                            TransactionRow(
-                                tx.title, tx.subtitle, tx.amount, tx.isIncome,
-                                onClick = { sheetTx = tx }
-                            )
-                            if (idx < transactions.size - 1) {
-                                HorizontalDivider(modifier = Modifier.padding(horizontal = 4.dp), color = OutlineVariant.copy(alpha = 0.15f))
+                grouped.forEach { (monthLabel, txs) ->
+                    item(key = monthLabel) {
+                        Text(monthLabel, style = MaterialTheme.typography.titleSmall, color = OnSurfaceVariant, fontWeight = FontWeight.SemiBold)
+                    }
+                    item(key = "card_$monthLabel") {
+                        LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                                txs.forEachIndexed { idx, tx ->
+                                    val txDate = runCatching { LocalDate.parse(tx.createdAt.take(10)).format(dayFmt) }.getOrElse { tx.createdAt.take(10) }
+                                    Surface(
+                                        onClick = { sheetTx = tx },
+                                        color = Color.Transparent,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Text(tx.title, style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium)
+                                                Text(
+                                                    if (tx.note != null && tx.note!!.isNotBlank()) "$txDate · ${tx.note}" else txDate,
+                                                    style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant,
+                                                    maxLines = 1
+                                                )
+                                            }
+                                            Text(
+                                                "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amount)}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = if (tx.isIncome) Primary else Tertiary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                    if (idx < txs.lastIndex)
+                                        HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = OutlineVariant.copy(alpha = 0.15f))
+                                }
                             }
                         }
                     }
@@ -202,23 +226,38 @@ fun CategoryTransactionsScreen(navController: NavController, categoryName: Strin
 }
 
 @Composable
-private fun CatTxDetailSheet(tx: CatTx, icon: ImageVector, color: Color, category: String, onDismiss: () -> Unit) {
+private fun CatTxDetailSheet(
+    tx: Transaction,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    color: Color,
+    categoryName: String,
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var confirmDelete by remember { mutableStateOf(false) }
+    val dateFmt = DateTimeFormatter.ofPattern("MMM d, yyyy")
+    val displayDate = runCatching { LocalDate.parse(tx.createdAt.take(10)).format(dateFmt) }.getOrElse { tx.createdAt.take(10) }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete transaction?") },
+            text = { Text("\"${tx.title}\" will be permanently removed.") },
+            confirmButton = { TextButton(onClick = onDelete) { Text("Delete", color = Tertiary) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
+        )
+    }
+
     Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(horizontal = 20.dp)
-            .padding(bottom = 36.dp),
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 36.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.Top
-        ) {
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(tx.title, style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                 Text(
-                    tx.amount,
+                    "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amount)}",
                     style = MaterialTheme.typography.titleLarge,
                     color = if (tx.isIncome) Primary else Tertiary,
                     fontWeight = FontWeight.Bold
@@ -231,31 +270,45 @@ private fun CatTxDetailSheet(tx: CatTx, icon: ImageVector, color: Color, categor
                 Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(26.dp))
             }
         }
-
         HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
-
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            CatDetailRow(Icons.Filled.CalendarToday, "Date", tx.date)
-            CatDetailRow(Icons.Filled.Category, "Category", category)
-            CatDetailRow(Icons.Filled.AccountBalanceWallet, "Wallet", tx.wallet)
+            CatDetailRow(Icons.Filled.CalendarToday, "Date", displayDate)
+            CatDetailRow(Icons.Filled.Category, "Category", categoryName)
             CatDetailRow(
                 if (tx.isIncome) Icons.Filled.ArrowDownward else Icons.Filled.ArrowUpward,
-                "Type",
-                if (tx.isIncome) "Income" else "Expense"
+                "Type", if (tx.isIncome) "Income" else "Expense"
             )
-            if (tx.note.isNotBlank()) {
-                CatDetailRow(Icons.Filled.Notes, "Note", tx.note)
-            }
+            if (!tx.note.isNullOrBlank())
+                CatDetailRow(Icons.Filled.Notes, "Note", tx.note!!)
         }
-
-        TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-            Text("Close", color = Primary, style = MaterialTheme.typography.labelLarge)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = { confirmDelete = true },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Tertiary)
+            ) {
+                Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Delete")
+            }
+            Button(
+                onClick = onEdit,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Primary)
+            ) {
+                Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Edit")
+            }
         }
     }
 }
 
 @Composable
-private fun CatDetailRow(icon: ImageVector, label: String, value: String) {
+private fun CatDetailRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String, value: String
+) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(icon, contentDescription = null, tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))
         Text(label, style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant, modifier = Modifier.width(80.dp))

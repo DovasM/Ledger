@@ -7,6 +7,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneOffset
+import java.time.format.DateTimeFormatter
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -35,12 +39,20 @@ fun AddTransactionScreen(
     val tagState       by tagViewModel.state.collectAsStateWithLifecycle()
     val categoryState  by categoryViewModel.state.collectAsStateWithLifecycle()
 
+    val txState by transactionViewModel.state.collectAsStateWithLifecycle()
+    val titleSuggestions = remember(txState.transactions) {
+        txState.transactions.map { it.title }.filter { it.isNotBlank() }.distinct().sorted()
+    }
+    var titleSuggestionsVisible by remember { mutableStateOf(false) }
+
     var amount by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var isExpense by remember { mutableStateOf(true) }
     var showCalc by remember { mutableStateOf(false) }
     var showErrors by remember { mutableStateOf(false) }
+    var selectedDate by remember { mutableStateOf(LocalDate.now()) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     // selectedTags holds tag names (without leading #)
     var selectedTags by remember { mutableStateOf(setOf<String>()) }
@@ -60,11 +72,32 @@ fun AddTransactionScreen(
 
     val amountValue = amount.toDoubleOrNull()
     val isAmountValid = amountValue != null && amountValue > 0
-    val isTitleValid = title.isNotBlank()
     val isWalletValid = walletState.wallets.isNotEmpty()
-    val isFormValid = isAmountValid && isTitleValid && isWalletValid
+    val isFormValid = isAmountValid && isWalletValid
 
     val accentColor = if (isExpense) Tertiary else Primary
+
+    if (showDatePicker) {
+        val datePickerState = rememberDatePickerState(
+            initialSelectedDateMillis = selectedDate.atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli(),
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long) =
+                    utcTimeMillis <= System.currentTimeMillis()
+            }
+        )
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let {
+                        selectedDate = Instant.ofEpochMilli(it).atZone(ZoneOffset.UTC).toLocalDate()
+                    }
+                    showDatePicker = false
+                }) { Text("OK", color = accentColor) }
+            },
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } }
+        ) { DatePicker(state = datePickerState) }
+    }
 
     if (showCalc) {
         LedgerCalculatorSheet(
@@ -151,15 +184,7 @@ fun AddTransactionScreen(
                 showError = showErrors && !isAmountValid
             )
 
-            LedgerTextField(
-                value = title, onValueChange = { title = it },
-                label = "Title", placeholder = "e.g. Rent, Salary",
-                modifier = Modifier.fillMaxWidth(),
-                isError = showErrors && !isTitleValid,
-                supportingText = if (showErrors && !isTitleValid) "Title is required" else null
-            )
-
-            // Category selector
+            // Category selector — shown first, most important field
             ExposedDropdownMenuBox(expanded = categoryMenuExpanded, onExpandedChange = { categoryMenuExpanded = it }) {
                 LedgerTextField(
                     value = selectedCategory, onValueChange = {},
@@ -175,6 +200,46 @@ fun AddTransactionScreen(
                     }
                 }
             }
+
+            val filteredTitleSuggestions = remember(title, titleSuggestions) {
+                if (title.isBlank()) titleSuggestions.take(6)
+                else titleSuggestions.filter { it.contains(title, ignoreCase = true) && !it.equals(title, ignoreCase = true) }.take(6)
+            }
+            ExposedDropdownMenuBox(
+                expanded = titleSuggestionsVisible && filteredTitleSuggestions.isNotEmpty(),
+                onExpandedChange = {}
+            ) {
+                LedgerTextField(
+                    value = title,
+                    onValueChange = { title = it; titleSuggestionsVisible = true },
+                    label = "Title (optional)", placeholder = "e.g. Monthly Rent, Netflix",
+                    modifier = Modifier.fillMaxWidth().menuAnchor()
+                )
+                ExposedDropdownMenu(
+                    expanded = titleSuggestionsVisible && filteredTitleSuggestions.isNotEmpty(),
+                    onDismissRequest = { titleSuggestionsVisible = false }
+                ) {
+                    filteredTitleSuggestions.forEach { suggestion ->
+                        DropdownMenuItem(
+                            text = { Text(suggestion, style = MaterialTheme.typography.bodyMedium) },
+                            onClick = { title = suggestion; titleSuggestionsVisible = false }
+                        )
+                    }
+                }
+            }
+
+            LedgerTextField(
+                value = selectedDate.format(DateTimeFormatter.ofPattern("MMM d, yyyy")),
+                onValueChange = {},
+                label = "Date",
+                leadingIcon = { Icon(Icons.Filled.CalendarToday, null, tint = OnSurfaceVariant) },
+                trailingIcon = {
+                    IconButton(onClick = { showDatePicker = true }) {
+                        Icon(Icons.Filled.EditCalendar, null, tint = accentColor)
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            )
 
             LedgerTextField(
                 value = note, onValueChange = { note = it },
@@ -228,11 +293,12 @@ fun AddTransactionScreen(
                     if (isFormValid && walletId != null) {
                         transactionViewModel.createTransaction(
                             walletId = walletId,
-                            title = title,
+                            title = title.ifBlank { selectedCategory },
                             category = selectedCategory,
                             amount = amountValue!!,
                             isIncome = !isExpense,
                             note = note.ifBlank { null },
+                            createdAt = selectedDate.atStartOfDay().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
                             tagNames = selectedTags.toList()
                         ) { navController.popBackStack() }
                     }

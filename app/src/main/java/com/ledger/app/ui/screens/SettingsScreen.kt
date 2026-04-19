@@ -97,7 +97,7 @@ fun SettingsScreen(navController: NavController) {
                 SettingsDivider()
                 SettingsNavItem(Icons.Filled.ShowChart, Color(0xFFE65100), "Connected Accounts", "Revolut, Trading 212 and other brokers") { navController.navigate(Screen.ConnectAccount.route) }
                 SettingsDivider()
-                SettingsNavItem(Icons.Filled.FileUpload, Color(0xFF00838F), "Import Transactions", "Import transactions from a CSV file") { navController.navigate(Screen.TransactionImport.route) }
+                SettingsNavItem(Icons.Filled.FileUpload, Color(0xFF00838F), "Import from Money Manager", "Import accounts, categories and transactions from a .mmbackup file") { navController.navigate(Screen.TransactionImport.route) }
             }
 
             // Preferences

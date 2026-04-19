@@ -9,11 +9,13 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import uniffi.ledger.MonthSummary
 import uniffi.ledger.Transaction
 import javax.inject.Inject
 
 data class TransactionUiState(
     val transactions: List<Transaction> = emptyList(),
+    val monthSummary: MonthSummary? = null,
     val isLoading: Boolean = false,
     val error: String? = null
 )
@@ -28,12 +30,14 @@ class TransactionViewModel @Inject constructor(
 
     init { loadAll() }
 
-    fun loadAll(limit: UInt = 100u, offset: UInt = 0u) {
+    fun loadAll(limit: UInt = 10000u, offset: UInt = 0u) {
         viewModelScope.launch(Dispatchers.IO) {
             _state.value = _state.value.copy(isLoading = true, error = null)
             try {
                 val txns = bridge.listAllTransactions(limit, offset)
-                _state.value = _state.value.copy(transactions = txns, isLoading = false)
+                val now = java.time.LocalDate.now()
+                val summary = try { bridge.getMonthSummary(now.year, now.monthValue) } catch (e: Exception) { null }
+                _state.value = _state.value.copy(transactions = txns, monthSummary = summary, isLoading = false)
             } catch (e: Exception) {
                 _state.value = _state.value.copy(isLoading = false, error = e.message)
             }
@@ -55,12 +59,13 @@ class TransactionViewModel @Inject constructor(
     fun createTransaction(
         walletId: String, title: String, category: String,
         amount: Double, isIncome: Boolean, note: String?,
+        createdAt: String? = null,
         tagNames: List<String> = emptyList(),
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val tx = bridge.createTransaction(walletId, title, category, amount, isIncome, note)
+                val tx = bridge.createTransaction(walletId, title, category, amount, isIncome, note, createdAt)
                 for (name in tagNames) {
                     val tag = bridge.createTag(name)
                     bridge.addTagToTransaction(tx.id, tag.id)
@@ -76,11 +81,12 @@ class TransactionViewModel @Inject constructor(
     fun updateTransaction(
         id: String, title: String, category: String,
         amount: Double, isIncome: Boolean, note: String?,
+        createdAt: String? = null,
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.updateTransaction(id, title, category, amount, isIncome, note)
+                bridge.updateTransaction(id, title, category, amount, isIncome, note, createdAt)
                 loadAll()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
