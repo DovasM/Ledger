@@ -50,7 +50,7 @@ fun LedgerTrendChart(
 
     val periodStart = when (selected) {
         "1W"  -> today.minusDays(6)
-        "1M"  -> today.minusDays(29)
+        "1M"  -> today.withDayOfMonth(1)
         "3M"  -> today.minusDays(89)
         "6M"  -> today.minusDays(179)
         "1Y"  -> today.minusDays(364)

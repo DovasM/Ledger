@@ -94,6 +94,12 @@ fun BudgetsScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Budgets", style = MaterialTheme.typography.headlineSmall) },
+                actions = {
+                    IconButton(onClick = { navController.navigate(Screen.BudgetInsights.route) }) {
+                        Icon(Icons.Filled.Insights, contentDescription = "Insights")
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceContainerLow)
             )
         },
         bottomBar = { LedgerBottomNavBar(navController) },

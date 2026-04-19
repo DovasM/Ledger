@@ -68,7 +68,7 @@ fun DashboardScreen(
     val totalBalance = walletState.wallets.sumOf { it.balance }
 
     val today = LocalDate.now()
-    var chartPeriodStart by remember { mutableStateOf(today.minusDays(29)) }
+    var chartPeriodStart by remember { mutableStateOf(today.withDayOfMonth(1)) }
 
     // Period-filtered income/expenses (synced with chart selection)
     val periodTxs = txState.transactions.filter {
