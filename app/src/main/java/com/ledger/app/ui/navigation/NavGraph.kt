@@ -66,6 +66,8 @@ sealed class Screen(val route: String) {
     object InvestmentPnL : Screen("investment_pnl")
     object Dividends : Screen("dividends")
     object NetWorth : Screen("net_worth")
+    object MonthlyReport : Screen("monthly_report")
+    object QuarterlyReport : Screen("quarterly_report")
     object DebtTracker : Screen("debt_tracker")
     object AddDebt : Screen("add_debt")
     object EditDebt : Screen("edit_debt/{id}") {
@@ -154,6 +156,8 @@ fun LedgerNavGraph(navController: NavHostController) {
         composable(Screen.InvestmentPnL.route) { InvestmentPnLScreen(navController) }
         composable(Screen.Dividends.route) { DividendsScreen(navController) }
         composable(Screen.NetWorth.route) { NetWorthScreen(navController) }
+        composable(Screen.MonthlyReport.route) { MonthlyReportScreen(navController) }
+        composable(Screen.QuarterlyReport.route) { QuarterlyReportScreen(navController) }
         composable(Screen.DebtTracker.route) { DebtTrackerScreen(navController) }
         composable(Screen.AddDebt.route) { AddEditDebtScreen(navController) }
         composable(Screen.EditDebt.route) { backStack ->

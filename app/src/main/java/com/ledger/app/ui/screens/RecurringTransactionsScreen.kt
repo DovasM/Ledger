@@ -52,6 +52,19 @@ fun RecurringTransactionsScreen(
 
     fun walletName(id: String) = walletState.wallets.find { it.id == id }?.name ?: id
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val justApplied = state.justApplied
+    LaunchedEffect(justApplied) {
+        if (justApplied.isNotEmpty()) {
+            val msg = if (justApplied.size == 1)
+                "Posted: ${justApplied.first()}"
+            else
+                "${justApplied.size} recurring transactions posted"
+            snackbarHostState.showSnackbar(msg)
+            viewModel.clearApplied()
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -73,6 +86,7 @@ fun RecurringTransactionsScreen(
                 containerColor = Primary, contentColor = OnPrimary
             ) { Icon(Icons.Filled.Add, contentDescription = "Add recurring") }
         },
+        snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = SurfaceContainerLow
     ) { padding ->
         Column(
@@ -152,6 +166,7 @@ fun RecurringTransactionsScreen(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun RecurringRow(
     tx: RecurringTransaction,
@@ -162,6 +177,7 @@ private fun RecurringRow(
     var showOptionsDialog by remember { mutableStateOf(false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
+    var showDatePicker by remember { mutableStateOf(false) }
 
     var editTitle by remember { mutableStateOf(tx.title) }
     var editAmount by remember { mutableStateOf(tx.amount.toString()) }
@@ -199,6 +215,27 @@ private fun RecurringRow(
                 }
             }
         )
+    }
+
+    if (showDatePicker) {
+        val initialMillis = runCatching {
+            java.time.LocalDate.parse(editNextDate).toEpochDay() * 86_400_000L
+        }.getOrDefault(System.currentTimeMillis())
+        val datePickerState = rememberDatePickerState(initialSelectedDateMillis = initialMillis)
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    datePickerState.selectedDateMillis?.let {
+                        editNextDate = java.time.LocalDate.ofEpochDay(it / 86_400_000L).toString()
+                    }
+                    showDatePicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) { Text("Cancel") }
+            }
+        ) { DatePicker(state = datePickerState) }
     }
 
     if (showEditDialog) {
@@ -242,10 +279,18 @@ private fun RecurringRow(
                             )
                         }
                     }
-                    LedgerTextField(
-                        value = editNextDate, onValueChange = { editNextDate = it },
-                        label = "Next Date (YYYY-MM-DD)", modifier = Modifier.fillMaxWidth()
-                    )
+                    OutlinedButton(
+                        onClick = { showDatePicker = true },
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(6.dp)
+                    ) {
+                        Icon(Icons.Filled.CalendarToday, null, modifier = Modifier.size(16.dp))
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            "Next date: $editNextDate",
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
                 }
             },
             confirmButton = {

@@ -75,31 +75,65 @@ fun ActivityScreen(
         }
     }
 
-    val activityPeriods = listOf("1W", "1M", "2M", "3M", "6M", "1Y", "All")
-    var selectedPeriod by remember { mutableStateOf("1M") }
     val today = java.time.LocalDate.now()
+    var fromDate by remember { mutableStateOf(today.minusDays(29)) }
+    var toDate by remember { mutableStateOf(today) }
+    var showFromPicker by remember { mutableStateOf(false) }
+    var showToPicker by remember { mutableStateOf(false) }
 
-    val periodStart: java.time.LocalDate? = when (selectedPeriod) {
-        "1W"  -> today.minusDays(6)
-        "1M"  -> today.minusDays(29)
-        "2M"  -> today.minusDays(59)
-        "3M"  -> today.minusDays(89)
-        "6M"  -> today.minusDays(179)
-        "1Y"  -> today.minusDays(364)
-        else  -> null
+    val dateFmt = java.time.format.DateTimeFormatter.ofPattern("MMM d, yyyy")
+
+    val visibleTxs = state.transactions.filter {
+        runCatching {
+            val d = java.time.LocalDate.parse(it.createdAt.take(10))
+            d >= fromDate && d <= toDate
+        }.getOrElse { false }
     }
 
-    val periodLabel = when (selectedPeriod) {
-        "1W" -> "Last 7 days"; "1M" -> "Last 30 days"; "2M" -> "Last 60 days"
-        "3M" -> "Last 90 days"; "6M" -> "Last 6 months"; "1Y" -> "Last year"
-        else -> "All time"
+    if (showFromPicker) {
+        val pickerState = rememberDatePickerState(
+            initialSelectedDateMillis = fromDate.toEpochDay() * 86_400_000L,
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long) =
+                    utcTimeMillis <= toDate.toEpochDay() * 86_400_000L
+            }
+        )
+        DatePickerDialog(
+            onDismissRequest = { showFromPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let {
+                        fromDate = java.time.LocalDate.ofEpochDay(it / 86_400_000L)
+                    }
+                    showFromPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showFromPicker = false }) { Text("Cancel") } }
+        ) { DatePicker(state = pickerState) }
     }
 
-    val visibleTxs = if (periodStart != null) {
-        state.transactions.filter {
-            runCatching { java.time.LocalDate.parse(it.createdAt.take(10)) >= periodStart }.getOrElse { false }
-        }
-    } else state.transactions
+    if (showToPicker) {
+        val pickerState = rememberDatePickerState(
+            initialSelectedDateMillis = toDate.toEpochDay() * 86_400_000L,
+            selectableDates = object : SelectableDates {
+                override fun isSelectableDate(utcTimeMillis: Long) =
+                    utcTimeMillis >= fromDate.toEpochDay() * 86_400_000L &&
+                    utcTimeMillis <= today.toEpochDay() * 86_400_000L
+            }
+        )
+        DatePickerDialog(
+            onDismissRequest = { showToPicker = false },
+            confirmButton = {
+                TextButton(onClick = {
+                    pickerState.selectedDateMillis?.let {
+                        toDate = java.time.LocalDate.ofEpochDay(it / 86_400_000L)
+                    }
+                    showToPicker = false
+                }) { Text("OK") }
+            },
+            dismissButton = { TextButton(onClick = { showToPicker = false }) { Text("Cancel") } }
+        ) { DatePicker(state = pickerState) }
+    }
 
     // Group transactions by date (first 10 chars of createdAt ISO string)
     val grouped = visibleTxs.groupBy { it.createdAt.take(10) }
@@ -146,25 +180,47 @@ fun ActivityScreen(
             // Summary card
             LedgerFloatingCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("SUMMARY", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text(periodLabel, style = MaterialTheme.typography.labelSmall, color = Primary, fontWeight = FontWeight.SemiBold)
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                        activityPeriods.forEach { p ->
-                            val sel = p == selectedPeriod
-                            Surface(
-                                onClick = { selectedPeriod = p },
-                                shape = RoundedCornerShape(4.dp),
-                                color = if (sel) Primary.copy(alpha = 0.15f) else Color.Transparent
+                    Text("SUMMARY", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Surface(
+                            onClick = { showFromPicker = true },
+                            shape = RoundedCornerShape(6.dp),
+                            color = Primary.copy(alpha = 0.10f),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
                             ) {
-                                Text(
-                                    p,
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (sel) Primary else OnSurfaceVariant,
-                                    fontWeight = if (sel) FontWeight.Bold else FontWeight.Normal
-                                )
+                                Icon(Icons.Filled.CalendarToday, null, tint = Primary, modifier = Modifier.size(14.dp))
+                                Column {
+                                    Text("From", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                    Text(fromDate.format(dateFmt), style = MaterialTheme.typography.labelMedium, color = Primary, fontWeight = FontWeight.SemiBold)
+                                }
+                            }
+                        }
+                        Icon(Icons.Filled.ArrowForward, null, tint = OnSurfaceVariant, modifier = Modifier.size(16.dp))
+                        Surface(
+                            onClick = { showToPicker = true },
+                            shape = RoundedCornerShape(6.dp),
+                            color = Primary.copy(alpha = 0.10f),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                Icon(Icons.Filled.CalendarToday, null, tint = Primary, modifier = Modifier.size(14.dp))
+                                Column {
+                                    Text("To", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                    Text(toDate.format(dateFmt), style = MaterialTheme.typography.labelMedium, color = Primary, fontWeight = FontWeight.SemiBold)
+                                }
                             }
                         }
                     }

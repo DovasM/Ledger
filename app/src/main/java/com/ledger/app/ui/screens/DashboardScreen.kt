@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -222,26 +223,50 @@ fun DashboardScreen(
 
             // ── Total Balance ─────────────────────────────────────────────────
             LedgerFloatingCard(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.padding(20.dp)) {
-                    Text("TOTAL BALANCE", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "${"$%,.2f".format(totalBalance)}",
-                        style = MaterialTheme.typography.headlineLarge,
-                        color = OnSurface, fontWeight = FontWeight.Bold, maxLines = 1
-                    )
-                    Spacer(Modifier.height(16.dp))
-                    Row(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("PERIOD INCOME", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                            Text("+${"$%,.0f".format(periodIncome)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.SemiBold)
+                Column(modifier = Modifier.padding(horizontal = 20.dp, vertical = 20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                    // Balance — centered, full width
+                    Column(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(2.dp)
+                    ) {
+                        Text(
+                            "TOTAL BALANCE",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = OnSurfaceVariant,
+                            letterSpacing = 2.sp
+                        )
+                        Text(
+                            "${"$%,.2f".format(totalBalance)}",
+                            style = MaterialTheme.typography.displaySmall,
+                            color = Primary,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1
+                        )
+                    }
+                    // Income | divider | Expenses — each centered in their half
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text("INCOME", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant)
+                            Text("+${"$%,.2f".format(periodIncome)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.SemiBold)
                         }
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("PERIOD EXPENSES", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                            Text("-${"$%,.0f".format(periodExpenses)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.SemiBold)
+                        VerticalDivider(modifier = Modifier.height(36.dp), color = OutlineVariant.copy(alpha = 0.4f))
+                        Column(
+                            modifier = Modifier.weight(1f),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text("EXPENSES", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant)
+                            Text("-${"$%,.2f".format(periodExpenses)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.SemiBold)
                         }
                     }
-                    Spacer(Modifier.height(16.dp))
                     LedgerTrendChart(
                         transactions = txState.transactions,
                         currentBalance = totalBalance,

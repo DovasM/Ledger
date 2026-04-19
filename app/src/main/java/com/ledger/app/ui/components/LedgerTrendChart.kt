@@ -35,7 +35,6 @@ import kotlin.math.roundToInt
  * @param accentColor     Line/fill color override; defaults to Primary/Tertiary based on trend.
  * @param onPeriodChanged Called whenever the user selects a different period, with the new start date.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun LedgerTrendChart(
     transactions: List<Transaction>,
@@ -102,31 +101,30 @@ fun LedgerTrendChart(
     val inspectValue = points.getOrNull(inspectIdx) ?: 0f
     val inspectDate = days.getOrNull(inspectIdx)
 
-    Column(modifier = modifier) {
-        // Period filter chips
-        FlowRow(
-            horizontalArrangement = Arrangement.spacedBy(6.dp),
-            verticalArrangement = Arrangement.spacedBy(4.dp)
-        ) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        // Period filter chips — equal width, full row
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
             periods.forEach { p ->
                 val isSelected = p == selected
                 Surface(
                     onClick = { selected = p },
                     shape = RoundedCornerShape(4.dp),
-                    color = if (isSelected) lineColor.copy(alpha = 0.15f) else Color.Transparent
+                    color = if (isSelected) lineColor.copy(alpha = 0.15f) else Color.Transparent,
+                    modifier = Modifier.weight(1f)
                 ) {
                     Text(
                         p,
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
+                        modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
                         style = MaterialTheme.typography.labelSmall,
                         color = if (isSelected) lineColor else OnSurfaceVariant,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center
                     )
                 }
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(4.dp))
 
         if (points.size < 2) {
             Box(modifier = Modifier.fillMaxWidth().height(100.dp), contentAlignment = Alignment.Center) {
@@ -176,21 +174,30 @@ fun LedgerTrendChart(
 
         Spacer(Modifier.height(4.dp))
 
-        // ── Y-axis labels + chart ──────────────────────────────────────────────
-        Row(modifier = Modifier.fillMaxWidth().height(160.dp)) {
-            Column(
-                modifier = Modifier.width(52.dp).fillMaxHeight(),
-                verticalArrangement = Arrangement.SpaceBetween
+        // ── Chart ─────────────────────────────────────────────────────────────
+        Box(modifier = Modifier.fillMaxWidth().height(100.dp)) {
+            // Max at top-left, min at bottom-left — surface background keeps them readable over the line
+            androidx.compose.material3.Surface(
+                modifier = Modifier.align(Alignment.TopStart),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+                shape = RoundedCornerShape(3.dp)
             ) {
-                Text(formatCompact(maxVal), style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                Text(formatCompact(minVal), style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                Text(formatCompact(maxVal), modifier = Modifier.padding(horizontal = 3.dp),
+                    style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+            }
+            androidx.compose.material3.Surface(
+                modifier = Modifier.align(Alignment.BottomStart),
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+                shape = RoundedCornerShape(3.dp)
+            ) {
+                Text(formatCompact(minVal), modifier = Modifier.padding(horizontal = 3.dp),
+                    style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
             }
 
             val lineColorCopy = lineColor
             Canvas(
                 modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
+                    .fillMaxSize()
                     .onSizeChanged { canvasWidthPx = it.width.toFloat().coerceAtLeast(1f) }
                     .pointerInput(points.size) {
                         awaitPointerEventScope {
@@ -274,15 +281,6 @@ fun LedgerTrendChart(
                 }
             }
 
-            // Right label: inspected value when active, current value otherwise
-            Box(modifier = Modifier.width(52.dp).fillMaxHeight(), contentAlignment = Alignment.Center) {
-                Text(
-                    formatCompact(if (inspecting) inspectValue else points.last()),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = lineColor,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
         }
     }
 }

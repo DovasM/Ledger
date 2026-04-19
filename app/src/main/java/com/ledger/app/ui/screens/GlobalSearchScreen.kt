@@ -21,59 +21,117 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
+import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.colorHexToColor
+import com.ledger.app.ui.util.iconNameToVector
+import com.ledger.app.ui.viewmodel.*
+import uniffi.ledger.Transaction
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
 
-private data class SearchTx(
-    val title: String, val category: String, val amount: String, val isIncome: Boolean,
-    val date: String, val wallet: String, val icon: ImageVector, val color: Color, val note: String = ""
-)
-
-private val allSearchableTxs = listOf(
-    SearchTx("Salary",           "Work",          "+\$5,200.00", true,  "Apr 1, 2026",  "Checking", Icons.Filled.Work,             Color(0xFF00513F), "April paycheck"),
-    SearchTx("Rent",             "Housing",       "-\$1,200.00", false, "Apr 1, 2026",  "Checking", Icons.Filled.Home,             Color(0xFF00513F), "Monthly rent"),
-    SearchTx("Freelance",        "Work",          "+\$800.00",   true,  "Apr 3, 2026",  "Checking", Icons.Filled.Laptop,           Color(0xFF1565C0), "Web project"),
-    SearchTx("Groceries",        "Food & Dining", "-\$124.50",   false, "Apr 3, 2026",  "Checking", Icons.Filled.Restaurant,       Color(0xFF1565C0)),
-    SearchTx("Netflix",          "Entertainment", "-\$15.99",    false, "Apr 1, 2026",  "Checking", Icons.Filled.Movie,            Color(0xFFE65100)),
-    SearchTx("Spotify",          "Entertainment", "-\$9.99",     false, "Apr 4, 2026",  "Checking", Icons.Filled.MusicNote,        Color(0xFFE65100)),
-    SearchTx("Bus pass",         "Transport",     "-\$45.00",    false, "Apr 3, 2026",  "Cash",     Icons.Filled.DirectionsBus,    Color(0xFF6A1B9A), "Monthly pass"),
-    SearchTx("Coffee",           "Food & Dining", "-\$4.50",     false, "Mar 31, 2026", "Cash",     Icons.Filled.Restaurant,       Color(0xFF1565C0)),
-    SearchTx("Pharmacy",         "Health",        "-\$22.00",    false, "Mar 31, 2026", "Savings",  Icons.Filled.HealthAndSafety,  Color(0xFF920009)),
-    SearchTx("Restaurant",       "Food & Dining", "-\$62.00",    false, "Mar 28, 2026", "Checking", Icons.Filled.Restaurant,       Color(0xFF1565C0), "Dinner"),
-    SearchTx("Salary",           "Work",          "+\$5,200.00", true,  "Mar 1, 2026",  "Checking", Icons.Filled.Work,             Color(0xFF00513F), "March paycheck"),
-    SearchTx("Rent",             "Housing",       "-\$1,200.00", false, "Mar 1, 2026",  "Checking", Icons.Filled.Home,             Color(0xFF00513F), "Monthly rent"),
-    SearchTx("Electricity",      "Housing",       "-\$85.00",    false, "Mar 18, 2026", "Checking", Icons.Filled.ElectricBolt,     Color(0xFF00513F)),
-    SearchTx("Gym membership",   "Health",        "-\$40.00",    false, "Mar 5, 2026",  "Checking", Icons.Filled.FitnessCenter,    Color(0xFF920009)),
-    SearchTx("Amazon",           "Shopping",      "-\$78.40",    false, "Mar 22, 2026", "Checking", Icons.Filled.ShoppingCart,     Color(0xFF00838F), "Books"),
-)
+private enum class TxFilter { ALL, INCOME, EXPENSE }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun GlobalSearchScreen(navController: NavController) {
-    var query by remember { mutableStateOf("") }
-    var sheetTx by remember { mutableStateOf<SearchTx?>(null) }
-    val focusRequester = remember { FocusRequester() }
+fun GlobalSearchScreen(
+    navController: NavController,
+    txViewModel: TransactionViewModel = hiltViewModel(),
+    categoryViewModel: CategoryViewModel = hiltViewModel(),
+    walletViewModel: WalletViewModel = hiltViewModel(),
+    goalViewModel: GoalViewModel = hiltViewModel(),
+    debtViewModel: DebtViewModel = hiltViewModel(),
+    recurringViewModel: RecurringViewModel = hiltViewModel()
+) {
+    val txState        by txViewModel.state.collectAsStateWithLifecycle()
+    val catState       by categoryViewModel.state.collectAsStateWithLifecycle()
+    val walletState    by walletViewModel.state.collectAsStateWithLifecycle()
+    val goalState      by goalViewModel.state.collectAsStateWithLifecycle()
+    val debtState      by debtViewModel.state.collectAsStateWithLifecycle()
+    val recurringState by recurringViewModel.state.collectAsStateWithLifecycle()
 
-    val filtered = if (query.length < 2) emptyList()
-    else allSearchableTxs.filter {
-        it.title.contains(query, ignoreCase = true) ||
-        it.category.contains(query, ignoreCase = true) ||
-        it.wallet.contains(query, ignoreCase = true) ||
-        it.note.contains(query, ignoreCase = true) ||
-        it.amount.contains(query, ignoreCase = true)
+    LaunchedEffect(Unit) { txViewModel.loadAll(1000u) }
+
+    var query        by remember { mutableStateOf("") }
+    var typeFilter   by remember { mutableStateOf(TxFilter.ALL) }
+    var sheetTx      by remember { mutableStateOf<Transaction?>(null) }
+    val focusRequester = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focusRequester.requestFocus() }
+
+    val dateFmt = DateTimeFormatter.ofPattern("MMM d, yyyy")
+    val shortFmt = DateTimeFormatter.ofPattern("MMM d")
+
+    // ── Transaction results ────────────────────────────────────────────────────
+    val filteredTxs = remember(txState.transactions, query, typeFilter) {
+        if (query.length < 2) emptyList()
+        else txState.transactions.filter { tx ->
+            val matchesQuery = tx.title.contains(query, ignoreCase = true) ||
+                tx.category.contains(query, ignoreCase = true) ||
+                (!tx.note.isNullOrBlank() && tx.note!!.contains(query, ignoreCase = true)) ||
+                "%.2f".format(tx.amount).contains(query)
+            val matchesType = when (typeFilter) {
+                TxFilter.ALL     -> true
+                TxFilter.INCOME  -> tx.isIncome
+                TxFilter.EXPENSE -> !tx.isIncome
+            }
+            matchesQuery && matchesType
+        }.sortedByDescending { it.createdAt }
     }
 
-    val suggestions = listOf("Rent", "Food", "Salary", "Transport", "Netflix")
+    // ── Quick-jump results ─────────────────────────────────────────────────────
+    data class QuickResult(val label: String, val sub: String, val icon: ImageVector, val color: Color, val onClick: () -> Unit)
 
+    val quickResults: List<QuickResult> = remember(query, walletState.wallets, goalState.goals, debtState.debts, recurringState.recurring) {
+        if (query.length < 2) return@remember emptyList()
+        val q = query.trim()
+        buildList {
+            walletState.wallets.filter { it.name.contains(q, ignoreCase = true) }.take(2).forEach { w ->
+                add(QuickResult(w.name, "${"$%,.2f".format(w.balance)} · Wallet", Icons.Filled.AccountBalanceWallet, Primary) {
+                    navController.navigate(Screen.WalletDetails.createRoute(w.id))
+                })
+            }
+            goalState.goals.filter { it.name.contains(q, ignoreCase = true) }.take(2).forEach { g ->
+                add(QuickResult(g.name, "${"$%,.0f".format(g.currentAmount)} / ${"$%,.0f".format(g.targetAmount)} · Goal", Icons.Filled.Flag, Color(0xFF1565C0)) {
+                    navController.navigate(Screen.GoalDetails.createRoute(g.id))
+                })
+            }
+            debtState.debts.filter { it.name.contains(q, ignoreCase = true) }.take(2).forEach { d ->
+                add(QuickResult(d.name, "${"$%,.2f".format(d.remainingAmount)} remaining · Debt", Icons.Filled.CreditCard, Tertiary) {
+                    navController.navigate(Screen.EditDebt.createRoute(d.id))
+                })
+            }
+            recurringState.recurring.filter { it.title.contains(q, ignoreCase = true) }.take(2).forEach { r ->
+                add(QuickResult(r.title, "${"$%,.2f".format(r.amount)} · ${r.frequency.replaceFirstChar { it.uppercase() }}", Icons.Filled.Repeat, Color(0xFF6A1B9A)) {
+                    navController.navigate(Screen.RecurringTransactions.route)
+                })
+            }
+        }.take(4)
+    }
+
+    // ── Bottom sheet ───────────────────────────────────────────────────────────
     if (sheetTx != null) {
         val tx = sheetTx!!
-        ModalBottomSheet(onDismissRequest = { sheetTx = null }, containerColor = SurfaceContainerLowest, tonalElevation = 0.dp) {
-            SearchTxSheet(tx) { sheetTx = null }
+        val txCategory = catState.categories.find { it.name == tx.category }
+        val txIcon  = txCategory?.let { iconNameToVector(it.iconName) } ?: Icons.Filled.Category
+        val txColor = txCategory?.let { colorHexToColor(it.colorHex) } ?: Primary
+        ModalBottomSheet(
+            onDismissRequest = { sheetTx = null },
+            containerColor = SurfaceContainerLowest,
+            tonalElevation = 0.dp
+        ) {
+            SearchTxSheet(
+                tx = tx, icon = txIcon, color = txColor,
+                displayDate = runCatching { LocalDate.parse(tx.createdAt.take(10)).format(dateFmt) }.getOrElse { tx.createdAt.take(10) },
+                onDismiss = { sheetTx = null },
+                onEdit = { sheetTx = null; navController.navigate(Screen.EditTransaction.createRoute(tx.id)) },
+                onDelete = { txViewModel.deleteTransaction(tx.id); sheetTx = null }
+            )
         }
     }
-
-    LaunchedEffect(Unit) { focusRequester.requestFocus() }
 
     Scaffold(
         topBar = {
@@ -81,8 +139,8 @@ fun GlobalSearchScreen(navController: NavController) {
                 title = {
                     OutlinedTextField(
                         value = query,
-                        onValueChange = { query = it },
-                        placeholder = { Text("Search transactions…", color = OnSurfaceVariant) },
+                        onValueChange = { query = it; typeFilter = TxFilter.ALL },
+                        placeholder = { Text("Search transactions, wallets, goals…", color = OnSurfaceVariant) },
                         leadingIcon = { Icon(Icons.Filled.Search, null, tint = OnSurfaceVariant) },
                         trailingIcon = if (query.isNotEmpty()) ({
                             IconButton(onClick = { query = "" }) { Icon(Icons.Filled.Close, null, tint = OnSurfaceVariant) }
@@ -91,13 +149,15 @@ fun GlobalSearchScreen(navController: NavController) {
                         modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                         colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Primary, unfocusedBorderColor = OutlineVariant,
+                            focusedBorderColor = Primary, unfocusedBorderColor = OutlineVariant
                         ),
                         shape = RoundedCornerShape(8.dp)
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) { Icon(Icons.Filled.ArrowBack, null) }
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Filled.ArrowBack, null)
+                    }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceContainerLow)
             )
@@ -109,76 +169,177 @@ fun GlobalSearchScreen(navController: NavController) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
             contentPadding = PaddingValues(vertical = 16.dp)
         ) {
+
+            // ── Idle state ─────────────────────────────────────────────────────
             if (query.length < 2) {
-                item {
-                    Text("Recent searches", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp))
-                }
-                item {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        suggestions.take(3).forEach { s ->
-                            AssistChip(
-                                onClick = { query = s },
-                                label = { Text(s, style = MaterialTheme.typography.labelSmall) },
-                                leadingIcon = { Icon(Icons.Filled.History, null, modifier = Modifier.size(14.dp)) }
-                            )
-                        }
+                if (catState.categories.isNotEmpty()) {
+                    item {
+                        Text("Categories", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant,
+                            modifier = Modifier.padding(bottom = 4.dp))
                     }
-                }
-                item {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        suggestions.drop(3).forEach { s ->
-                            AssistChip(
-                                onClick = { query = s },
-                                label = { Text(s, style = MaterialTheme.typography.labelSmall) },
-                                leadingIcon = { Icon(Icons.Filled.History, null, modifier = Modifier.size(14.dp)) }
-                            )
-                        }
-                    }
-                }
-                item {
-                    Spacer(Modifier.height(8.dp))
-                    Text("All categories", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 4.dp))
-                }
-                items(listOf("Housing","Food & Dining","Transport","Entertainment","Health","Work")) { cat ->
-                    Surface(onClick = { query = cat }, color = Color.Transparent, modifier = Modifier.fillMaxWidth()) {
-                        Row(modifier = Modifier.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                            Icon(Icons.Filled.Category, null, tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))
-                            Text(cat, style = MaterialTheme.typography.bodyMedium, color = OnSurface)
-                        }
-                    }
-                }
-            } else if (filtered.isEmpty()) {
-                item {
-                    Column(modifier = Modifier.fillMaxWidth().padding(top = 40.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Icon(Icons.Filled.SearchOff, null, tint = OnSurfaceVariant, modifier = Modifier.size(48.dp))
-                        Text("No results for \"$query\"", style = MaterialTheme.typography.titleMedium, color = OnSurface)
-                        Text("Try a different keyword", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
-                    }
-                }
-            } else {
-                item {
-                    Text("${filtered.size} result${if (filtered.size != 1) "s" else ""}", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant)
-                }
-                item {
-                    LedgerCard(modifier = Modifier.fillMaxWidth()) {
-                        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)) {
-                            filtered.forEachIndexed { idx, tx ->
-                                Surface(onClick = { sheetTx = tx }, color = Color.Transparent, modifier = Modifier.fillMaxWidth()) {
-                                    Row(modifier = Modifier.padding(vertical = 10.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                                        Box(modifier = Modifier.size(38.dp).clip(CircleShape).background(tx.color.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                                            Icon(tx.icon, null, tint = tx.color, modifier = Modifier.size(18.dp))
+                    item {
+                        LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                                catState.categories.forEachIndexed { idx, cat ->
+                                    val catIcon  = iconNameToVector(cat.iconName)
+                                    val catColor = colorHexToColor(cat.colorHex)
+                                    Surface(
+                                        onClick = { query = cat.name },
+                                        color = Color.Transparent,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier.size(32.dp).clip(CircleShape).background(catColor.copy(alpha = 0.12f)),
+                                                contentAlignment = Alignment.Center
+                                            ) { Icon(catIcon, null, tint = catColor, modifier = Modifier.size(16.dp)) }
+                                            Text(cat.name, style = MaterialTheme.typography.bodyMedium, color = OnSurface)
+                                            Spacer(Modifier.weight(1f))
+                                            Icon(Icons.Filled.ChevronRight, null, tint = OnSurfaceVariant, modifier = Modifier.size(16.dp))
                                         }
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(tx.title, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.Medium)
-                                            Text("${tx.category} · ${tx.date}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
-                                        }
-                                        Text(tx.amount, style = MaterialTheme.typography.titleSmall,
-                                            color = if (tx.isIncome) Primary else Tertiary, fontWeight = FontWeight.SemiBold)
                                     }
+                                    if (idx < catState.categories.lastIndex)
+                                        HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = OutlineVariant.copy(alpha = 0.12f))
                                 }
-                                if (idx < filtered.size - 1) HorizontalDivider(modifier = Modifier.padding(horizontal = 4.dp), color = OutlineVariant.copy(alpha = 0.15f))
+                            }
+                        }
+                    }
+                } else if (txState.isLoading) {
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().padding(40.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = Primary)
+                        }
+                    }
+                }
+
+            // ── Active search ──────────────────────────────────────────────────
+            } else {
+                // Type filter chips
+                item {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(TxFilter.ALL to "All", TxFilter.INCOME to "Income", TxFilter.EXPENSE to "Expenses").forEach { (filter, label) ->
+                            FilterChip(
+                                selected = typeFilter == filter,
+                                onClick = { typeFilter = filter },
+                                label = { Text(label, style = MaterialTheme.typography.labelSmall) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = Primary,
+                                    selectedLabelColor = OnPrimary
+                                )
+                            )
+                        }
+                    }
+                }
+
+                // Quick-jump results
+                if (quickResults.isNotEmpty()) {
+                    item {
+                        Text("Jump to", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant,
+                            modifier = Modifier.padding(top = 4.dp, bottom = 2.dp))
+                    }
+                    item {
+                        LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                                quickResults.forEachIndexed { idx, result ->
+                                    Surface(onClick = result.onClick, color = Color.Transparent, modifier = Modifier.fillMaxWidth()) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier.size(36.dp).clip(CircleShape).background(result.color.copy(alpha = 0.12f)),
+                                                contentAlignment = Alignment.Center
+                                            ) { Icon(result.icon, null, tint = result.color, modifier = Modifier.size(18.dp)) }
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(result.label, style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium)
+                                                Text(result.sub, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                                            }
+                                            Icon(Icons.Filled.ChevronRight, null, tint = OnSurfaceVariant, modifier = Modifier.size(16.dp))
+                                        }
+                                    }
+                                    if (idx < quickResults.lastIndex)
+                                        HorizontalDivider(modifier = Modifier.padding(horizontal = 12.dp), color = OutlineVariant.copy(alpha = 0.12f))
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Transaction results header
+                item {
+                    Text(
+                        if (txState.isLoading) "Searching…"
+                        else "${filteredTxs.size} transaction${if (filteredTxs.size != 1) "s" else ""}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = OnSurfaceVariant,
+                        modifier = Modifier.padding(top = 4.dp, bottom = 2.dp)
+                    )
+                }
+
+                if (txState.isLoading) {
+                    item {
+                        Box(modifier = Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
+                            CircularProgressIndicator(color = Primary)
+                        }
+                    }
+                } else if (filteredTxs.isEmpty()) {
+                    item {
+                        Column(
+                            modifier = Modifier.fillMaxWidth().padding(top = 32.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Icon(Icons.Filled.SearchOff, null, tint = OnSurfaceVariant, modifier = Modifier.size(48.dp))
+                            Text("No transactions for \"$query\"", style = MaterialTheme.typography.titleMedium, color = OnSurface)
+                            Text("Try a different keyword or filter", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                        }
+                    }
+                } else {
+                    item {
+                        LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
+                                filteredTxs.forEachIndexed { idx, tx ->
+                                    val txCategory = catState.categories.find { it.name == tx.category }
+                                    val txColor = txCategory?.let { colorHexToColor(it.colorHex) } ?: if (tx.isIncome) Primary else Tertiary
+                                    val displayDate = runCatching { LocalDate.parse(tx.createdAt.take(10)).format(shortFmt) }.getOrElse { tx.createdAt.take(10) }
+
+                                    Surface(
+                                        onClick = { sheetTx = tx },
+                                        color = Color.Transparent,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier.size(38.dp).clip(CircleShape).background(txColor.copy(alpha = 0.12f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                val catIcon = txCategory?.let { iconNameToVector(it.iconName) } ?: Icons.Filled.Category
+                                                Icon(catIcon, null, tint = txColor, modifier = Modifier.size(18.dp))
+                                            }
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(tx.title, style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium)
+                                                Text("${tx.category} · $displayDate", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                                            }
+                                            Text(
+                                                "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amount)}",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = if (tx.isIncome) Primary else Tertiary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                    }
+                                    if (idx < filteredTxs.lastIndex)
+                                        HorizontalDivider(modifier = Modifier.padding(horizontal = 4.dp), color = OutlineVariant.copy(alpha = 0.15f))
+                                }
                             }
                         }
                     }
@@ -189,26 +350,76 @@ fun GlobalSearchScreen(navController: NavController) {
 }
 
 @Composable
-private fun SearchTxSheet(tx: SearchTx, onDismiss: () -> Unit) {
-    Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 36.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+private fun SearchTxSheet(
+    tx: Transaction,
+    icon: ImageVector,
+    color: Color,
+    displayDate: String,
+    onDismiss: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    var confirmDelete by remember { mutableStateOf(false) }
+
+    if (confirmDelete) {
+        AlertDialog(
+            onDismissRequest = { confirmDelete = false },
+            title = { Text("Delete transaction?") },
+            text = { Text("\"${tx.title}\" will be permanently removed.") },
+            confirmButton = { TextButton(onClick = onDelete) { Text("Delete", color = Tertiary) } },
+            dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text("Cancel") } }
+        )
+    }
+
+    Column(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 36.dp),
+        verticalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.Top) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(tx.title, style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
-                Text(tx.amount, style = MaterialTheme.typography.titleLarge, color = if (tx.isIncome) Primary else Tertiary, fontWeight = FontWeight.Bold)
+                Text(
+                    "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amount)}",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = if (tx.isIncome) Primary else Tertiary,
+                    fontWeight = FontWeight.Bold
+                )
             }
-            Box(modifier = Modifier.size(52.dp).clip(CircleShape).background(tx.color.copy(alpha = 0.12f)), contentAlignment = Alignment.Center) {
-                Icon(tx.icon, null, tint = tx.color, modifier = Modifier.size(26.dp))
-            }
+            Box(
+                modifier = Modifier.size(52.dp).clip(CircleShape).background(color.copy(alpha = 0.12f)),
+                contentAlignment = Alignment.Center
+            ) { Icon(icon, null, tint = color, modifier = Modifier.size(26.dp)) }
         }
         HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            SearchDetailRow(Icons.Filled.CalendarToday, "Date", tx.date)
+            SearchDetailRow(Icons.Filled.CalendarToday, "Date", displayDate)
             SearchDetailRow(Icons.Filled.Category, "Category", tx.category)
-            SearchDetailRow(Icons.Filled.AccountBalanceWallet, "Wallet", tx.wallet)
-            if (tx.note.isNotBlank()) SearchDetailRow(Icons.Filled.Notes, "Note", tx.note)
+            SearchDetailRow(
+                if (tx.isIncome) Icons.Filled.ArrowDownward else Icons.Filled.ArrowUpward,
+                "Type", if (tx.isIncome) "Income" else "Expense"
+            )
+            if (!tx.note.isNullOrBlank())
+                SearchDetailRow(Icons.Filled.Notes, "Note", tx.note!!)
         }
-        TextButton(onClick = onDismiss, modifier = Modifier.fillMaxWidth()) {
-            Text("Close", color = Primary, style = MaterialTheme.typography.labelLarge)
+        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(
+                onClick = { confirmDelete = true },
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.outlinedButtonColors(contentColor = Tertiary)
+            ) {
+                Icon(Icons.Filled.Delete, null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Delete")
+            }
+            Button(
+                onClick = onEdit,
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Primary)
+            ) {
+                Icon(Icons.Filled.Edit, null, modifier = Modifier.size(16.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("Edit")
+            }
         }
     }
 }
