@@ -15,32 +15,31 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun NotificationSettingsScreen(navController: NavController) {
-    var masterEnabled by remember { mutableStateOf(true) }
-    // Budget
-    var budgetAlertsEnabled by remember { mutableStateOf(true) }
-    var budgetThreshold by remember { mutableStateOf("80") }
-    // Bills
-    var billRemindersEnabled by remember { mutableStateOf(true) }
-    var billDaysBefore by remember { mutableStateOf("3") }
-    // Weekly summary
-    var weeklySummaryEnabled by remember { mutableStateOf(true) }
-    var summaryDay by remember { mutableStateOf("Sunday") }
-    // Unusual spending
-    var unusualSpendingEnabled by remember { mutableStateOf(true) }
-    var unusualSensitivity by remember { mutableStateOf("Medium") }
-    // Investment alerts
-    var investmentAlertsEnabled by remember { mutableStateOf(false) }
-    // Goal milestones
-    var goalMilestonesEnabled by remember { mutableStateOf(true) }
-    // Recurring reminders
-    var recurringRemindersEnabled by remember { mutableStateOf(true) }
+fun NotificationSettingsScreen(
+    navController: NavController,
+    vm: SettingsViewModel = hiltViewModel()
+) {
+    val masterEnabled           by vm.notifMaster.collectAsStateWithLifecycle()
+    val budgetAlertsEnabled     by vm.notifBudget.collectAsStateWithLifecycle()
+    val budgetThreshold         by vm.notifBudgetPct.collectAsStateWithLifecycle()
+    val billRemindersEnabled    by vm.notifBills.collectAsStateWithLifecycle()
+    val billDaysBefore          by vm.notifBillDays.collectAsStateWithLifecycle()
+    val weeklySummaryEnabled    by vm.notifWeekly.collectAsStateWithLifecycle()
+    val summaryDay              by vm.notifWeeklyDay.collectAsStateWithLifecycle()
+    val unusualSpendingEnabled  by vm.notifUnusual.collectAsStateWithLifecycle()
+    val unusualSensitivity      by vm.notifSensitivity.collectAsStateWithLifecycle()
+    val investmentAlertsEnabled by vm.notifInvestment.collectAsStateWithLifecycle()
+    val goalMilestonesEnabled   by vm.notifGoals.collectAsStateWithLifecycle()
+    val recurringRemindersEnabled by vm.notifRecurring.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -70,14 +69,14 @@ fun NotificationSettingsScreen(navController: NavController) {
                             Text(if (masterEnabled) "Enabled" else "All notifications disabled", style = MaterialTheme.typography.bodySmall, color = if (masterEnabled) Primary else OnSurfaceVariant)
                         }
                     }
-                    Switch(checked = masterEnabled, onCheckedChange = { masterEnabled = it }, colors = SwitchDefaults.colors(checkedThumbColor = OnPrimary, checkedTrackColor = Primary))
+                    Switch(checked = masterEnabled, onCheckedChange = { vm.setNotifMaster(it) }, colors = SwitchDefaults.colors(checkedThumbColor = OnPrimary, checkedTrackColor = Primary))
                 }
             }
 
             if (masterEnabled) {
                 // Budget alerts
                 NotifSection(title = "Budget & Spending") {
-                    NotifToggleRow(Icons.Filled.PieChart, Color(0xFF00513F), "Budget Alerts", "Notify when nearing your spending limits", budgetAlertsEnabled) { budgetAlertsEnabled = it }
+                    NotifToggleRow(Icons.Filled.PieChart, Color(0xFF00513F), "Budget Alerts", "Notify when nearing your spending limits", budgetAlertsEnabled) { vm.setNotifBudget(it) }
                     if (budgetAlertsEnabled) {
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = OutlineVariant.copy(alpha = 0.15f))
                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -86,7 +85,7 @@ fun NotificationSettingsScreen(navController: NavController) {
                                 listOf("70%", "80%", "90%", "100%").forEach { pct ->
                                     FilterChip(
                                         selected = budgetThreshold == pct.dropLast(1),
-                                        onClick = { budgetThreshold = pct.dropLast(1) },
+                                        onClick = { vm.setNotifBudgetPct(pct.dropLast(1)) },
                                         label = { Text(pct, style = MaterialTheme.typography.labelSmall) },
                                         colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Primary, selectedLabelColor = OnPrimary)
                                     )
@@ -95,7 +94,7 @@ fun NotificationSettingsScreen(navController: NavController) {
                         }
                     }
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = OutlineVariant.copy(alpha = 0.15f))
-                    NotifToggleRow(Icons.Filled.TrendingUp, Color(0xFFE65100), "Unusual Spending", "Alert when spending is above normal for a category", unusualSpendingEnabled) { unusualSpendingEnabled = it }
+                    NotifToggleRow(Icons.Filled.TrendingUp, Color(0xFFE65100), "Unusual Spending", "Alert when spending is above normal for a category", unusualSpendingEnabled) { vm.setNotifUnusual(it) }
                     if (unusualSpendingEnabled) {
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = OutlineVariant.copy(alpha = 0.15f))
                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -103,7 +102,7 @@ fun NotificationSettingsScreen(navController: NavController) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf("Low", "Medium", "High").forEach { s ->
                                     FilterChip(
-                                        selected = unusualSensitivity == s, onClick = { unusualSensitivity = s },
+                                        selected = unusualSensitivity == s, onClick = { vm.setNotifSensitivity(s) },
                                         label = { Text(s, style = MaterialTheme.typography.labelSmall) },
                                         colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFFE65100), selectedLabelColor = Color.White)
                                     )
@@ -115,7 +114,7 @@ fun NotificationSettingsScreen(navController: NavController) {
 
                 // Bills & recurring
                 NotifSection(title = "Bills & Recurring") {
-                    NotifToggleRow(Icons.Filled.Repeat, Color(0xFF1565C0), "Bill Reminders", "Remind before recurring bills are due", billRemindersEnabled) { billRemindersEnabled = it }
+                    NotifToggleRow(Icons.Filled.Repeat, Color(0xFF1565C0), "Bill Reminders", "Remind before recurring bills are due", billRemindersEnabled) { vm.setNotifBills(it) }
                     if (billRemindersEnabled) {
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = OutlineVariant.copy(alpha = 0.15f))
                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -124,7 +123,7 @@ fun NotificationSettingsScreen(navController: NavController) {
                                 listOf("1 day", "3 days", "7 days").forEach { d ->
                                     FilterChip(
                                         selected = billDaysBefore == d.split(" ")[0],
-                                        onClick = { billDaysBefore = d.split(" ")[0] },
+                                        onClick = { vm.setNotifBillDays(d.split(" ")[0]) },
                                         label = { Text(d, style = MaterialTheme.typography.labelSmall) },
                                         colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Color(0xFF1565C0), selectedLabelColor = Color.White)
                                     )
@@ -133,20 +132,20 @@ fun NotificationSettingsScreen(navController: NavController) {
                         }
                     }
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = OutlineVariant.copy(alpha = 0.15f))
-                    NotifToggleRow(Icons.Filled.Sync, Color(0xFF1565C0), "Recurring Reminders", "Remind to log recurring transactions", recurringRemindersEnabled) { recurringRemindersEnabled = it }
+                    NotifToggleRow(Icons.Filled.Sync, Color(0xFF1565C0), "Recurring Reminders", "Remind to log recurring transactions", recurringRemindersEnabled) { vm.setNotifRecurring(it) }
                 }
 
                 // Reports
                 NotifSection(title = "Reports & Insights") {
-                    NotifToggleRow(Icons.Filled.BarChart, Color(0xFF00513F), "Weekly Summary", "Receive a weekly spending summary", weeklySummaryEnabled) { weeklySummaryEnabled = it }
+                    NotifToggleRow(Icons.Filled.BarChart, Color(0xFF00513F), "Weekly Summary", "Receive a weekly spending summary", weeklySummaryEnabled) { vm.setNotifWeekly(it) }
                     if (weeklySummaryEnabled) {
                         HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = OutlineVariant.copy(alpha = 0.15f))
                         Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Text("Send on", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
-                            Row(modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 listOf("Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday").forEach { d ->
                                     FilterChip(
-                                        selected = summaryDay == d, onClick = { summaryDay = d },
+                                        selected = summaryDay == d, onClick = { vm.setNotifWeeklyDay(d) },
                                         label = { Text(d.take(3), style = MaterialTheme.typography.labelSmall) },
                                         colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Primary, selectedLabelColor = OnPrimary)
                                     )
@@ -155,12 +154,12 @@ fun NotificationSettingsScreen(navController: NavController) {
                         }
                     }
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = OutlineVariant.copy(alpha = 0.15f))
-                    NotifToggleRow(Icons.Filled.EmojiEvents, Color(0xFFFF9800), "Goal Milestones", "Notify when you reach a savings goal milestone", goalMilestonesEnabled) { goalMilestonesEnabled = it }
+                    NotifToggleRow(Icons.Filled.EmojiEvents, Color(0xFFFF9800), "Goal Milestones", "Notify when you reach a savings goal milestone", goalMilestonesEnabled) { vm.setNotifGoals(it) }
                 }
 
                 // Investments
                 NotifSection(title = "Investments") {
-                    NotifToggleRow(Icons.Filled.ShowChart, Color(0xFFE65100), "Investment Alerts", "Price alerts and portfolio changes", investmentAlertsEnabled) { investmentAlertsEnabled = it }
+                    NotifToggleRow(Icons.Filled.ShowChart, Color(0xFFE65100), "Investment Alerts", "Price alerts and portfolio changes", investmentAlertsEnabled) { vm.setNotifInvestment(it) }
                 }
             }
         }

@@ -18,33 +18,40 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SecuritySettingsScreen(navController: NavController) {
-    var biometricEnabled by remember { mutableStateOf(false) }
-    var pinEnabled by remember { mutableStateOf(false) }
-    var autoLock by remember { mutableStateOf("1 min") }
-    var hideInSwitcher by remember { mutableStateOf(true) }
-    var requireAuthLarge by remember { mutableStateOf(false) }
-    var largeThreshold by remember { mutableStateOf("500") }
+fun SecuritySettingsScreen(
+    navController: NavController,
+    vm: SettingsViewModel = hiltViewModel()
+) {
+    val biometricEnabled  by vm.secBiometric.collectAsStateWithLifecycle()
+    val pinEnabled        by vm.secPinEnabled.collectAsStateWithLifecycle()
+    val autoLock          by vm.secAutoLock.collectAsStateWithLifecycle()
+    val hideInSwitcher    by vm.secHideSwitcher.collectAsStateWithLifecycle()
+    val requireAuthLarge  by vm.secAuthLarge.collectAsStateWithLifecycle()
+    val largeThreshold    by vm.secLargeAmount.collectAsStateWithLifecycle()
+
     var showPinSheet by remember { mutableStateOf(false) }
-    var showCalc by remember { mutableStateOf(false) }
+    var showCalc     by remember { mutableStateOf(false) }
 
     if (showCalc) {
         LedgerCalculatorSheet(
             initial = largeThreshold, accentColor = Primary,
             onDismiss = { showCalc = false },
-            onConfirm = { largeThreshold = it; showCalc = false }
+            onConfirm = { vm.setSecLargeAmount(it); showCalc = false }
         )
     }
 
     if (showPinSheet) {
         ModalBottomSheet(onDismissRequest = { showPinSheet = false }, containerColor = SurfaceContainerLowest, tonalElevation = 0.dp) {
-            PinSetupSheet { showPinSheet = false; pinEnabled = true }
+            PinSetupSheet { showPinSheet = false; vm.setSecPinEnabled(true) }
         }
     }
 
@@ -64,7 +71,7 @@ fun SecuritySettingsScreen(navController: NavController) {
         ) {
             // App lock
             SecSection(title = "App Lock") {
-                SecToggleRow(Icons.Filled.Fingerprint, Color(0xFF1565C0), "Biometric Lock", "Use fingerprint or face ID to unlock", biometricEnabled) { biometricEnabled = it }
+                SecToggleRow(Icons.Filled.Fingerprint, Color(0xFF1565C0), "Biometric Lock", "Use fingerprint or face ID to unlock", biometricEnabled) { vm.setSecBiometric(it) }
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = OutlineVariant.copy(alpha = 0.15f))
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 12.dp),
@@ -79,7 +86,7 @@ fun SecuritySettingsScreen(navController: NavController) {
                     if (pinEnabled) {
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                             OutlinedButton(onClick = { showPinSheet = true }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) { Text("Change", style = MaterialTheme.typography.labelSmall) }
-                            OutlinedButton(onClick = { pinEnabled = false }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                            OutlinedButton(onClick = { vm.setSecPinEnabled(false) }, contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                 colors = ButtonDefaults.outlinedButtonColors(contentColor = Tertiary)) { Text("Remove", style = MaterialTheme.typography.labelSmall) }
                         }
                     } else {
@@ -93,10 +100,10 @@ fun SecuritySettingsScreen(navController: NavController) {
             SecSection(title = "Auto-Lock") {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Lock the app automatically after inactivity.", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
-                    Row(modifier = Modifier.horizontalScroll(androidx.compose.foundation.rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(modifier = Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("Immediately", "1 min", "5 min", "15 min", "Never").forEach { t ->
                             FilterChip(
-                                selected = autoLock == t, onClick = { autoLock = t },
+                                selected = autoLock == t, onClick = { vm.setSecAutoLock(t) },
                                 label = { Text(t, style = MaterialTheme.typography.labelSmall) },
                                 colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Primary, selectedLabelColor = OnPrimary)
                             )
@@ -107,9 +114,9 @@ fun SecuritySettingsScreen(navController: NavController) {
 
             // Privacy
             SecSection(title = "Privacy") {
-                SecToggleRow(Icons.Filled.VisibilityOff, Color(0xFF455A64), "Hide in App Switcher", "Blur the app when switching between apps", hideInSwitcher) { hideInSwitcher = it }
+                SecToggleRow(Icons.Filled.VisibilityOff, Color(0xFF455A64), "Hide in App Switcher", "Blur the app when switching between apps", hideInSwitcher) { vm.setSecHideSwitcher(it) }
                 HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = OutlineVariant.copy(alpha = 0.15f))
-                SecToggleRow(Icons.Filled.Security, Color(0xFF920009), "Auth for Large Transactions", "Require biometric/PIN for large amounts", requireAuthLarge) { requireAuthLarge = it }
+                SecToggleRow(Icons.Filled.Security, Color(0xFF920009), "Auth for Large Transactions", "Require biometric/PIN for large amounts", requireAuthLarge) { vm.setSecAuthLarge(it) }
                 if (requireAuthLarge) {
                     HorizontalDivider(modifier = Modifier.padding(horizontal = 16.dp), color = OutlineVariant.copy(alpha = 0.15f))
                     Row(
@@ -176,7 +183,7 @@ private fun SecNavRow(icon: ImageVector, iconColor: Color, title: String, subtit
 private fun PinSetupSheet(onDone: () -> Unit) {
     var pin by remember { mutableStateOf("") }
     var confirmPin by remember { mutableStateOf("") }
-    var stage by remember { mutableStateOf(0) } // 0=enter, 1=confirm
+    var stage by remember { mutableStateOf(0) }
     Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp).padding(bottom = 40.dp), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(24.dp)) {
         Text(if (stage == 0) "Set PIN" else "Confirm PIN", style = MaterialTheme.typography.titleLarge, color = OnSurface, fontWeight = FontWeight.Bold)
         Text(if (stage == 0) "Enter a 4-digit PIN" else "Re-enter your PIN to confirm", style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant)
@@ -184,8 +191,7 @@ private fun PinSetupSheet(onDone: () -> Unit) {
             val current = if (stage == 0) pin else confirmPin
             repeat(4) { i ->
                 Box(modifier = Modifier.size(20.dp).run {
-                    if (i < current.length) androidx.compose.ui.Modifier.size(20.dp)
-                        .clip(CircleShape).background(Primary)
+                    if (i < current.length) androidx.compose.ui.Modifier.size(20.dp).clip(CircleShape).background(Primary)
                     else androidx.compose.ui.Modifier.size(20.dp).clip(CircleShape).background(SurfaceContainerHighest)
                 })
             }

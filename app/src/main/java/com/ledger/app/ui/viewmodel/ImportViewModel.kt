@@ -5,7 +5,7 @@ import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ledger.app.data.LedgerBridge
+import com.ledger.app.data.ILedgerBridge
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.Dispatchers
@@ -60,7 +60,7 @@ data class ImportUiState(
 
 @HiltViewModel
 class ImportViewModel @Inject constructor(
-    private val bridge: LedgerBridge,
+    private val bridge: ILedgerBridge,
     @ApplicationContext private val context: Context
 ) : ViewModel() {
 
