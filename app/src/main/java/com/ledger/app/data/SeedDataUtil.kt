@@ -8,7 +8,7 @@ import java.time.LocalDate
  */
 object SeedDataUtil {
 
-    fun seed(bridge: LedgerBridge) {
+    fun seed(bridge: ILedgerBridge) {
         if (bridge.listWallets().isNotEmpty()) return
 
         val today = LocalDate.now()

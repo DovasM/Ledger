@@ -17,9 +17,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.viewmodel.SettingsViewModel
 
 private val accentColors = listOf(
     "Forest Green" to Color(0xFF00513F),
@@ -34,12 +37,15 @@ private val accentColors = listOf(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppearanceSettingsScreen(navController: NavController) {
-    var selectedAccent by remember { mutableStateOf(0) }       // Forest Green by default
-    var selectedDensity by remember { mutableStateOf(1) }      // 0=Compact, 1=Comfortable
-    var selectedHomeTab by remember { mutableStateOf(0) }      // 0=Dashboard
-    var selectedNumberFormat by remember { mutableStateOf(0) } // 0=1,000.00
-    var darkMode by remember { mutableStateOf(false) }
+fun AppearanceSettingsScreen(
+    navController: NavController,
+    vm: SettingsViewModel = hiltViewModel()
+) {
+    val selectedAccent      by vm.accentIndex.collectAsStateWithLifecycle()
+    val selectedDensity     by vm.densityIndex.collectAsStateWithLifecycle()
+    val selectedHomeTab     by vm.homeTabIndex.collectAsStateWithLifecycle()
+    val selectedNumberFormat by vm.numberFormatIndex.collectAsStateWithLifecycle()
+    val darkMode            by vm.darkMode.collectAsStateWithLifecycle()
 
     val homeTabs = listOf("Dashboard", "Activity", "Budget", "Invest", "Stats")
     val numberFormats = listOf("1,000.00", "1.000,00", "1 000,00")
@@ -75,7 +81,7 @@ fun AppearanceSettingsScreen(navController: NavController) {
                                     .then(if (i == selectedAccent) Modifier.border(3.dp, Color.White, CircleShape).border(5.dp, color, CircleShape) else Modifier),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Surface(onClick = { selectedAccent = i }, color = Color.Transparent, shape = CircleShape, modifier = Modifier.fillMaxSize()) {}
+                                Surface(onClick = { vm.setAccentIndex(i) }, color = Color.Transparent, shape = CircleShape, modifier = Modifier.fillMaxSize()) {}
                                 if (i == selectedAccent) Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
                             }
                         }
@@ -98,7 +104,7 @@ fun AppearanceSettingsScreen(navController: NavController) {
                             Text("Switch between light and dark theme", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                         }
                     }
-                    Switch(checked = darkMode, onCheckedChange = { darkMode = it }, colors = SwitchDefaults.colors(checkedThumbColor = OnPrimary, checkedTrackColor = Primary))
+                    Switch(checked = darkMode, onCheckedChange = { vm.setDarkMode(it) }, colors = SwitchDefaults.colors(checkedThumbColor = OnPrimary, checkedTrackColor = Primary))
                 }
             }
 
@@ -109,7 +115,7 @@ fun AppearanceSettingsScreen(navController: NavController) {
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         listOf("Compact", "Comfortable", "Spacious").forEachIndexed { i, label ->
                             FilterChip(
-                                selected = selectedDensity == i, onClick = { selectedDensity = i },
+                                selected = selectedDensity == i, onClick = { vm.setDensityIndex(i) },
                                 label = { Text(label, style = MaterialTheme.typography.labelSmall) },
                                 modifier = Modifier.weight(1f),
                                 colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Primary, selectedLabelColor = OnPrimary)
@@ -124,7 +130,7 @@ fun AppearanceSettingsScreen(navController: NavController) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Which tab opens when you launch the app.", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                     homeTabs.forEachIndexed { i, tab ->
-                        Surface(onClick = { selectedHomeTab = i }, color = Color.Transparent, modifier = Modifier.fillMaxWidth()) {
+                        Surface(onClick = { vm.setHomeTabIndex(i) }, color = Color.Transparent, modifier = Modifier.fillMaxWidth()) {
                             Row(
                                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically,
@@ -144,7 +150,7 @@ fun AppearanceSettingsScreen(navController: NavController) {
             AppSection(title = "Number Format") {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     numberFormats.forEachIndexed { i, fmt ->
-                        Surface(onClick = { selectedNumberFormat = i }, color = Color.Transparent, modifier = Modifier.fillMaxWidth()) {
+                        Surface(onClick = { vm.setNumberFormatIndex(i) }, color = Color.Transparent, modifier = Modifier.fillMaxWidth()) {
                             Row(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.SpaceBetween) {
                                 Column {
                                     Text(fmt, style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium)

@@ -2,7 +2,7 @@ package com.ledger.app.ui.viewmodel
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.ledger.app.data.LedgerBridge
+import com.ledger.app.data.ILedgerBridge
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +20,7 @@ data class DebtUiState(
 
 @HiltViewModel
 class DebtViewModel @Inject constructor(
-    private val bridge: LedgerBridge
+    private val bridge: ILedgerBridge
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(DebtUiState())

@@ -17,15 +17,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsScreen(navController: NavController) {
-    var currencyCode by remember { mutableStateOf("USD") }
+fun SettingsScreen(
+    navController: NavController,
+    vm: SettingsViewModel = hiltViewModel()
+) {
+    val currencyCode by vm.currencyCode.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
