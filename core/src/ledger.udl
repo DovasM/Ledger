@@ -3,6 +3,15 @@
 
 namespace ledger {
     LedgerDb open_database(string db_path);
+    [Throws=LlamaError]
+    LlamaEngine llama_create(string model_path, u32 n_ctx);
+};
+
+[Error]
+enum LlamaError {
+    "LoadFailed",
+    "GenerateFailed",
+    "InvalidString",
 };
 
 [Error]
@@ -102,6 +111,12 @@ dictionary PriceAlert {
     string direction;
     boolean active;
     string created_at;
+};
+
+interface LlamaEngine {
+    [Throws=LlamaError]
+    string generate(string prompt, u32 n_predict, float temperature);
+    void unload();
 };
 
 interface LedgerDb {

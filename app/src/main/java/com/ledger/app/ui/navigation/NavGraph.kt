@@ -81,6 +81,7 @@ sealed class Screen(val route: String) {
     object SecuritySettings : Screen("security_settings")
     object HelpSupport : Screen("help_support")
     object WidgetSettings : Screen("widget_settings")
+    object AiModelSettings : Screen("ai_model")
 }
 
 @Composable
@@ -171,5 +172,6 @@ fun LedgerNavGraph(navController: NavHostController) {
         composable(Screen.SecuritySettings.route) { SecuritySettingsScreen(navController) }
         composable(Screen.HelpSupport.route) { HelpSupportScreen(navController) }
         composable(Screen.WidgetSettings.route) { WidgetSettingsScreen(navController) }
+        composable(Screen.AiModelSettings.route) { AiModelScreen(navController) }
     }
 }

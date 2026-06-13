@@ -17,6 +17,9 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "1.0"
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
     }
 
     buildTypes {
@@ -62,5 +65,14 @@ dependencies {
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.jna) { artifact { type = "aar" } }
     implementation(libs.androidx.datastore.preferences)
+    // llama.cpp native library — NOT a Gradle dependency.
+    // The .so files must be placed in app/src/main/jniLibs/<abi>/libllama-android.so
+    // Build instructions: https://github.com/ggerganov/llama.cpp/blob/master/docs/android.md
+    //   cmake -DCMAKE_TOOLCHAIN_FILE=$NDK/build/cmake/android.toolchain.cmake \
+    //         -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-26 \
+    //         -DLLAMA_BUILD_TESTS=OFF -B build-android && cmake --build build-android
+    // Then copy build-android/libllama.so → jniLibs/arm64-v8a/libllama-android.so
+    // LlamaCppWrapper handles missing library gracefully (AI features disabled, no crash)
+    implementation(libs.androidx.work.runtime.ktx)
     debugImplementation(libs.androidx.ui.tooling)
 }

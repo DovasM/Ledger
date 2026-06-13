@@ -21,6 +21,12 @@ core/target/
 *.so
 !app/src/main/jniLibs/**/*.so
 
+# Android Gradle Plugin CMake intermediate build directory
+app/.cxx/
+
+# llama.cpp Rust build output (inside core/target, already covered, but explicit)
+third_party/llama.cpp/build*
+
 # APKs / AABs / release artifacts
 *.apk
 *.aab

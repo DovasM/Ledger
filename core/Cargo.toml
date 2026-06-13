@@ -32,6 +32,8 @@ path = "src/bin/uniffi_bindgen.rs"
 
 [build-dependencies]
 uniffi = { version = "0.28", features = ["build"] }
+cc      = "1"
+cmake   = "0.1"
 
 [dev-dependencies]
 uniffi = { version = "0.28", features = ["bindgen-tests"] }

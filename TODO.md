@@ -50,6 +50,81 @@ Screens still using hardcoded or local-only state that need ViewModel integratio
 - [ ] **Combo: wallet split + shared expense** — support a transaction that is both split across wallets AND shared with other people simultaneously
 - [ ] **SharedExpensesScreen** (already listed above) must reflect these linked transactions rather than being standalone hardcoded data
 
+## AI Receipt Scanning (ML Kit OCR + Gemma 3n)
+
+### Phase 1 — ML Kit OCR
+- [ ] Add `com.google.mlkit:text-recognition:16.0.1` dependency
+- [ ] Add `CAMERA` permission to AndroidManifest.xml
+- [ ] Create `ReceiptOcrRepository.kt` — takes Bitmap, returns raw extracted text via ML Kit TextRecognition (suspend function using suspendCoroutine)
+- [ ] Create `ReceiptScanViewModel.kt` — `@HiltViewModel`, processes image, exposes `isLoading / rawText / error` state
+- [ ] Create `ReceiptScanScreen.kt` — camera permission request, gallery fallback picker, image preview, "Nuskaityti čekį" button, loading indicator, scrollable raw text result card, error Snackbar
+- [ ] Register `Screen.ReceiptScan("receipt_scan")` in NavGraph.kt
+- [ ] Add "Nuskaityti čekį" entry point button in `AddTransactionScreen.kt`
+
+### Phase 2 — Gemma 3n Local AI
+- [ ] Add `com.google.ai.edge.aicore:aicore:0.0.1-exp01` dependency
+- [ ] Create `GemmaRepository.kt` — lazy model init on `Dispatchers.IO`, `parseReceiptText(rawText)` returning `ParsedExpense(store, date, amount, category, items)`, JSON parsed via `kotlinx.serialization`, graceful fallback on parse failure
+- [ ] Create `GemmaStatusViewModel.kt` — model state enum (`NOT_LOADED / LOADING / READY / ERROR`), `initializeModel()` function
+- [ ] Create `AiSettingsScreen.kt` — shows model status, "Įkelti modelį" button, "~2GB" warning card, progress indicator, success state
+- [ ] Register `Screen.AiSettings("ai_settings")` in NavGraph.kt and add entry in SettingsScreen
+
+### Phase 3 — Full Pipeline (OCR → Gemma → Transaction)
+- [ ] Create `ReceiptPipelineRepository.kt` — orchestrates OCR → Gemma → preview → user confirm → `bridge.createTransaction()`; emits `PipelineResult` sealed class states (`Idle / ExtractingText / ParsingExpense / Preview / Saving / Success / Error`)
+- [ ] Create `ReceiptPipelineViewModel.kt` — manages pipeline state + editable preview fields (store, amount, category, date) that user can modify before confirming
+- [ ] Update `ReceiptScanScreen.kt` — replace raw text display with full 5-step pipeline UI: image pick → loading states → editable preview card → save/cancel → success auto-navigate back after 1.5s
+- [ ] Register `ReceiptPipelineRepository` in `AppModule.kt`
+- [ ] Guard: if Gemma not ready → show dialog "Eiti į nustatymus?" instead of crashing
+- [ ] Guard: if OCR returns empty → show "Nepavyko perskaityti čekio. Bandykite nufotografuoti geriau."
+
+### Phase 4 — Extended OCR Features
+- [ ] **Bank statement import** — PDF or bank app screenshot; ML Kit extracts all transactions at once and bulk-creates them; naturally extends existing `TransactionImportScreen` with a new "Import from screenshot/PDF" tab
+- [ ] **Receipt photo attached to transaction** — camera captures receipt and attaches it as an image to an existing transaction (proof of purchase, not a new transaction); OCR additionally fills the `note` field from the receipt text
+
+### Phase 5 — Extended Gemma Features
+- [ ] **Real-time category suggestion** — while user types transaction title in `AddTransactionScreen`, Gemma suggests a category live (e.g. "Rimi" → Maistas, "Bolt" → Transportas); debounced, non-blocking
+- [ ] **Natural language search** — extend `GlobalSearchScreen` so user can type "kiek išleidau maistui šį mėnesį" and get a Gemma-generated answer backed by real transaction data
+- [ ] **Budget insights narration** — Gemma analyses last 3 months of transactions and generates personalised observations (e.g. "Restoranuose išleidi 40% daugiau nei praėjusį mėnesį"); fits into `BudgetInsightsScreen`
+- [ ] **Spending anomaly detection** — Gemma detects unusual expenses vs historical patterns and alerts the user; ties into `NotificationsScreen`
+- [ ] **Savings goal forecast** — based on current spending trends Gemma explains in natural language whether the user will reach their goal on time; fits into `GoalDetailsScreen`
+
+### Phase 6 — Gemma Infrastructure & Quality
+- [ ] **Dynamic categories in prompt** — instead of hardcoded Lithuanian category names, inject `bridge.listCategories()` list into the prompt at runtime so Gemma always matches the user's actual categories (critical — without this Gemma suggests categories the user doesn't have)
+- [ ] **User correction memory** — when user overrides Gemma's category suggestion, save the mapping (e.g. "Bolt" → Transportas) to DataStore as user preferences; inject into prompt next time so Gemma "learns" from corrections
+- [ ] **Fallback UI on parse failure** — when Gemma returns invalid JSON or garbage, currently silent defaults are returned; instead show clear UI message "AI nepavyko išanalizuoti — įvesk rankiniu būdu" and pre-fill fields as empty for manual entry
+- [ ] **Model version management** — check current bundled model version vs latest available; notify user when update is needed; handle graceful migration
+- [ ] **Model download progress UI** — `aicore` can download model in background; show real progress bar (%, MB downloaded) not just a generic LOADING spinner in `AiSettingsScreen`
+- [ ] **Offline mode communication** — Gemma runs fully offline; explicitly communicate this to the user ("Visi AI skaičiavimai atliekami jūsų telefone — jūsų duomenys niekur nesiunčiami") as a key privacy advantage
+- [ ] **Master AI disable toggle** — single switch in `AiSettingsScreen` to disable all Gemma features at once for users who don't want AI; when off, all AI-powered UI elements are hidden across the app
+- [ ] **Context from transaction history** — when suggesting categories, pass user's last 50 transactions to prompt so Gemma can infer patterns (e.g. "Bolt Food" → Maistas, not Transportas, because user always tagged it that way)
+
+## Core Money Management (Missing Use Cases)
+
+### Wallet Operations
+- [ ] **Transfer between wallets** — move funds from one wallet to another (e.g. Checking → Savings); currently requires two manual transactions as workaround; needs `transfer` transaction type in Rust schema and dedicated UI in WalletsListScreen or AddTransactionScreen
+- [ ] **Quick cash in/out** — fast cash transaction from home screen or wallet screen without filling full form; just amount + income/expense toggle
+
+### Currency
+- [ ] **Live exchange rates** — fetch rates from a free API (e.g. exchangerate.host or frankfurter.app); store base currency in DataStore (already there); convert all amounts on display when wallet currency differs from base currency
+- [ ] **Multi-currency wallets** — each wallet has its own currency; totals on NetWorthScreen and Dashboard convert to base currency using live rates
+
+### Data Export
+- [ ] **CSV export** — `CsvExport.kt` already exists but is not wired to any UI; connect to CustomReportScreen export button
+- [ ] **PDF report export** — monthly/annual report as a shareable PDF file (use Android PdfDocument API)
+- [ ] **Excel (.xlsx) export** — for accounting purposes; use Apache POI or a lightweight alternative
+
+### Security (UI exists but non-functional)
+- [ ] **Real biometric lock** — wire `BiometricPrompt` API so the app actually locks/unlocks; currently SecuritySettingsScreen saves the toggle but nothing enforces it
+- [ ] **Real PIN lock** — store hashed PIN in EncryptedSharedPreferences; enforce on app resume if auto-lock timer has elapsed
+- [ ] **SQLite encryption** — encrypt the database with SQLCipher (`net.zetetic:android-database-sqlcipher`) for data-at-rest protection
+
+### Onboarding
+- [ ] **First-launch wizard** — step-by-step onboarding: (1) set base currency, (2) add first wallet, (3) add first category, (4) optional: add first transaction; replace or gate `SeedDataUtil` so real users don't get fake Alex Johnson data
+- [ ] **Empty state screens** — when no wallets/transactions/goals exist, show helpful empty states with a CTA instead of blank lists
+
+### Social / Collaboration
+- [ ] **Family/couple mode** — two users share one account and see a combined budget; needs a sync mechanism (could be as simple as shared backup file)
+- [ ] **Shared expenses send link** — SharedExpensesScreen already has UI; add ability to share a split via link or message so other person can see what they owe
+
 ## Automatic Backups
 
 - [ ] **Local backup** — export full Room database as a `.ledgerbackup` file (JSON or binary) on a schedule (daily/weekly) using WorkManager; store in app-scoped external storage

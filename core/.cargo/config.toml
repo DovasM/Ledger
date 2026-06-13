@@ -14,3 +14,7 @@ ar = "C:/Users/dedek/AppData/Local/Android/Sdk/ndk/30.0.14904198/toolchains/llvm
 CC_aarch64_linux_android = "C:/Users/dedek/AppData/Local/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android26-clang.cmd"
 CC_armv7_linux_androideabi = "C:/Users/dedek/AppData/Local/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/windows-x86_64/bin/armv7a-linux-androideabi26-clang.cmd"
 CC_x86_64_linux_android = "C:/Users/dedek/AppData/Local/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/windows-x86_64/bin/x86_64-linux-android26-clang.cmd"
+CXX_aarch64_linux_android = "C:/Users/dedek/AppData/Local/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/windows-x86_64/bin/aarch64-linux-android26-clang++.cmd"
+CXX_armv7_linux_androideabi = "C:/Users/dedek/AppData/Local/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/windows-x86_64/bin/armv7a-linux-androideabi26-clang++.cmd"
+CXX_x86_64_linux_android = "C:/Users/dedek/AppData/Local/Android/Sdk/ndk/30.0.14904198/toolchains/llvm/prebuilt/windows-x86_64/bin/x86_64-linux-android26-clang++.cmd"
+ANDROID_NDK_HOME = "C:/Users/dedek/AppData/Local/Android/Sdk/ndk/30.0.14904198"
