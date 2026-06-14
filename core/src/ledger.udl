@@ -116,6 +116,10 @@ dictionary PriceAlert {
 interface LlamaEngine {
     [Throws=LlamaError]
     string generate(string prompt, u32 n_predict, float temperature);
+    i32 count_tokens(string prompt);
+    string system_info();
+    i64 last_prefill_ms();
+    i64 last_decode_ms();
     void unload();
 };
 

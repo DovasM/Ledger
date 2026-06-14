@@ -18,7 +18,7 @@ android {
         versionCode = 1
         versionName = "1.0"
         ndk {
-            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+            abiFilters += listOf("arm64-v8a", "x86_64")
         }
     }
 
@@ -74,5 +74,6 @@ dependencies {
     // Then copy build-android/libllama.so → jniLibs/arm64-v8a/libllama-android.so
     // LlamaCppWrapper handles missing library gracefully (AI features disabled, no crash)
     implementation(libs.androidx.work.runtime.ktx)
+    implementation(libs.mlkit.text.recognition)
     debugImplementation(libs.androidx.ui.tooling)
 }

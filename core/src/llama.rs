@@ -25,6 +25,16 @@ extern "C" {
     ) -> *mut c_char;
 
     fn llama_simple_free_str(s: *mut c_char);
+
+    fn llama_simple_count_tokens(
+        ctx: *mut LlamaSimpleCtxOpaque,
+        prompt: *const c_char,
+    ) -> c_int;
+
+    fn llama_simple_system_info() -> *const c_char;
+
+    fn llama_simple_last_prefill_ms(ctx: *mut LlamaSimpleCtxOpaque) -> i64;
+    fn llama_simple_last_decode_ms(ctx: *mut LlamaSimpleCtxOpaque) -> i64;
 }
 
 // ── Safe Rust wrapper ─────────────────────────────────────────────────────────
@@ -105,6 +115,30 @@ impl LlamaEngine {
         };
 
         Ok(result)
+    }
+
+    pub fn count_tokens(&self, prompt: String) -> i32 {
+        let Ok(cprompt) = CString::new(prompt) else { return 0 };
+        let guard = self.inner.lock().unwrap();
+        unsafe { llama_simple_count_tokens(guard.ptr, cprompt.as_ptr()) }
+    }
+
+    pub fn system_info(&self) -> String {
+        unsafe {
+            let ptr = llama_simple_system_info();
+            if ptr.is_null() { return String::new(); }
+            CStr::from_ptr(ptr).to_string_lossy().into_owned()
+        }
+    }
+
+    pub fn last_prefill_ms(&self) -> i64 {
+        let guard = self.inner.lock().unwrap();
+        unsafe { llama_simple_last_prefill_ms(guard.ptr) }
+    }
+
+    pub fn last_decode_ms(&self) -> i64 {
+        let guard = self.inner.lock().unwrap();
+        unsafe { llama_simple_last_decode_ms(guard.ptr) }
     }
 
     pub fn unload(&self) {

@@ -45,19 +45,30 @@ fn main() {
            .define("ANDROID_ABI",          abi)
            .define("ANDROID_PLATFORM",     "android-26")
            .define("ANDROID_STL",          "c++_shared");
+
+        // Enable ARMv8.2-a dot-product SIMD for arm64 — supported on all
+        // Snapdragon 845+ / Exynos 9820+ (i.e. every device from ~2018).
+        // sdot/usdot instructions give ~2x throughput for Q4 matrix multiply.
+        if target.starts_with("aarch64") {
+            cfg.define("CMAKE_C_FLAGS",   "-march=armv8.2-a+dotprod+fp16")
+               .define("CMAKE_CXX_FLAGS", "-march=armv8.2-a+dotprod+fp16");
+        }
     }
 
-    let dst = cfg.build();
+    // cmake crate doesn't forward CMAKE_MAKE_PROGRAM automatically — pass it explicitly
+    if let Ok(ninja) = env::var("CMAKE_MAKE_PROGRAM") {
+        cfg.define("CMAKE_MAKE_PROGRAM", &ninja);
+    }
+
+    let dst = cfg.build_target("llama").build();
 
     // Add every subdirectory in the cmake output as a link search path
     let build_dir = dst.join("build");
     add_link_search_dirs(&build_dir);
 
     println!("cargo:rustc-link-lib=static=llama");
-    println!("cargo:rustc-link-lib=static=ggml");
-
-    // Newer llama.cpp splits ggml into sub-libraries
-    for lib in &["ggml-base", "ggml-cpu", "ggml-alloc", "ggml-backend"] {
+    // ggml-alloc and ggml-backend are merged into ggml-base in this version
+    for lib in &["ggml-base", "ggml-cpu", "ggml"] {
         println!("cargo:rustc-link-lib=static={}", lib);
     }
 
@@ -71,14 +82,18 @@ fn main() {
 
     // ── Compile our thin C++ bridge with cc ───────────────────────────────────
     let bridge_src = manifest.join("src/llama_c/llama_simple.cpp");
-    cc::Build::new()
+    let mut bridge = cc::Build::new();
+    bridge
         .cpp(true)
         .std("c++17")
         .opt_level(3)
         .file(&bridge_src)
         .include(llama_src.join("include"))
-        .include(llama_src.join("ggml/include"))
-        .compile("llama_simple");
+        .include(llama_src.join("ggml/include"));
+    if target.starts_with("aarch64") && target.contains("android") {
+        bridge.flag("-march=armv8.2-a+dotprod+fp16");
+    }
+    bridge.compile("llama_simple");
 
     println!("cargo:rerun-if-changed=src/llama_c/llama_simple.h");
     println!("cargo:rerun-if-changed=src/llama_c/llama_simple.cpp");

@@ -182,6 +182,9 @@ fun DashboardScreen(
                 AddActionCard(Icons.Filled.LocalOffer, "New Category", "Custom category with icon", Color(0xFFE65100)) {
                     showAddSheet = false; navController.navigate(Screen.AddCategory.route)
                 }
+                AddActionCard(Icons.Filled.CameraAlt, "Skenuoti čekį", "AI automatiškai užpildo duomenis", Color(0xFF2E7D32)) {
+                    showAddSheet = false; navController.navigate(Screen.ReceiptScan.route)
+                }
                 Spacer(Modifier.height(8.dp))
             }
         }

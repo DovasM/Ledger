@@ -917,8 +917,16 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_uniffi_ledger_fn_method_llamaengine_generate(`ptr`: Pointer,`prompt`: RustBuffer.ByValue,`nPredict`: Int,`temperature`: Float,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_uniffi_ledger_fn_method_llamaengine_unload(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_llamaengine_unload(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus,
     ): Unit
+    fun uniffi_uniffi_ledger_fn_method_llamaengine_count_tokens(`ptr`: Pointer,`prompt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    ): Int
+    fun uniffi_uniffi_ledger_fn_method_llamaengine_system_info(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_llamaengine_last_prefill_ms(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus,
+    ): Long
+    fun uniffi_uniffi_ledger_fn_method_llamaengine_last_decode_ms(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus,
+    ): Long
     fun uniffi_uniffi_ledger_fn_func_llama_create(`modelPath`: RustBuffer.ByValue,`nCtx`: Int,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
     fun uniffi_uniffi_ledger_fn_func_open_database(`dbPath`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -2484,11 +2492,19 @@ public object FfiConverterTypeLedgerDb: FfiConverter<LedgerDb, Pointer> {
 
 
 public interface LlamaEngineInterface {
-    
+
     fun `generate`(`prompt`: kotlin.String, `nPredict`: kotlin.UInt, `temperature`: kotlin.Float): kotlin.String
-    
+
+    fun `countTokens`(`prompt`: kotlin.String): kotlin.Int
+
+    fun `systemInfo`(): kotlin.String
+
+    fun `lastPrefillMs`(): kotlin.Long
+
+    fun `lastDecodeMs`(): kotlin.Long
+
     fun `unload`()
-    
+
     companion object
 }
 
@@ -2586,8 +2602,48 @@ open class LlamaEngine: Disposable, AutoCloseable, LlamaEngineInterface {
     }
     
 
+    override fun `countTokens`(`prompt`: kotlin.String): kotlin.Int {
+        return FfiConverterInt.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_llamaengine_count_tokens(
+        it, FfiConverterString.lower(`prompt`), _status)
+}
+    }
+    )
+    }
+
+    override fun `systemInfo`(): kotlin.String {
+        return FfiConverterString.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_llamaengine_system_info(
+        it, _status)
+}
+    }
+    )
+    }
+
+    override fun `lastPrefillMs`(): kotlin.Long {
+        return callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_llamaengine_last_prefill_ms(
+        it, _status)
+}
+    }
+    }
+
+    override fun `lastDecodeMs`(): kotlin.Long {
+        return callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_llamaengine_last_decode_ms(
+        it, _status)
+}
+    }
+    }
+
     override fun `unload`()
-        = 
+        =
     callWithPointer {
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_llamaengine_unload(
