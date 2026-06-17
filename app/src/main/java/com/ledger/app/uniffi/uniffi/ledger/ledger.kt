@@ -796,6 +796,16 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
+
+
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -823,7 +833,7 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_add_tag_to_transaction(`ptr`: Pointer,`transactionId`: RustBuffer.ByValue,`tagId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_budget(`ptr`: Pointer,`categoryId`: RustBuffer.ByValue,`limitAmount`: Double,`period`: RustBuffer.ByValue,`alertThreshold`: Double,uniffi_out_err: UniffiRustCallStatus,
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_budget(`ptr`: Pointer,`categoryId`: RustBuffer.ByValue,`limitAmount`: Double,`period`: RustBuffer.ByValue,`alertThreshold`: Double,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_category(`ptr`: Pointer,`name`: RustBuffer.ByValue,`iconName`: RustBuffer.ByValue,`colorHex`: RustBuffer.ByValue,`isExpense`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -837,7 +847,7 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_tag(`ptr`: Pointer,`name`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_transaction(`ptr`: Pointer,`walletId`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`amount`: Double,`isIncome`: Byte,`note`: RustBuffer.ByValue,`createdAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_transaction(`ptr`: Pointer,`walletId`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`amount`: Double,`isIncome`: Byte,`note`: RustBuffer.ByValue,`createdAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_wallet(`ptr`: Pointer,`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`initialBalance`: Double,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -887,20 +897,38 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_set_price_alert_active(`ptr`: Pointer,`id`: RustBuffer.ByValue,`active`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_budget(`ptr`: Pointer,`id`: RustBuffer.ByValue,`limitAmount`: Double,`period`: RustBuffer.ByValue,`alertThreshold`: Double,uniffi_out_err: UniffiRustCallStatus,
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_budget(`ptr`: Pointer,`id`: RustBuffer.ByValue,`limitAmount`: Double,`period`: RustBuffer.ByValue,`alertThreshold`: Double,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_category(`ptr`: Pointer,`id`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,`iconName`: RustBuffer.ByValue,`colorHex`: RustBuffer.ByValue,`isExpense`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_debt(`ptr`: Pointer,`id`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,`debtType`: RustBuffer.ByValue,`totalAmount`: Double,`remainingAmount`: Double,`apr`: Double,`monthlyPayment`: Double,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_goal(`ptr`: Pointer,`id`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,`targetAmount`: Double,`deadline`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_recurring(`ptr`: Pointer,`id`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`amount`: Double,`category`: RustBuffer.ByValue,`frequency`: RustBuffer.ByValue,`nextDate`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_transaction(`ptr`: Pointer,`id`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`amount`: Double,`isIncome`: Byte,`note`: RustBuffer.ByValue,`createdAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_transaction(`ptr`: Pointer,`id`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`amount`: Double,`isIncome`: Byte,`note`: RustBuffer.ByValue,`createdAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_goal(`ptr`: Pointer,`id`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,`targetAmount`: Double,`deadline`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_wallet(`ptr`: Pointer,`id`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_wallet(`ptr`: Pointer,`id`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    fun uniffi_uniffi_ledger_fn_clone_llamaengine(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Pointer
+    fun uniffi_uniffi_ledger_fn_free_llamaengine(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_uniffi_ledger_fn_method_llamaengine_generate(`ptr`: Pointer,`prompt`: RustBuffer.ByValue,`nPredict`: Int,`temperature`: Float,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_llamaengine_unload(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus,
+    ): Unit
+    fun uniffi_uniffi_ledger_fn_method_llamaengine_count_tokens(`ptr`: Pointer,`prompt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus,
+    ): Int
+    fun uniffi_uniffi_ledger_fn_method_llamaengine_system_info(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus,
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_llamaengine_last_prefill_ms(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus,
+    ): Long
+    fun uniffi_uniffi_ledger_fn_method_llamaengine_last_decode_ms(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus,
+    ): Long
+    fun uniffi_uniffi_ledger_fn_func_llama_create(`modelPath`: RustBuffer.ByValue,`nCtx`: Int,uniffi_out_err: UniffiRustCallStatus, 
+    ): Pointer
     fun uniffi_uniffi_ledger_fn_func_open_database(`dbPath`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
     fun ffi_uniffi_ledger_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -1015,6 +1043,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun ffi_uniffi_ledger_rust_future_complete_void(`handle`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_uniffi_ledger_checksum_func_llama_create(
+    ): Short
     fun uniffi_uniffi_ledger_checksum_func_open_database(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_add_contribution(
@@ -1091,13 +1121,17 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_debt(
     ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_goal(
+    ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_recurring(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_transaction(
     ): Short
-    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_goal(
-    ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_wallet(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_llamaengine_generate(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_llamaengine_unload(
     ): Short
     fun ffi_uniffi_ledger_uniffi_contract_version(
     ): Int
@@ -1116,6 +1150,9 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
 
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: UniffiLib) {
+    if (lib.uniffi_uniffi_ledger_checksum_func_llama_create() != 20350.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_uniffi_ledger_checksum_func_open_database() != 59108.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1230,6 +1267,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_debt() != 11449.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_goal() != 8368.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_recurring() != 6109.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1237,6 +1277,12 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_wallet() != 35354.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_llamaengine_generate() != 8390.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_llamaengine_unload() != 8005.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1329,6 +1375,29 @@ public object FfiConverterInt: FfiConverter<Int, Int> {
 
     override fun write(value: Int, buf: ByteBuffer) {
         buf.putInt(value)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterFloat: FfiConverter<Float, Float> {
+    override fun lift(value: Float): Float {
+        return value
+    }
+
+    override fun read(buf: ByteBuffer): Float {
+        return buf.getFloat()
+    }
+
+    override fun lower(value: Float): Float {
+        return value
+    }
+
+    override fun allocationSize(value: Float) = 4UL
+
+    override fun write(value: Float, buf: ByteBuffer) {
+        buf.putFloat(value)
     }
 }
 
@@ -1673,14 +1742,14 @@ public interface LedgerDbInterface {
     
     fun `updateDebt`(`id`: kotlin.String, `name`: kotlin.String, `debtType`: kotlin.String, `totalAmount`: kotlin.Double, `remainingAmount`: kotlin.Double, `apr`: kotlin.Double, `monthlyPayment`: kotlin.Double): Debt
     
+    fun `updateGoal`(`id`: kotlin.String, `name`: kotlin.String, `targetAmount`: kotlin.Double, `deadline`: kotlin.String?): SavingsGoal
+    
     fun `updateRecurring`(`id`: kotlin.String, `title`: kotlin.String, `amount`: kotlin.Double, `category`: kotlin.String, `frequency`: kotlin.String, `nextDate`: kotlin.String): RecurringTransaction
     
     fun `updateTransaction`(`id`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `isIncome`: kotlin.Boolean, `note`: kotlin.String?, `createdAt`: kotlin.String?): Transaction
     
-    fun `updateGoal`(`id`: kotlin.String, `name`: kotlin.String, `targetAmount`: kotlin.Double, `deadline`: kotlin.String?): SavingsGoal
-
     fun `updateWallet`(`id`: kotlin.String, `name`: kotlin.String, `description`: kotlin.String): Wallet
-
+    
     companion object
 }
 
@@ -2236,6 +2305,19 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     
 
     
+    @Throws(LedgerException::class)override fun `updateGoal`(`id`: kotlin.String, `name`: kotlin.String, `targetAmount`: kotlin.Double, `deadline`: kotlin.String?): SavingsGoal {
+            return FfiConverterTypeSavingsGoal.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_update_goal(
+        it, FfiConverterString.lower(`id`),FfiConverterString.lower(`name`),FfiConverterDouble.lower(`targetAmount`),FfiConverterOptionalString.lower(`deadline`),_status)
+}
+    }
+    )
+    }
+    
+
+    
     @Throws(LedgerException::class)override fun `updateRecurring`(`id`: kotlin.String, `title`: kotlin.String, `amount`: kotlin.Double, `category`: kotlin.String, `frequency`: kotlin.String, `nextDate`: kotlin.String): RecurringTransaction {
             return FfiConverterTypeRecurringTransaction.lift(
     callWithPointer {
@@ -2262,19 +2344,6 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     
 
     
-    @Throws(LedgerException::class)override fun `updateGoal`(`id`: kotlin.String, `name`: kotlin.String, `targetAmount`: kotlin.Double, `deadline`: kotlin.String?): SavingsGoal {
-            return FfiConverterTypeSavingsGoal.lift(
-    callWithPointer {
-    uniffiRustCallWithError(LedgerException) { _status ->
-    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_update_goal(
-        it, FfiConverterString.lower(`id`),FfiConverterString.lower(`name`),FfiConverterDouble.lower(`targetAmount`),FfiConverterOptionalString.lower(`deadline`),_status)
-}
-    }
-    )
-    }
-
-
-
     @Throws(LedgerException::class)override fun `updateWallet`(`id`: kotlin.String, `name`: kotlin.String, `description`: kotlin.String): Wallet {
             return FfiConverterTypeWallet.lift(
     callWithPointer {
@@ -2324,16 +2393,313 @@ public object FfiConverterTypeLedgerDb: FfiConverter<LedgerDb, Pointer> {
 }
 
 
+// This template implements a class for working with a Rust struct via a Pointer/Arc<T>
+// to the live Rust struct on the other side of the FFI.
+//
+// Each instance implements core operations for working with the Rust `Arc<T>` and the
+// Kotlin Pointer to work with the live Rust struct on the other side of the FFI.
+//
+// There's some subtlety here, because we have to be careful not to operate on a Rust
+// struct after it has been dropped, and because we must expose a public API for freeing
+// theq Kotlin wrapper object in lieu of reliable finalizers. The core requirements are:
+//
+//   * Each instance holds an opaque pointer to the underlying Rust struct.
+//     Method calls need to read this pointer from the object's state and pass it in to
+//     the Rust FFI.
+//
+//   * When an instance is no longer needed, its pointer should be passed to a
+//     special destructor function provided by the Rust FFI, which will drop the
+//     underlying Rust struct.
+//
+//   * Given an instance, calling code is expected to call the special
+//     `destroy` method in order to free it after use, either by calling it explicitly
+//     or by using a higher-level helper like the `use` method. Failing to do so risks
+//     leaking the underlying Rust struct.
+//
+//   * We can't assume that calling code will do the right thing, and must be prepared
+//     to handle Kotlin method calls executing concurrently with or even after a call to
+//     `destroy`, and to handle multiple (possibly concurrent!) calls to `destroy`.
+//
+//   * We must never allow Rust code to operate on the underlying Rust struct after
+//     the destructor has been called, and must never call the destructor more than once.
+//     Doing so may trigger memory unsafety.
+//
+//   * To mitigate many of the risks of leaking memory and use-after-free unsafety, a `Cleaner`
+//     is implemented to call the destructor when the Kotlin object becomes unreachable.
+//     This is done in a background thread. This is not a panacea, and client code should be aware that
+//      1. the thread may starve if some there are objects that have poorly performing
+//     `drop` methods or do significant work in their `drop` methods.
+//      2. the thread is shared across the whole library. This can be tuned by using `android_cleaner = true`,
+//         or `android = true` in the [`kotlin` section of the `uniffi.toml` file](https://mozilla.github.io/uniffi-rs/kotlin/configuration.html).
+//
+// If we try to implement this with mutual exclusion on access to the pointer, there is the
+// possibility of a race between a method call and a concurrent call to `destroy`:
+//
+//    * Thread A starts a method call, reads the value of the pointer, but is interrupted
+//      before it can pass the pointer over the FFI to Rust.
+//    * Thread B calls `destroy` and frees the underlying Rust struct.
+//    * Thread A resumes, passing the already-read pointer value to Rust and triggering
+//      a use-after-free.
+//
+// One possible solution would be to use a `ReadWriteLock`, with each method call taking
+// a read lock (and thus allowed to run concurrently) and the special `destroy` method
+// taking a write lock (and thus blocking on live method calls). However, we aim not to
+// generate methods with any hidden blocking semantics, and a `destroy` method that might
+// block if called incorrectly seems to meet that bar.
+//
+// So, we achieve our goals by giving each instance an associated `AtomicLong` counter to track
+// the number of in-flight method calls, and an `AtomicBoolean` flag to indicate whether `destroy`
+// has been called. These are updated according to the following rules:
+//
+//    * The initial value of the counter is 1, indicating a live object with no in-flight calls.
+//      The initial value for the flag is false.
+//
+//    * At the start of each method call, we atomically check the counter.
+//      If it is 0 then the underlying Rust struct has already been destroyed and the call is aborted.
+//      If it is nonzero them we atomically increment it by 1 and proceed with the method call.
+//
+//    * At the end of each method call, we atomically decrement and check the counter.
+//      If it has reached zero then we destroy the underlying Rust struct.
+//
+//    * When `destroy` is called, we atomically flip the flag from false to true.
+//      If the flag was already true we silently fail.
+//      Otherwise we atomically decrement and check the counter.
+//      If it has reached zero then we destroy the underlying Rust struct.
+//
+// Astute readers may observe that this all sounds very similar to the way that Rust's `Arc<T>` works,
+// and indeed it is, with the addition of a flag to guard against multiple calls to `destroy`.
+//
+// The overall effect is that the underlying Rust struct is destroyed only when `destroy` has been
+// called *and* all in-flight method calls have completed, avoiding violating any of the expectations
+// of the underlying Rust code.
+//
+// This makes a cleaner a better alternative to _not_ calling `destroy()` as
+// and when the object is finished with, but the abstraction is not perfect: if the Rust object's `drop`
+// method is slow, and/or there are many objects to cleanup, and it's on a low end Android device, then the cleaner
+// thread may be starved, and the app will leak memory.
+//
+// In this case, `destroy`ing manually may be a better solution.
+//
+// The cleaner can live side by side with the manual calling of `destroy`. In the order of responsiveness, uniffi objects
+// with Rust peers are reclaimed:
+//
+// 1. By calling the `destroy` method of the object, which calls `rustObject.free()`. If that doesn't happen:
+// 2. When the object becomes unreachable, AND the Cleaner thread gets to call `rustObject.free()`. If the thread is starved then:
+// 3. The memory is reclaimed when the process terminates.
+//
+// [1] https://stackoverflow.com/questions/24376768/can-java-finalize-an-object-when-it-is-still-in-scope/24380219
+//
+
+
+public interface LlamaEngineInterface {
+
+    fun `generate`(`prompt`: kotlin.String, `nPredict`: kotlin.UInt, `temperature`: kotlin.Float): kotlin.String
+
+    fun `countTokens`(`prompt`: kotlin.String): kotlin.Int
+
+    fun `systemInfo`(): kotlin.String
+
+    fun `lastPrefillMs`(): kotlin.Long
+
+    fun `lastDecodeMs`(): kotlin.Long
+
+    fun `unload`()
+
+    companion object
+}
+
+open class LlamaEngine: Disposable, AutoCloseable, LlamaEngineInterface {
+
+    constructor(pointer: Pointer) {
+        this.pointer = pointer
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    }
+
+    /**
+     * This constructor can be used to instantiate a fake object. Only used for tests. Any
+     * attempt to actually use an object constructed this way will fail as there is no
+     * connected Rust object.
+     */
+    @Suppress("UNUSED_PARAMETER")
+    constructor(noPointer: NoPointer) {
+        this.pointer = null
+        this.cleanable = UniffiLib.CLEANER.register(this, UniffiCleanAction(pointer))
+    }
+
+    protected val pointer: Pointer?
+    protected val cleanable: UniffiCleaner.Cleanable
+
+    private val wasDestroyed = AtomicBoolean(false)
+    private val callCounter = AtomicLong(1)
+
+    override fun destroy() {
+        // Only allow a single call to this method.
+        // TODO: maybe we should log a warning if called more than once?
+        if (this.wasDestroyed.compareAndSet(false, true)) {
+            // This decrement always matches the initial count of 1 given at creation time.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    @Synchronized
+    override fun close() {
+        this.destroy()
+    }
+
+    internal inline fun <R> callWithPointer(block: (ptr: Pointer) -> R): R {
+        // Check and increment the call counter, to keep the object alive.
+        // This needs a compare-and-set retry loop in case of concurrent updates.
+        do {
+            val c = this.callCounter.get()
+            if (c == 0L) {
+                throw IllegalStateException("${this.javaClass.simpleName} object has already been destroyed")
+            }
+            if (c == Long.MAX_VALUE) {
+                throw IllegalStateException("${this.javaClass.simpleName} call counter would overflow")
+            }
+        } while (! this.callCounter.compareAndSet(c, c + 1L))
+        // Now we can safely do the method call without the pointer being freed concurrently.
+        try {
+            return block(this.uniffiClonePointer())
+        } finally {
+            // This decrement always matches the increment we performed above.
+            if (this.callCounter.decrementAndGet() == 0L) {
+                cleanable.clean()
+            }
+        }
+    }
+
+    // Use a static inner class instead of a closure so as not to accidentally
+    // capture `this` as part of the cleanable's action.
+    private class UniffiCleanAction(private val pointer: Pointer?) : Runnable {
+        override fun run() {
+            pointer?.let { ptr ->
+                uniffiRustCall { status ->
+                    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_free_llamaengine(ptr, status)
+                }
+            }
+        }
+    }
+
+    fun uniffiClonePointer(): Pointer {
+        return uniffiRustCall() { status ->
+            UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_clone_llamaengine(pointer!!, status)
+        }
+    }
+
+    
+    @Throws(LlamaException::class)override fun `generate`(`prompt`: kotlin.String, `nPredict`: kotlin.UInt, `temperature`: kotlin.Float): kotlin.String {
+            return FfiConverterString.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LlamaException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_llamaengine_generate(
+        it, FfiConverterString.lower(`prompt`),FfiConverterUInt.lower(`nPredict`),FfiConverterFloat.lower(`temperature`),_status)
+}
+    }
+    )
+    }
+    
+
+    override fun `countTokens`(`prompt`: kotlin.String): kotlin.Int {
+        return FfiConverterInt.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_llamaengine_count_tokens(
+        it, FfiConverterString.lower(`prompt`), _status)
+}
+    }
+    )
+    }
+
+    override fun `systemInfo`(): kotlin.String {
+        return FfiConverterString.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_llamaengine_system_info(
+        it, _status)
+}
+    }
+    )
+    }
+
+    override fun `lastPrefillMs`(): kotlin.Long {
+        return callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_llamaengine_last_prefill_ms(
+        it, _status)
+}
+    }
+    }
+
+    override fun `lastDecodeMs`(): kotlin.Long {
+        return callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_llamaengine_last_decode_ms(
+        it, _status)
+}
+    }
+    }
+
+    override fun `unload`()
+        =
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_llamaengine_unload(
+        it, _status)
+}
+    }
+    
+    
+
+    
+
+    
+    
+    companion object
+    
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeLlamaEngine: FfiConverter<LlamaEngine, Pointer> {
+
+    override fun lower(value: LlamaEngine): Pointer {
+        return value.uniffiClonePointer()
+    }
+
+    override fun lift(value: Pointer): LlamaEngine {
+        return LlamaEngine(value)
+    }
+
+    override fun read(buf: ByteBuffer): LlamaEngine {
+        // The Rust code always writes pointers as 8 bytes, and will
+        // fail to compile if they don't fit.
+        return lift(Pointer(buf.getLong()))
+    }
+
+    override fun allocationSize(value: LlamaEngine) = 8UL
+
+    override fun write(value: LlamaEngine, buf: ByteBuffer) {
+        // The Rust code always expects pointers written as 8 bytes,
+        // and will fail to compile if they don't fit.
+        buf.putLong(Pointer.nativeValue(lower(value)))
+    }
+}
+
+
 
 data class Budget (
-    var `id`: kotlin.String,
-    var `categoryId`: kotlin.String,
-    var `limitAmount`: kotlin.Double,
-    var `period`: kotlin.String,
-    var `alertThreshold`: kotlin.Double,
+    var `id`: kotlin.String, 
+    var `categoryId`: kotlin.String, 
+    var `limitAmount`: kotlin.Double, 
+    var `period`: kotlin.String, 
+    var `alertThreshold`: kotlin.Double, 
     var `createdAt`: kotlin.String
 ) {
-
+    
     companion object
 }
 
@@ -2870,6 +3236,62 @@ public object FfiConverterTypeLedgerError : FfiConverterRustBuffer<LedgerExcepti
 
 
 
+
+sealed class LlamaException(message: String): kotlin.Exception(message) {
+        
+        class LoadFailed(message: String) : LlamaException(message)
+        
+        class GenerateFailed(message: String) : LlamaException(message)
+        
+        class InvalidString(message: String) : LlamaException(message)
+        
+
+    companion object ErrorHandler : UniffiRustCallStatusErrorHandler<LlamaException> {
+        override fun lift(error_buf: RustBuffer.ByValue): LlamaException = FfiConverterTypeLlamaError.lift(error_buf)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeLlamaError : FfiConverterRustBuffer<LlamaException> {
+    override fun read(buf: ByteBuffer): LlamaException {
+        
+            return when(buf.getInt()) {
+            1 -> LlamaException.LoadFailed(FfiConverterString.read(buf))
+            2 -> LlamaException.GenerateFailed(FfiConverterString.read(buf))
+            3 -> LlamaException.InvalidString(FfiConverterString.read(buf))
+            else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
+        }
+        
+    }
+
+    override fun allocationSize(value: LlamaException): ULong {
+        return 4UL
+    }
+
+    override fun write(value: LlamaException, buf: ByteBuffer) {
+        when(value) {
+            is LlamaException.LoadFailed -> {
+                buf.putInt(1)
+                Unit
+            }
+            is LlamaException.GenerateFailed -> {
+                buf.putInt(2)
+                Unit
+            }
+            is LlamaException.InvalidString -> {
+                buf.putInt(3)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+
+}
+
+
+
+
 /**
  * @suppress
  */
@@ -3149,7 +3571,17 @@ public object FfiConverterSequenceTypeWallet: FfiConverterRustBuffer<List<Wallet
             FfiConverterTypeWallet.write(it, buf)
         }
     }
-} fun `openDatabase`(`dbPath`: kotlin.String): LedgerDb {
+}
+    @Throws(LlamaException::class) fun `llamaCreate`(`modelPath`: kotlin.String, `nCtx`: kotlin.UInt): LlamaEngine {
+            return FfiConverterTypeLlamaEngine.lift(
+    uniffiRustCallWithError(LlamaException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_func_llama_create(
+        FfiConverterString.lower(`modelPath`),FfiConverterUInt.lower(`nCtx`),_status)
+}
+    )
+    }
+    
+ fun `openDatabase`(`dbPath`: kotlin.String): LedgerDb {
             return FfiConverterTypeLedgerDb.lift(
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_func_open_database(

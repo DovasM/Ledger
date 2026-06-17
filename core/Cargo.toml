@@ -30,8 +30,14 @@ chrono = { version = "0.4", features = ["serde"] }
 name = "uniffi-bindgen"
 path = "src/bin/uniffi_bindgen.rs"
 
+[features]
+# Enable Vulkan GPU backend (experimental). Build with: cargo build --features vulkan
+vulkan = []
+
 [build-dependencies]
 uniffi = { version = "0.28", features = ["build"] }
+cc      = "1"
+cmake   = "0.1"
 
 [dev-dependencies]
 uniffi = { version = "0.28", features = ["bindgen-tests"] }

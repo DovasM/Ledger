@@ -1,6 +1,13 @@
 uniffi::include_scaffolding!("ledger");
 
 mod db;
+mod llama;
+
+pub use llama::{LlamaEngine, LlamaError};
+
+pub fn llama_create(model_path: String, n_ctx: u32) -> Result<Arc<LlamaEngine>, LlamaError> {
+    LlamaEngine::new(model_path, n_ctx).map(Arc::new)
+}
 
 use db::open_pool;
 use db::models::{

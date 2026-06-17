@@ -115,6 +115,8 @@ fun SettingsScreen(
                 SettingsNavItem(Icons.Filled.Lock, Color(0xFF1565C0), "Security", "Biometric, PIN and auto-lock settings") { navController.navigate(Screen.SecuritySettings.route) }
                 SettingsDivider()
                 SettingsNavItem(Icons.Filled.AttachMoney, Color(0xFF00513F), "Currency", "Currently: $currencyCode") {}
+                SettingsDivider()
+                SettingsNavItem(Icons.Filled.Psychology, Color(0xFF6A1B9A), "AI Modelis", "Gemma 4 E2B — čekių skanavimas ir įžvalgos") { navController.navigate(Screen.AiModelSettings.route) }
             }
 
             // Reports & Insights
