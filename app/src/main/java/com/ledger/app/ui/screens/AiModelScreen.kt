@@ -242,12 +242,18 @@ fun AiModelScreen(
                             }
 
                             GemmaRepository.InferenceState.READY -> {
+                                val backendLabel = when (state.backendInfo) {
+                                    "Vulkan" -> "GPU (Vulkan)"
+                                    "CPU"    -> "CPU"
+                                    else     -> "CPU"
+                                }
+                                val backendColor = if (state.backendInfo == "Vulkan") Color(0xFF1565C0) else Color(0xFF2E7D32)
                                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Filled.Psychology, contentDescription = null, tint = Color(0xFF2E7D32), modifier = Modifier.size(22.dp))
+                                    Icon(Icons.Filled.Psychology, contentDescription = null, tint = backendColor, modifier = Modifier.size(22.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text("AI paruoštas", style = MaterialTheme.typography.bodyMedium,
                                             color = OnSurface, fontWeight = FontWeight.Medium)
-                                        Text("Gemma 4 E2B · llama.cpp · ~2.7 GB RAM", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                                        Text("Vykdoma: $backendLabel · Gemma 4 E2B · llama.cpp", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                                     }
                                 }
                                 OutlinedButton(onClick = { vm.unloadModelFromMemory() }, modifier = Modifier.fillMaxWidth()) {

@@ -22,6 +22,8 @@ fn main() {
         .unwrap_or_else(|_| "C:/Users/dedek/AppData/Local/Android/Sdk/ndk/30.0.14904198".into());
 
     // ── Build llama.cpp as static library via CMake ───────────────────────────
+    let vulkan_feature = cfg!(feature = "vulkan");
+
     let mut cfg = cmake::Config::new(&llama_src);
     cfg.define("BUILD_SHARED_LIBS",    "OFF")
        .define("LLAMA_BUILD_TESTS",    "OFF")
@@ -29,8 +31,29 @@ fn main() {
        .define("LLAMA_BUILD_SERVER",   "OFF")
        .define("GGML_METAL",           "OFF")
        .define("GGML_CUDA",            "OFF")
-       .define("GGML_VULKAN",          "OFF")
-       .define("GGML_OPENMP",          "OFF");
+       .define("GGML_VULKAN",          if vulkan_feature { "ON" } else { "OFF" })
+       .define("GGML_OPENMP",          "OFF")
+       // Disable dynamic backend loading: with DL=ON the Vulkan backend is a
+       // separate .so that must be dlopen'd at runtime. DL=OFF links it statically.
+       .define("GGML_BACKEND_DL",      "OFF");
+
+    // When Vulkan is enabled, provide SPIRV-Headers and glslc locations.
+    if vulkan_feature {
+        // SPIRV-Headers cmake config dir (CMAKE_PREFIX_PATH is ignored by Android toolchain).
+        let spirv_cfg_dir = manifest
+            .parent().unwrap()
+            .join("third_party/SPIRV-Headers-install/share/cmake/SPIRV-Headers");
+        cfg.define("SPIRV-Headers_DIR", spirv_cfg_dir.to_str().unwrap());
+
+        // glslc from Android NDK shader-tools (compiles GLSL → SPIR-V at build time)
+        let glslc_path = format!("{}/shader-tools/windows-x86_64/glslc.exe", ndk);
+        if std::path::Path::new(&glslc_path).exists() {
+            cfg.define("Vulkan_GLSLC_EXECUTABLE", &glslc_path);
+            println!("cargo:warning=Using glslc: {}", glslc_path);
+        } else {
+            println!("cargo:warning=glslc not found at {}", glslc_path);
+        }
+    }
 
     if target.contains("android") {
         let abi = if target.starts_with("aarch64") {
@@ -50,8 +73,21 @@ fn main() {
         // Snapdragon 845+ / Exynos 9820+ (i.e. every device from ~2018).
         // sdot/usdot instructions give ~2x throughput for Q4 matrix multiply.
         if target.starts_with("aarch64") {
-            cfg.define("CMAKE_C_FLAGS",   "-march=armv8.2-a+dotprod+fp16")
-               .define("CMAKE_CXX_FLAGS", "-march=armv8.2-a+dotprod+fp16");
+            let mut cflags   = "-march=armv8.2-a+dotprod+fp16".to_string();
+            let mut cxxflags = "-march=armv8.2-a+dotprod+fp16".to_string();
+            if vulkan_feature {
+                // NDK sysroot has vulkan.h but not vulkan.hpp or spirv.hpp.
+                // Provide both from our third_party clones.
+                let root = manifest.parent().unwrap();
+                for sub in &["third_party/Vulkan-Headers/include",
+                             "third_party/SPIRV-Headers/include"] {
+                    let inc = format!(" -I{}", root.join(sub).to_str().unwrap().replace('\\', "/"));
+                    cflags.push_str(&inc);
+                    cxxflags.push_str(&inc);
+                }
+            }
+            cfg.define("CMAKE_C_FLAGS",   &cflags)
+               .define("CMAKE_CXX_FLAGS", &cxxflags);
         }
     }
 
@@ -76,6 +112,12 @@ fn main() {
         println!("cargo:rustc-link-lib=android");
         println!("cargo:rustc-link-lib=log");
         println!("cargo:rustc-link-lib=dylib=c++_shared");
+        if vulkan_feature {
+            // ggml-vulkan.a contains ggml_backend_vk_reg; must be linked explicitly.
+            println!("cargo:rustc-link-lib=static=ggml-vulkan");
+            // libvulkan.so is a system library present on Android 7.0+ with Vulkan support.
+            println!("cargo:rustc-link-lib=vulkan");
+        }
     } else if target.contains("linux") {
         println!("cargo:rustc-link-lib=stdc++");
     }
@@ -90,6 +132,13 @@ fn main() {
         .file(&bridge_src)
         .include(llama_src.join("include"))
         .include(llama_src.join("ggml/include"));
+    // The bridge guards its GPU-offload path behind #ifdef GGML_VULKAN. The CMake
+    // build above defines this for llama.cpp itself, but `cc` compiles the bridge
+    // separately — so we must define it here too, or the bridge silently takes its
+    // CPU-only #else branch and never attempts GPU offload.
+    if vulkan_feature {
+        bridge.define("GGML_VULKAN", None);
+    }
     if target.starts_with("aarch64") && target.contains("android") {
         bridge.flag("-march=armv8.2-a+dotprod+fp16");
     }

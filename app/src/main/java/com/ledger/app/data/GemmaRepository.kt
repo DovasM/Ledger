@@ -32,6 +32,10 @@ class GemmaRepository @Inject constructor(
 ) {
     enum class InferenceState { NOT_LOADED, LOADING, READY, ERROR }
 
+    // "Vulkan" jei GPU aktyvus, "CPU" jei ne. Tuščia kol modelis neįkeltas.
+    private val _backendInfo = MutableStateFlow("")
+    val backendInfo: StateFlow<String> = _backendInfo.asStateFlow()
+
     private val _inferenceState = MutableStateFlow(InferenceState.NOT_LOADED)
     val inferenceState: StateFlow<InferenceState> = _inferenceState.asStateFlow()
 
@@ -54,8 +58,10 @@ class GemmaRepository @Inject constructor(
             val t0 = System.currentTimeMillis()
             engine = llamaCreate(file.absolutePath, nCtx = 1024u)
             val loadMs = System.currentTimeMillis() - t0
+            val sysInfo = engine!!.systemInfo()
             Log.d(TAG, "Model loaded in ${loadMs}ms — ${file.name}")
-            Log.d(TAG, "Backend: ${engine!!.systemInfo()}")
+            Log.d(TAG, "Backend: $sysInfo")
+            _backendInfo.value = if (sysInfo.contains("GPU_BACKEND=Vulkan")) "Vulkan" else "CPU"
             _inferenceState.value = InferenceState.READY
             true
         } catch (e: LlamaException) {
@@ -67,6 +73,7 @@ class GemmaRepository @Inject constructor(
     fun unloadModel() {
         engine?.unload()
         engine = null
+        _backendInfo.value = ""
         _inferenceState.value = InferenceState.NOT_LOADED
     }
 

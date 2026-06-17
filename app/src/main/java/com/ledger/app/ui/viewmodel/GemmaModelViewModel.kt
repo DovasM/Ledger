@@ -29,7 +29,8 @@ data class GemmaUiState(
     val inferenceState: GemmaRepository.InferenceState = GemmaRepository.InferenceState.NOT_LOADED,
     val isNativeLibraryAvailable: Boolean = false,
     val testResponse: String? = null,
-    val isTestRunning: Boolean = false
+    val isTestRunning: Boolean = false,
+    val backendInfo: String = ""  // "Vulkan" arba "CPU" po modelio įkėlimo
 )
 
 @HiltViewModel
@@ -52,6 +53,11 @@ class GemmaModelViewModel @Inject constructor(
         viewModelScope.launch {
             gemmaRepo.inferenceState.collect { infer ->
                 _state.update { it.copy(inferenceState = infer) }
+            }
+        }
+        viewModelScope.launch {
+            gemmaRepo.backendInfo.collect { info ->
+                _state.update { it.copy(backendInfo = info) }
             }
         }
     }

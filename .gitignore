@@ -27,6 +27,16 @@ app/.cxx/
 # llama.cpp Rust build output (inside core/target, already covered, but explicit)
 third_party/llama.cpp/build*
 
+# Vulkan/SPIR-V header repos cloned for Vulkan build — large, not modified
+third_party/Vulkan-Headers/
+third_party/SPIRV-Headers/
+
+# Short-path Vulkan build output dir (CARGO_TARGET_DIR=C:\lt, outside project)
+# Nothing to ignore here — it lives at C:\lt, not inside the repo.
+
+# SPIRV-Headers cmake install tree (generated, not source)
+third_party/SPIRV-Headers-install/
+
 # APKs / AABs / release artifacts
 *.apk
 *.aab

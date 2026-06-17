@@ -363,7 +363,17 @@ Defined in `core/src/ledger.udl` and mirrored as Kotlin data classes in `ledger.
 
 ## Common Pitfalls
 
-1. **Stale `.so` crash** — After any Rust API change, must rebuild `.so` AND regenerate Kotlin bindings. The UniFFI checksum validation runs on every app start.
+1. **Vulkan GPU build requires MSVC + short CARGO_TARGET_DIR** — `vulkan-shaders-gen` is a host-side tool; NDK's clang can't build it on Windows (cross-compiler only). Fix: install MSVC Build Tools so `detect_host_compiler()` finds `cl.exe`. Also set `CARGO_TARGET_DIR=C:\lt` — the default `target/` path hits Windows' 260-char limit during cmake sub-project compilation. Additionally: NDK sysroot lacks `vulkan.hpp` and `spirv/unified1/spirv.hpp`; these come from `third_party/Vulkan-Headers` and `third_party/SPIRV-Headers` (added as `-I` flags in `CMAKE_CXX_FLAGS` in `build.rs`). Build script: `build-rust-android-vulkan.ps1`.
+
+1b. **Vulkan runtime pitfalls** (branch `vulkan-experiment`):
+   - **`GGML_VULKAN` must be defined for the `cc` bridge too.** The cmake define for llama.cpp does NOT propagate to the separate `cc` compile of `llama_simple.cpp`. If missing, the bridge silently compiles its CPU `#else` branch and never attempts GPU. Fix: `bridge.define("GGML_VULKAN", None)` in `build.rs` (gated on `vulkan_feature`).
+   - **`n_gpu_layers=0` does NOT give a CPU-only ggml scheduler.** With default `main_gpu=0`+`split_mode=LAYER`, llama.cpp still adds the GPU to `model->devices`, so the scheduler routes ops to it and `llama_decode` throws. For strict CPU, set `mp.split_mode=LLAMA_SPLIT_MODE_NONE` + `mp.main_gpu=-1` (triggers `model->devices.clear()`, see llama.cpp `src/llama.cpp:252`).
+   - **`GGML_BACKEND_DL=OFF`** + `cargo:rustc-link-lib=static=ggml-vulkan`, else `ggml_backend_vk_reg` → UnsatisfiedLinkError.
+   - **Adreno fails `createComputePipeline: ErrorUnknown`** at runtime. Handled by a load-time 1-token `warmup()` in `llama_simple_create`: it forces pipeline compilation early, catches the C++ exception (must NOT cross the C FFI boundary — wrap in try/catch), and calls `reload_as_cpu()`. This moves the ~11s reload out of the first scan and pre-faults mmap'd weights (first-scan decode 4.9→13.4 tok/s).
+   - **GPU offload is a CONFIRMED DEAD END on Adreno 740 / Qualcomm proprietary driver** (S23). Diagnostics pinpointed the failing kernel: `mul_mat_vec_q4_k_f32_f32` (the mandatory Q4_K decode matmul). Disabling fp16 (`GGML_VK_DISABLE_F16`) was tried and ruled out — the pure-f32 variant fails too. It's a driver compiler bug on llama.cpp's quantized shaders, not a config issue (coopmat/int-dot/bf16 were never built — NDK glslc lacks the extensions). Only Mesa **Turnip** via adrenotools would work, which is out of scope. The app correctly attempts GPU → warms up → falls back to CPU.
+   - **Diagnosing Vulkan failures requires un-silencing two log streams.** The bridge had a no-op `llama_log_set` callback AND Android drops `std::cerr` (where ggml-vulkan prints `"Compute pipeline creation failed for <shader>"`). `llama_simple.cpp` now forwards ggml logs to logcat (`ggml_log_forward`, tag `LlamaGGML`), pipes `stderr`→logcat via a reader thread (`redirect_stderr_to_logcat`, tag `LlamaStderr`), and dumps `ggml_backend_dev_*` after init (`log_backend_devices`, tag `LlamaSimple`). These are the tools to re-test any future driver.
+
+2. **Stale `.so` crash** — After any Rust API change, must rebuild `.so` AND regenerate Kotlin bindings. The UniFFI checksum validation runs on every app start.
 
 2. **`Flow<T>=` parse error** — When a property type is a generic (`Flow<String>`, `Flow<Boolean>`), always put a space before `=` in assignments. `Flow<String>=` is parsed by Kotlin as `>=` (greater-than-or-equal).
 
