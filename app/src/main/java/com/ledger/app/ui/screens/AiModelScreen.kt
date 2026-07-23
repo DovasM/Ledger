@@ -48,6 +48,27 @@ fun AiModelScreen(
         )
     }
 
+    // One-time prompt: offer to auto-load the model on startup once the file is ready.
+    if (state.modelStatus is ModelStatus.Ready && !state.autoLoadPrompted && state.isNativeLibraryAvailable) {
+        AlertDialog(
+            onDismissRequest = { vm.dismissAutoLoadPrompt() },
+            icon = { Icon(Icons.Filled.Memory, contentDescription = null, tint = Primary) },
+            title = { Text("Įkelti AI automatiškai?") },
+            text = {
+                Text(
+                    "Galime įkelti modelį į atmintį kiekvieną kartą paleidus programą, kad čekių " +
+                    "skenavimas prasidėtų iškart. Tam reikia ~2.7 GB laisvos RAM."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { vm.enableAutoLoadFromPrompt() }) { Text("Įjungti") }
+            },
+            dismissButton = {
+                TextButton(onClick = { vm.dismissAutoLoadPrompt() }) { Text("Ne dabar") }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -271,6 +292,28 @@ fun AiModelScreen(
                                 }
                             }
                         }
+                    }
+                }
+            }
+
+            // ── Auto-load setting (only when file is ready) ───────────────────
+            if (state.modelStatus is ModelStatus.Ready) {
+                LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                            Text("Įkelti automatiškai", style = MaterialTheme.typography.bodyMedium,
+                                color = OnSurface, fontWeight = FontWeight.Medium)
+                            Text(
+                                "Įkelti modelį į atmintį paleidus programą, kad čekių skenavimas būtų greitesnis.",
+                                style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                            )
+                        }
+                        Spacer(Modifier.width(12.dp))
+                        Switch(checked = state.autoLoad, onCheckedChange = { vm.setAutoLoad(it) })
                     }
                 }
             }

@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.ledger.app.data.GemmaModelRepository
 import com.ledger.app.data.GemmaRepository
 import com.ledger.app.data.ModelStatus
+import com.ledger.app.data.PreferencesRepository
 import com.ledger.app.data.StorageInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
@@ -30,13 +31,16 @@ data class GemmaUiState(
     val isNativeLibraryAvailable: Boolean = false,
     val testResponse: String? = null,
     val isTestRunning: Boolean = false,
-    val backendInfo: String = ""  // "Vulkan" arba "CPU" po modelio įkėlimo
+    val backendInfo: String = "",  // "Vulkan" arba "CPU" po modelio įkėlimo
+    val autoLoad: Boolean = false,        // vartotojas įjungė automatinį įkėlimą paleidus programą
+    val autoLoadPrompted: Boolean = false // ar jau klausėme vieną kartą
 )
 
 @HiltViewModel
 class GemmaModelViewModel @Inject constructor(
     private val modelRepo: GemmaModelRepository,
-    private val gemmaRepo: GemmaRepository
+    private val gemmaRepo: GemmaRepository,
+    private val prefs: PreferencesRepository
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(GemmaUiState())
@@ -59,6 +63,12 @@ class GemmaModelViewModel @Inject constructor(
             gemmaRepo.backendInfo.collect { info ->
                 _state.update { it.copy(backendInfo = info) }
             }
+        }
+        viewModelScope.launch {
+            prefs.aiAutoLoad.collect { v -> _state.update { it.copy(autoLoad = v) } }
+        }
+        viewModelScope.launch {
+            prefs.aiAutoLoadPrompted.collect { v -> _state.update { it.copy(autoLoadPrompted = v) } }
         }
     }
 
@@ -142,6 +152,35 @@ class GemmaModelViewModel @Inject constructor(
 
     fun unloadModelFromMemory() {
         gemmaRepo.unloadModel()
+    }
+
+    // ── Auto-load (load model into memory on app startup) ─────────────────────
+
+    private fun canLoadNow() =
+        _state.value.modelStatus is ModelStatus.Ready &&
+        gemmaRepo.isNativeLibraryAvailable &&
+        gemmaRepo.inferenceState.value == GemmaRepository.InferenceState.NOT_LOADED
+
+    /** Toggle in AI settings. Enabling also loads the model right away if it isn't already. */
+    fun setAutoLoad(enabled: Boolean) {
+        viewModelScope.launch {
+            prefs.setAiAutoLoad(enabled)
+            if (enabled && canLoadNow()) loadModelInternal()
+        }
+    }
+
+    /** One-time prompt: user chose "Enable" — remember the choice and load now. */
+    fun enableAutoLoadFromPrompt() {
+        viewModelScope.launch {
+            prefs.setAiAutoLoadPrompted(true)
+            prefs.setAiAutoLoad(true)
+            if (canLoadNow()) loadModelInternal()
+        }
+    }
+
+    /** One-time prompt: user dismissed — don't ask again, leave auto-load off. */
+    fun dismissAutoLoadPrompt() {
+        viewModelScope.launch { prefs.setAiAutoLoadPrompted(true) }
     }
 
     fun runTestQuery(question: String) {

@@ -3,6 +3,7 @@ package com.ledger.app.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ledger.app.data.ILedgerBridge
+import com.ledger.app.ui.util.normalizeCategoryName
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,7 +44,16 @@ class CategoryViewModel @Inject constructor(
     fun createCategory(name: String, iconName: String, colorHex: String, isExpense: Boolean, onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.createCategory(name, iconName, colorHex, isExpense)
+                val clean = normalizeCategoryName(name)
+                if (clean.isBlank()) {
+                    _state.value = _state.value.copy(error = "Category name is required")
+                    return@launch
+                }
+                if (bridge.listCategories().any { it.name.trim().equals(clean, ignoreCase = true) }) {
+                    _state.value = _state.value.copy(error = "A category named \"$clean\" already exists")
+                    return@launch
+                }
+                bridge.createCategory(clean, iconName, colorHex, isExpense)
                 load()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
@@ -55,7 +65,17 @@ class CategoryViewModel @Inject constructor(
     fun updateCategory(id: String, name: String, iconName: String, colorHex: String, isExpense: Boolean, onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.updateCategory(id, name, iconName, colorHex, isExpense)
+                val clean = normalizeCategoryName(name)
+                if (clean.isBlank()) {
+                    _state.value = _state.value.copy(error = "Category name is required")
+                    return@launch
+                }
+                // A different category already using this name (case-insensitive) is a duplicate.
+                if (bridge.listCategories().any { it.id != id && it.name.trim().equals(clean, ignoreCase = true) }) {
+                    _state.value = _state.value.copy(error = "A category named \"$clean\" already exists")
+                    return@launch
+                }
+                bridge.updateCategory(id, clean, iconName, colorHex, isExpense)
                 load()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {

@@ -18,12 +18,18 @@ import javax.inject.Singleton
 private const val TAG = "GemmaRepo"
 
 @Serializable
-data class ParsedExpense(
-    val store: String,
-    val date: String,
-    val amount: Double,
-    val category: String,
-    val items: List<String>
+data class ParsedItem(
+    val name: String,
+    val price: Double = 0.0,
+    val category: String = ""
+)
+
+@Serializable
+data class ParsedReceipt(
+    val store: String = "",
+    val date: String = "",
+    val total: Double = 0.0,
+    val items: List<ParsedItem> = emptyList()
 )
 
 @Singleton
@@ -43,7 +49,7 @@ class GemmaRepository @Inject constructor(
     val isNativeLibraryAvailable: Boolean = true
 
     private var engine: LlamaEngine? = null
-    private val json = Json { ignoreUnknownKeys = true }
+    private val json = Json { ignoreUnknownKeys = true; isLenient = true; coerceInputValues = true }
 
     // ── Model lifecycle ───────────────────────────────────────────────────────
 
@@ -56,7 +62,9 @@ class GemmaRepository @Inject constructor(
         }
         return@withContext try {
             val t0 = System.currentTimeMillis()
-            engine = llamaCreate(file.absolutePath, nCtx = 1024u)
+            // 2048 ctx: per-item receipt parsing needs room for the full item list plus a
+            // larger structured JSON response than the old single-total prompt.
+            engine = llamaCreate(file.absolutePath, nCtx = 2048u)
             val loadMs = System.currentTimeMillis() - t0
             val sysInfo = engine!!.systemInfo()
             Log.d(TAG, "Model loaded in ${loadMs}ms — ${file.name}")
@@ -81,15 +89,15 @@ class GemmaRepository @Inject constructor(
 
     // ── Receipt parsing ───────────────────────────────────────────────────────
 
-    suspend fun parseReceiptText(rawText: String): ParsedExpense = withContext(Dispatchers.IO) {
+    suspend fun parseReceipt(rawText: String, categories: List<String>): ParsedReceipt = withContext(Dispatchers.IO) {
         Log.d(TAG, "OCR raw: ${rawText.length} chars")
 
         val today = LocalDate.now().toString()
-        val prompt = buildReceiptPrompt(rawText, today)
+        val prompt = buildReceiptPrompt(rawText, today, categories)
         val promptTokens = engine?.countTokens(prompt) ?: 0
-        Log.d(TAG, "Prompt: ${prompt.length} chars → $promptTokens tokens (nPredict=120, nCtx=1024)")
+        Log.d(TAG, "Prompt: ${prompt.length} chars → $promptTokens tokens (nPredict=512, nCtx=2048)")
 
-        val rawResponse = generate(prompt, nPredict = 120u, temperature = 0.1f)
+        val rawResponse = generate(prompt, nPredict = 512u, temperature = 0.1f)
         // Prompt was primed with "{", so prepend it back to form complete JSON.
         val response = "{$rawResponse"
 
@@ -101,10 +109,10 @@ class GemmaRepository @Inject constructor(
         val decodeTps  = if (decodeMs  > 0) outputTokens * 1000.0 / decodeMs  else 0.0
         Log.d(TAG, "Prefill: ${prefillMs}ms ($promptTokens tokens, ${String.format("%.1f", prefillTps)} tok/s)")
         Log.d(TAG, "Decode:  ${decodeMs}ms ($outputTokens tokens, ${String.format("%.1f", decodeTps)} tok/s)")
-        Log.d(TAG, "Raw response [${rawResponse.length} chars]: ${rawResponse.take(500)}")
+        Log.d(TAG, "Raw response [${rawResponse.length} chars]: ${rawResponse.take(800)}")
 
-        val result = parseJsonResponse(response)
-        Log.d(TAG, "Parsed: store=\"${result.store}\" amount=${result.amount} category=\"${result.category}\" items=${result.items.size} date=${result.date}")
+        val result = parseReceiptJson(response, today)
+        Log.d(TAG, "Parsed: store=\"${result.store}\" total=${result.total} items=${result.items.size} date=${result.date}")
         result
     }
 
@@ -112,12 +120,18 @@ class GemmaRepository @Inject constructor(
 
     suspend fun suggestCategory(transactionTitle: String, categories: List<String>): String =
         withContext(Dispatchers.IO) {
+            // Prefer an existing category; only invent a new one when none genuinely fits.
+            // (Forcing a pick from the list made bad matches, e.g. "steak" → "Services".)
+            val existing = categories.filter { it.isNotBlank() }.distinct()
+            val existingLine = if (existing.isEmpty()) "(none yet)" else existing.joinToString(", ")
             val prompt = """
                 <start_of_turn>user
-                Classify this transaction into exactly one category.
-                Transaction: "$transactionTitle"
-                Categories: ${categories.joinToString(", ")}
-                Reply with ONLY the category name, nothing else.
+                Choose the best expense category for this purchase.
+                Purchase: "$transactionTitle"
+                Existing categories: $existingLine
+                If one of the existing categories reasonably fits, reply with it EXACTLY as written above.
+                Only if none fits, reply with a short new category name (1-2 words, English).
+                Reply with ONLY the category name, no other text.
                 <end_of_turn>
                 <start_of_turn>model
             """.trimIndent()
@@ -150,44 +164,68 @@ class GemmaRepository @Inject constructor(
         }
     }
 
-    private fun buildReceiptPrompt(rawText: String, today: String): String {
-        // Gemma 4: ~2.2 chars/token. Target <400 total tokens.
-        // Template uses ~60 tokens; OCR budget ~300 tokens ≈ 660 chars.
-        // Take head (store/items) + tail (totals).
-        val ocr = if (rawText.length > 660) {
-            val trimmed = rawText.take(440) + "\n...\n" + rawText.takeLast(220)
-            Log.d(TAG, "OCR trimmed: ${rawText.length} → ${trimmed.length} chars (head=440 tail=220)")
+    private fun buildReceiptPrompt(rawText: String, today: String, categories: List<String>): String {
+        // Per-item extraction needs the whole item list, so allow a larger OCR budget than the
+        // old single-total prompt. nCtx=2048 leaves room for the per-item JSON response.
+        val ocr = if (rawText.length > 1200) {
+            val trimmed = rawText.take(900) + "\n...\n" + rawText.takeLast(300)
+            Log.d(TAG, "OCR trimmed: ${rawText.length} → ${trimmed.length} chars (head=900 tail=300)")
             trimmed
         } else {
             Log.d(TAG, "OCR no trim needed: ${rawText.length} chars")
             rawText
         }
+        // Reuse the user's existing categories so we don't create near-duplicates; the model
+        // may invent a short new one only when nothing fits.
+        val catList = categories.filter { it.isNotBlank() }.distinct().take(20)
+            .joinToString("|").ifBlank { "Food|Household|Transport|Health|Entertainment|Other" }
         // Prime model output with "{" — forces direct JSON without ```json fences.
-        // Response from model will be the rest of the JSON (from "store":... onward).
         return """<start_of_turn>user
-Receipt→JSON only, no extra text.
-{"store":"...","date":"YYYY-MM-DD","amount":0.00,"category":"Maistas|Transportas|Sveikata|Pramogos|Drabužiai|Komunalinės|Restoranas|Kita","items":["..."]}
-date=$today if not on receipt. amount=total. items max 5.
+Extract EVERY product line from this receipt as JSON. No extra text.
+{"store":"NAME","date":"YYYY-MM-DD","total":0.00,"items":[{"name":"PRODUCT","price":0.00,"category":"CAT"}]}
+Pick category from: $catList. If none fits, use a short new English category.
+date=$today if missing. One item object per product with its own price.
 $ocr
 <end_of_turn>
 <start_of_turn>model
 {"""
     }
 
-    private fun parseJsonResponse(response: String): ParsedExpense {
-        return try {
-            val jsonStr = Regex("""\{[^{}]*\}""", RegexOption.DOT_MATCHES_ALL)
-                .find(response)?.value
-                ?: throw IllegalArgumentException("No JSON in response")
-            json.decodeFromString<ParsedExpense>(jsonStr)
-        } catch (e: Exception) {
-            ParsedExpense(
-                store    = "Nežinoma parduotuvė",
-                date     = LocalDate.now().toString(),
-                amount   = 0.00,
-                category = "Kita",
-                items    = emptyList()
-            )
+    // Resilient to a small flaky model: tries a strict parse of the whole object first, then
+    // falls back to regex-extracting fields + individual item objects (survives truncated or
+    // slightly malformed JSON, which the q4 model produces fairly often on long receipts).
+    private fun parseReceiptJson(response: String, today: String): ParsedReceipt {
+        val strict = runCatching {
+            val start = response.indexOf('{')
+            val end = response.lastIndexOf('}')
+            if (start < 0 || end <= start) null
+            else json.decodeFromString<ParsedReceipt>(response.substring(start, end + 1))
+        }.getOrNull()
+        if (strict != null && strict.items.isNotEmpty()) {
+            return strict.copy(date = strict.date.ifBlank { today })
         }
+
+        val store = Regex(""""store"\s*:\s*"([^"]*)"""").find(response)?.groupValues?.get(1).orEmpty()
+        val date  = Regex(""""date"\s*:\s*"([^"]*)"""").find(response)?.groupValues?.get(1)
+            ?.takeIf { it.isNotBlank() } ?: today
+        val total = Regex(""""total"\s*:\s*([0-9]+(?:\.[0-9]+)?)""").find(response)
+            ?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
+
+        val items = Regex("""\{[^{}]*?"name"[^{}]*?\}""").findAll(response).mapNotNull { m ->
+            val obj = m.value
+            val name = Regex(""""name"\s*:\s*"([^"]*)"""").find(obj)?.groupValues?.get(1)
+                ?.trim()?.takeIf { it.isNotBlank() } ?: return@mapNotNull null
+            val price = Regex(""""price"\s*:\s*([0-9]+(?:\.[0-9]+)?)""").find(obj)
+                ?.groupValues?.get(1)?.toDoubleOrNull() ?: 0.0
+            val cat = Regex(""""category"\s*:\s*"([^"]*)"""").find(obj)?.groupValues?.get(1)?.trim().orEmpty()
+            ParsedItem(name = name, price = price, category = cat)
+        }.toList()
+
+        return ParsedReceipt(
+            store = store.ifBlank { strict?.store.orEmpty() },
+            date  = date,
+            total = if (total > 0) total else (strict?.total ?: 0.0),
+            items = if (items.isNotEmpty()) items else (strict?.items ?: emptyList())
+        )
     }
 }
