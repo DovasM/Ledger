@@ -1,6 +1,9 @@
 package com.ledger.app.ui.navigation
 
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -87,7 +90,14 @@ sealed class Screen(val route: String) {
 
 @Composable
 fun LedgerNavGraph(navController: NavHostController) {
-    NavHost(navController = navController, startDestination = Screen.Dashboard.route) {
+    // imePadding here lifts every screen's content above the soft keyboard app-wide. The app is
+    // edge-to-edge (decorFitsSystemWindows=false), so manifest adjustResize alone won't resize the
+    // Compose content — the IME inset must be consumed here. Focused fields then scroll into view.
+    NavHost(
+        navController = navController,
+        startDestination = Screen.Dashboard.route,
+        modifier = Modifier.fillMaxSize().imePadding()
+    ) {
         composable(Screen.Dashboard.route) { DashboardScreen(navController) }
         composable(Screen.Notifications.route) { NotificationsScreen(navController) }
         composable(Screen.Activity.route) { ActivityScreen(navController) }

@@ -326,6 +326,22 @@ The AI model lifecycle is managed by `GemmaModelRepository` + `GemmaModelViewMod
 
 The `AiModelScreen` navigates from `SettingsScreen → Screen.AiModelSettings`.
 
+### Receipt parsing (OCR → Gemma → per-item transactions)
+
+`ReceiptScanScreen` → `ReceiptViewModel` → `ReceiptOcrRepository` (ML Kit) + `GemmaRepository`.
+
+- OCR text plus the user's existing expense categories are fed to `GemmaRepository.parseReceipt(text, categories)`, which prompts Gemma for **one JSON object per product line**: `ParsedReceipt(store, date, total, items: List<ParsedItem>)` where `ParsedItem(name, price, category)`.
+- Runs with `nCtx=2048` / `nPredict=512` (larger than the old single-total prompt), JSON primed with a leading `{`. `parseReceiptJson` first tries a strict parse of the whole object, then falls back to regex-extracting fields + individual item objects — the Q4 model often emits slightly malformed/truncated JSON on long receipts.
+- The prompt pipe-joins existing category names so the model reuses them instead of inventing near-duplicates; it may coin a short new English category only when nothing fits.
+- **Per-item auto-categorization** reuses the (otherwise dormant) `GemmaRepository.suggestCategory(name, categories)` classifier: after the preview populates, `ReceiptScanScreen` sequentially fills any item the scan left blank, and each row has an `AutoAwesome` wand button to (re)generate its category on demand. Both go through `ReceiptViewModel.suggestCategory(name)`, which is guarded by a `Mutex` (`inferenceMutex`) — there's one native engine, so suggestion `generate()` calls must be serialized. The prompt is **prefer-existing**: it lists current categories and tells the model to reply with one of them *exactly* if it fits, and only invent a short new English name when none does (forcing a pick from the list produced bad matches like "steak" → "Services"). The answer is then matched case-insensitively to an existing category, else the model's raw answer is used (and auto-created at save time). `EditableItem.suggesting` drives a per-row spinner.
+- `ReceiptViewModel.confirmAndCreate(...)` creates **one transaction per edited item**, matching each item's category case-insensitively against existing categories and auto-creating any missing one (icon `shopping_bag`, color chosen from a palette by name hash). The store name is saved as the transaction note. `State`: `Idle → OcrRunning → AiRunning → Preview → Saving`.
+
+### AI auto-load
+
+Opt-in preference to warm the model into memory automatically. Keys in `PreferencesRepository`: `ai_auto_load` (the toggle) and `ai_auto_load_prompted` (whether the one-time prompt has been shown).
+- **Startup:** `LedgerApp.onCreate` reads `aiAutoLoad` via a Hilt `EntryPoint` (`LedgerAppEntryPoint`, extended with `preferencesRepository()` + `gemmaModelRepository()`) and, if the model file is `Ready`, loads it on an application-scoped IO coroutine — best-effort, failures swallowed. `onTrimMemory` still unloads under memory pressure.
+- **Toggle + one-time prompt:** `AiModelScreen` shows a `Switch` (→ `GemmaModelViewModel.setAutoLoad`) when the model is Ready, plus a one-time `AlertDialog` (`enableAutoLoadFromPrompt` / `dismissAutoLoadPrompt`) offering to enable it.
+
 ---
 
 ## Data Entities
@@ -357,7 +373,7 @@ Defined in `core/src/ledger.udl` and mirrored as Kotlin data classes in `ledger.
 - Colors: import from `com.ledger.app.ui.theme.*` — use `Primary`, `OnSurface`, `OnSurfaceVariant`, etc.
 - No comments in code unless the WHY is non-obvious
 - No trailing summary comments
-- UI text is in Lithuanian (app language)
+- UI text is in Lithuanian (app language) — **exception:** the receipt-scan flow (`ReceiptScanScreen`, `ReceiptViewModel`, and `GemmaRepository`'s receipt prompt/errors) is in English. `AiModelScreen`, including the auto-load toggle/prompt, is still Lithuanian.
 
 ---
 
@@ -384,6 +400,10 @@ Defined in `core/src/ledger.udl` and mirrored as Kotlin data classes in `ledger.
 5. **SeedDataUtil** — Seeds fake "Alex Johnson" data on every fresh install. Must be gated or removed before production release.
 
 6. **Edit tool requires prior Read** — When editing any file, the Read tool must be called first in the same conversation.
+
+7. **Soft keyboard covering input fields** — the app is edge-to-edge (`enableEdgeToEdge()` → `decorFitsSystemWindows=false`), so the manifest's `windowSoftInputMode="adjustResize"` does NOT resize the Compose content and the IME overlaps bottom fields. Fix is global: `NavHost` carries `Modifier.fillMaxSize().imePadding()` in `NavGraph.kt`, so every screen's content lifts above the keyboard and focused `TextField`s scroll into view. Don't re-add `imePadding()` per screen (double padding).
+
+8. **Category names are normalized + deduped** — always create/edit categories through `CategoryViewModel`, which uses `ui/util/CategoryName.kt`: `capitalizeFirst` for LIVE text input (no trim, so spaces are still typable) and `normalizeCategoryName` (trim + capitalize) at save. `create`/`updateCategory` reject case-insensitive duplicates with a friendly error surfaced on the name field. The receipt path (`ReceiptViewModel.confirmAndCreate`) normalizes the same way and already matches existing categories case-insensitively before auto-creating.
 
 ---
 

@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -19,12 +20,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.LedgerTextField
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.capitalizeFirst
 import com.ledger.app.ui.util.categoryColorHexes
 import com.ledger.app.ui.util.categoryColors
 import com.ledger.app.ui.util.categoryIconNames
@@ -40,6 +43,7 @@ fun AddCategoryScreen(
     txViewModel: TransactionViewModel = hiltViewModel()
 ) {
     val txState by txViewModel.state.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
     var name by remember { mutableStateOf("") }
     var isExpense by remember { mutableStateOf(true) }
     var selectedIconIndex by remember { mutableStateOf(0) }
@@ -95,11 +99,16 @@ fun AddCategoryScreen(
             ) {
                 LedgerTextField(
                     value = name,
-                    onValueChange = { name = it; showSuggestions = true },
+                    onValueChange = { name = capitalizeFirst(it); showSuggestions = true; if (state.error != null) viewModel.clearError() },
                     label = "Category Name", placeholder = "e.g. Housing, Salary",
                     modifier = Modifier.fillMaxWidth().menuAnchor(),
-                    isError = showErrors && !isNameValid,
-                    supportingText = if (showErrors && !isNameValid) "Category name is required" else null
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                    isError = (showErrors && !isNameValid) || state.error != null,
+                    supportingText = when {
+                        showErrors && !isNameValid -> "Category name is required"
+                        state.error != null -> state.error
+                        else -> null
+                    }
                 )
                 ExposedDropdownMenu(
                     expanded = showSuggestions && filteredSuggestions.isNotEmpty(),

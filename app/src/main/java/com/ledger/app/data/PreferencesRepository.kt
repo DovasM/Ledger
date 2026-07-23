@@ -49,6 +49,9 @@ class PreferencesRepository @Inject constructor(
         val KEY_SEC_HIDE_SWITCHER  = booleanPreferencesKey("sec_hide_switcher")
         val KEY_SEC_AUTH_LARGE     = booleanPreferencesKey("sec_auth_large")
         val KEY_SEC_LARGE_AMOUNT   = stringPreferencesKey("sec_large_amount")
+        // AI
+        val KEY_AI_AUTO_LOAD          = booleanPreferencesKey("ai_auto_load")
+        val KEY_AI_AUTO_LOAD_PROMPTED = booleanPreferencesKey("ai_auto_load_prompted")
     }
 
     // ── Flows ─────────────────────────────────────────────────────────────────
@@ -80,6 +83,9 @@ class PreferencesRepository @Inject constructor(
     val secAuthLarge: Flow<Boolean>   = ds.data.map { it[KEY_SEC_AUTH_LARGE]     ?: false }
     val secLargeAmount: Flow<String>  = ds.data.map { it[KEY_SEC_LARGE_AMOUNT]   ?: "500" }
 
+    val aiAutoLoad: Flow<Boolean>         = ds.data.map { it[KEY_AI_AUTO_LOAD]          ?: false }
+    val aiAutoLoadPrompted: Flow<Boolean> = ds.data.map { it[KEY_AI_AUTO_LOAD_PROMPTED] ?: false }
+
     // ── Setters ───────────────────────────────────────────────────────────────
 
     suspend fun setCurrency(value: String)          = ds.edit { it[KEY_CURRENCY]          = value }
@@ -108,4 +114,7 @@ class PreferencesRepository @Inject constructor(
     suspend fun setSecHideSwitcher(value: Boolean)  = ds.edit { it[KEY_SEC_HIDE_SWITCHER]  = value }
     suspend fun setSecAuthLarge(value: Boolean)     = ds.edit { it[KEY_SEC_AUTH_LARGE]     = value }
     suspend fun setSecLargeAmount(value: String)    = ds.edit { it[KEY_SEC_LARGE_AMOUNT]   = value }
+
+    suspend fun setAiAutoLoad(value: Boolean)         = ds.edit { it[KEY_AI_AUTO_LOAD]          = value }
+    suspend fun setAiAutoLoadPrompted(value: Boolean) = ds.edit { it[KEY_AI_AUTO_LOAD_PROMPTED] = value }
 }
