@@ -2,14 +2,14 @@
 
 ## Real Data / ViewModels
 
-Screens still using hardcoded or local-only state that need ViewModel integration:
+Screens needing ViewModel integration. Unchecked ones still use hardcoded or local-only state:
 
 - [ ] **NotificationsScreen** — rewrite with real data (budget alerts, goal milestones, recurring due dates, wallet balance warnings). Push notifications (system-level Android) deferred separately.
 - [ ] **SharedExpensesScreen** — hardcoded group/expense list; needs a SharedExpenseViewModel + Room entity
 - [ ] **EditProfileScreen** — placeholder name "Alex Johnson" / email; needs a UserProfileViewModel or DataStore
-- [ ] **AppearanceSettingsScreen** — local toggle state only; persist theme/density/currency preferences via DataStore
-- [ ] **NotificationSettingsScreen** — local toggle state only; persist notification preferences via DataStore
-- [ ] **SecuritySettingsScreen** — local toggle state only; persist biometric/PIN/auto-lock settings via DataStore or EncryptedSharedPreferences
+- [x] **AppearanceSettingsScreen** — wired to `SettingsViewModel`; theme/accent/density/number-format persisted via DataStore
+- [x] **NotificationSettingsScreen** — wired to `SettingsViewModel`; all toggles + thresholds persisted via DataStore
+- [x] **SecuritySettingsScreen** — wired to `SettingsViewModel`; toggles persisted via DataStore. Note: persistence only — nothing *enforces* the lock yet, tracked separately under [Security](#security-ui-exists-but-non-functional)
 - [ ] **WidgetSettingsScreen** — hardcoded widget list; wire to real AppWidget configuration
 - [ ] **ConnectAccountScreen** — local state for API key input; needs broker integration or at minimum DataStore persistence
 - [ ] **ConnectedAccountDetailsScreen** — hardcoded chart/account data; needs real broker API or cached data
