@@ -53,46 +53,51 @@ Screens still using hardcoded or local-only state that need ViewModel integratio
 ## AI Receipt Scanning (ML Kit OCR + Gemma 3n)
 
 ### Phase 1 — ML Kit OCR
-- [ ] Add `com.google.mlkit:text-recognition:16.0.1` dependency
-- [ ] Add `CAMERA` permission to AndroidManifest.xml
-- [ ] Create `ReceiptOcrRepository.kt` — takes Bitmap, returns raw extracted text via ML Kit TextRecognition (suspend function using suspendCoroutine)
-- [ ] Create `ReceiptScanViewModel.kt` — `@HiltViewModel`, processes image, exposes `isLoading / rawText / error` state
-- [ ] Create `ReceiptScanScreen.kt` — camera permission request, gallery fallback picker, image preview, "Nuskaityti čekį" button, loading indicator, scrollable raw text result card, error Snackbar
-- [ ] Register `Screen.ReceiptScan("receipt_scan")` in NavGraph.kt
-- [ ] Add "Nuskaityti čekį" entry point button in `AddTransactionScreen.kt`
+- [x] Add `com.google.mlkit:text-recognition:16.0.1` dependency
+- [x] Add `CAMERA` permission to AndroidManifest.xml
+- [x] Create `ReceiptOcrRepository.kt` — takes Bitmap, returns raw extracted text via ML Kit TextRecognition (suspend function using suspendCoroutine)
+- [x] Create `ReceiptViewModel.kt` — `@HiltViewModel`, processes image, exposes pipeline state
+- [x] Create `ReceiptScanScreen.kt` — camera permission request, gallery fallback picker, image preview, loading indicator, result preview, error handling
+- [x] Register `Screen.ReceiptScan("receipt_scan")` in NavGraph.kt
+- [x] Add receipt-scan entry point (shortcut icon) in `AddTransactionScreen.kt`
 
 ### Phase 2 — Gemma 3n Local AI
-- [ ] Add `com.google.ai.edge.aicore:aicore:0.0.1-exp01` dependency
-- [ ] Create `GemmaRepository.kt` — lazy model init on `Dispatchers.IO`, `parseReceiptText(rawText)` returning `ParsedExpense(store, date, amount, category, items)`, JSON parsed via `kotlinx.serialization`, graceful fallback on parse failure
-- [ ] Create `GemmaStatusViewModel.kt` — model state enum (`NOT_LOADED / LOADING / READY / ERROR`), `initializeModel()` function
-- [ ] Create `AiSettingsScreen.kt` — shows model status, "Įkelti modelį" button, "~2GB" warning card, progress indicator, success state
-- [ ] Register `Screen.AiSettings("ai_settings")` in NavGraph.kt and add entry in SettingsScreen
+- [x] Add on-device Llama/Gemma engine (Rust bridge, not `aicore`) dependency
+- [x] Create `GemmaRepository.kt` — lazy model init on `Dispatchers.IO`, receipt parsing returning structured expense data, JSON parsed via `kotlinx.serialization`, graceful fallback on parse failure
+- [x] Create `GemmaModelViewModel.kt` — model state (`NotDownloaded / Downloading / Verifying / Ready / UpdateAvailable / Error / Deleting`), `initializeModel()`-equivalent flow
+- [x] Create `AiModelScreen.kt` — shows model status, download button, size warning, progress indicator, success state
+- [x] Register `Screen.AiModelSettings` in NavGraph.kt and add entry in SettingsScreen
 
 ### Phase 3 — Full Pipeline (OCR → Gemma → Transaction)
-- [ ] Create `ReceiptPipelineRepository.kt` — orchestrates OCR → Gemma → preview → user confirm → `bridge.createTransaction()`; emits `PipelineResult` sealed class states (`Idle / ExtractingText / ParsingExpense / Preview / Saving / Success / Error`)
-- [ ] Create `ReceiptPipelineViewModel.kt` — manages pipeline state + editable preview fields (store, amount, category, date) that user can modify before confirming
-- [ ] Update `ReceiptScanScreen.kt` — replace raw text display with full 5-step pipeline UI: image pick → loading states → editable preview card → save/cancel → success auto-navigate back after 1.5s
-- [ ] Register `ReceiptPipelineRepository` in `AppModule.kt`
-- [ ] Guard: if Gemma not ready → show dialog "Eiti į nustatymus?" instead of crashing
-- [ ] Guard: if OCR returns empty → show "Nepavyko perskaityti čekio. Bandykite nufotografuoti geriau."
+- [x] `ReceiptViewModel` orchestrates OCR → Gemma → preview → user confirm → `bridge.createTransaction()`; `State` sealed class (`Idle / OcrRunning / AiRunning / Preview / Error`)
+- [x] Manages pipeline state + editable preview fields (store, items, category, date) that user can modify before confirming
+- [x] `ReceiptScanScreen.kt` — full pipeline UI: image pick → loading states → editable preview card → save/cancel
+- [x] Guard: if Gemma not ready → error state directs user to AI settings instead of crashing
+- [x] Guard: if OCR returns empty → "Čekyje teksto nerasta" error message
+
+### Phase 3.5 — Extended beyond original scope (done ahead of schedule)
+- [x] **Per-item receipt parsing** — Gemma returns one JSON object per product line (`ParsedReceipt(store, date, total, items)`); one transaction created per item instead of a single total
+- [x] **AI category wand** — `AutoAwesome` button on both `ReceiptScanScreen` item rows and `AddTransactionScreen` that calls `GemmaRepository.suggestCategory(...)` to auto-fill/regenerate a category from the title, serialized via a `Mutex` (single native engine)
+- [x] **Split-item mode on `AddTransactionScreen`** — toggle that replaces the single category+title fields with an editable line-item list, each with its own wand button and a live Σ-vs-total indicator; saves one transaction per item via `TransactionViewModel.createSplitTransactions(...)`
+- [x] **AI auto-load** — opt-in preference (`ai_auto_load` in `PreferencesRepository`) to warm the model into memory on app startup if already downloaded; one-time prompt to enable it from `AiModelScreen`
 
 ### Phase 4 — Extended OCR Features
 - [ ] **Bank statement import** — PDF or bank app screenshot; ML Kit extracts all transactions at once and bulk-creates them; naturally extends existing `TransactionImportScreen` with a new "Import from screenshot/PDF" tab
 - [ ] **Receipt photo attached to transaction** — camera captures receipt and attaches it as an image to an existing transaction (proof of purchase, not a new transaction); OCR additionally fills the `note` field from the receipt text
 
 ### Phase 5 — Extended Gemma Features
-- [ ] **Real-time category suggestion** — while user types transaction title in `AddTransactionScreen`, Gemma suggests a category live (e.g. "Rimi" → Maistas, "Bolt" → Transportas); debounced, non-blocking
+- [x] **Real-time category suggestion** — wand button in `AddTransactionScreen` (and receipt item rows) suggests a category from the title/name via `suggestCategory`; on-demand (button press) rather than debounced-while-typing, but functionally covers the use case
 - [ ] **Natural language search** — extend `GlobalSearchScreen` so user can type "kiek išleidau maistui šį mėnesį" and get a Gemma-generated answer backed by real transaction data
 - [ ] **Budget insights narration** — Gemma analyses last 3 months of transactions and generates personalised observations (e.g. "Restoranuose išleidi 40% daugiau nei praėjusį mėnesį"); fits into `BudgetInsightsScreen`
 - [ ] **Spending anomaly detection** — Gemma detects unusual expenses vs historical patterns and alerts the user; ties into `NotificationsScreen`
 - [ ] **Savings goal forecast** — based on current spending trends Gemma explains in natural language whether the user will reach their goal on time; fits into `GoalDetailsScreen`
 
 ### Phase 6 — Gemma Infrastructure & Quality
-- [ ] **Dynamic categories in prompt** — instead of hardcoded Lithuanian category names, inject `bridge.listCategories()` list into the prompt at runtime so Gemma always matches the user's actual categories (critical — without this Gemma suggests categories the user doesn't have)
+- [x] **Dynamic categories in prompt** — existing category names are passed into `parseReceipt(...)` and `suggestCategory(...)` at call time (prefer-existing prompt), so Gemma matches the user's actual categories instead of hardcoded ones
 - [ ] **User correction memory** — when user overrides Gemma's category suggestion, save the mapping (e.g. "Bolt" → Transportas) to DataStore as user preferences; inject into prompt next time so Gemma "learns" from corrections
 - [ ] **Fallback UI on parse failure** — when Gemma returns invalid JSON or garbage, currently silent defaults are returned; instead show clear UI message "AI nepavyko išanalizuoti — įvesk rankiniu būdu" and pre-fill fields as empty for manual entry
-- [ ] **Model version management** — check current bundled model version vs latest available; notify user when update is needed; handle graceful migration
-- [ ] **Model download progress UI** — `aicore` can download model in background; show real progress bar (%, MB downloaded) not just a generic LOADING spinner in `AiSettingsScreen`
+- [x] **Model version management** — `GemmaModelRepository` checks bundled model version vs `GemmaModelInfo.CURRENT_VERSION`, surfaces `ModelStatus.UpdateAvailable`
+- [x] **Model download progress UI** — `GemmaModelRepository.downloadModel()` emits real `Downloading(progressPercent, bytesDownloaded)` states shown in `AiModelScreen`
 - [ ] **Offline mode communication** — Gemma runs fully offline; explicitly communicate this to the user ("Visi AI skaičiavimai atliekami jūsų telefone — jūsų duomenys niekur nesiunčiami") as a key privacy advantage
 - [ ] **Master AI disable toggle** — single switch in `AiSettingsScreen` to disable all Gemma features at once for users who don't want AI; when off, all AI-powered UI elements are hidden across the app
 - [ ] **Context from transaction history** — when suggesting categories, pass user's last 50 transactions to prompt so Gemma can infer patterns (e.g. "Bolt Food" → Maistas, not Transportas, because user always tagged it that way)
