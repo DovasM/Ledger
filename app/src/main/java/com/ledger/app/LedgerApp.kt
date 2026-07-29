@@ -43,7 +43,9 @@ class LedgerApp : Application() {
         val ep = EntryPointAccessors.fromApplication(this, LedgerAppEntryPoint::class.java)
         appScope.launch {
             try {
-                if (!ep.preferencesRepository().aiAutoLoad.first()) return@launch
+                val prefs = ep.preferencesRepository()
+                if (!prefs.aiEnabled.first()) return@launch
+                if (!prefs.aiAutoLoad.first()) return@launch
                 if (ep.gemmaModelRepository().getModelStatus() !is ModelStatus.Ready) return@launch
                 val repo = ep.gemmaRepository()
                 if (repo.isNativeLibraryAvailable && !repo.isReady()) repo.loadModel()

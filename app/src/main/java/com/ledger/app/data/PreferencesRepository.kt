@@ -50,6 +50,7 @@ class PreferencesRepository @Inject constructor(
         val KEY_SEC_AUTH_LARGE     = booleanPreferencesKey("sec_auth_large")
         val KEY_SEC_LARGE_AMOUNT   = stringPreferencesKey("sec_large_amount")
         // AI
+        val KEY_AI_ENABLED            = booleanPreferencesKey("ai_enabled")
         val KEY_AI_AUTO_LOAD          = booleanPreferencesKey("ai_auto_load")
         val KEY_AI_AUTO_LOAD_PROMPTED = booleanPreferencesKey("ai_auto_load_prompted")
     }
@@ -83,6 +84,8 @@ class PreferencesRepository @Inject constructor(
     val secAuthLarge: Flow<Boolean>   = ds.data.map { it[KEY_SEC_AUTH_LARGE]     ?: false }
     val secLargeAmount: Flow<String>  = ds.data.map { it[KEY_SEC_LARGE_AMOUNT]   ?: "500" }
 
+    // Defaults to true: AI features already shipped, so an update must not silently remove them.
+    val aiEnabled: Flow<Boolean>          = ds.data.map { it[KEY_AI_ENABLED]            ?: true }
     val aiAutoLoad: Flow<Boolean>         = ds.data.map { it[KEY_AI_AUTO_LOAD]          ?: false }
     val aiAutoLoadPrompted: Flow<Boolean> = ds.data.map { it[KEY_AI_AUTO_LOAD_PROMPTED] ?: false }
 
@@ -115,6 +118,7 @@ class PreferencesRepository @Inject constructor(
     suspend fun setSecAuthLarge(value: Boolean)     = ds.edit { it[KEY_SEC_AUTH_LARGE]     = value }
     suspend fun setSecLargeAmount(value: String)    = ds.edit { it[KEY_SEC_LARGE_AMOUNT]   = value }
 
+    suspend fun setAiEnabled(value: Boolean)          = ds.edit { it[KEY_AI_ENABLED]            = value }
     suspend fun setAiAutoLoad(value: Boolean)         = ds.edit { it[KEY_AI_AUTO_LOAD]          = value }
     suspend fun setAiAutoLoadPrompted(value: Boolean) = ds.edit { it[KEY_AI_AUTO_LOAD_PROMPTED] = value }
 }

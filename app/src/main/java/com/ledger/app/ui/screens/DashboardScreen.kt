@@ -41,8 +41,10 @@ fun DashboardScreen(
     goalViewModel: GoalViewModel = hiltViewModel(),
     budgetViewModel: BudgetViewModel = hiltViewModel(),
     categoryViewModel: CategoryViewModel = hiltViewModel(),
-    recurringViewModel: RecurringViewModel = hiltViewModel()
+    recurringViewModel: RecurringViewModel = hiltViewModel(),
+    settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
+    val aiEnabled by settingsViewModel.aiEnabled.collectAsStateWithLifecycle()
     val txState by txViewModel.state.collectAsStateWithLifecycle()
     val walletState by walletViewModel.state.collectAsStateWithLifecycle()
     val goalState by goalViewModel.state.collectAsStateWithLifecycle()
@@ -182,8 +184,10 @@ fun DashboardScreen(
                 AddActionCard(Icons.Filled.LocalOffer, "New Category", "Custom category with icon", Color(0xFFE65100)) {
                     showAddSheet = false; navController.navigate(Screen.AddCategory.route)
                 }
-                AddActionCard(Icons.Filled.CameraAlt, "Skenuoti čekį", "AI automatiškai užpildo duomenis", Color(0xFF2E7D32)) {
-                    showAddSheet = false; navController.navigate(Screen.ReceiptScan.route)
+                if (aiEnabled) {
+                    AddActionCard(Icons.Filled.CameraAlt, "Skenuoti čekį", "AI automatiškai užpildo duomenis", Color(0xFF2E7D32)) {
+                        showAddSheet = false; navController.navigate(Screen.ReceiptScan.route)
+                    }
                 }
                 Spacer(Modifier.height(8.dp))
             }

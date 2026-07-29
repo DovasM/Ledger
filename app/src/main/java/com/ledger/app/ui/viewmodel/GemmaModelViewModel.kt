@@ -33,7 +33,8 @@ data class GemmaUiState(
     val isTestRunning: Boolean = false,
     val backendInfo: String = "",  // "Vulkan" arba "CPU" po modelio įkėlimo
     val autoLoad: Boolean = false,        // vartotojas įjungė automatinį įkėlimą paleidus programą
-    val autoLoadPrompted: Boolean = false // ar jau klausėme vieną kartą
+    val autoLoadPrompted: Boolean = false, // ar jau klausėme vieną kartą
+    val aiEnabled: Boolean = true          // bendras AI jungtukas; išjungus AI valdymo elementai paslepiami
 )
 
 @HiltViewModel
@@ -69,6 +70,9 @@ class GemmaModelViewModel @Inject constructor(
         }
         viewModelScope.launch {
             prefs.aiAutoLoadPrompted.collect { v -> _state.update { it.copy(autoLoadPrompted = v) } }
+        }
+        viewModelScope.launch {
+            prefs.aiEnabled.collect { v -> _state.update { it.copy(aiEnabled = v) } }
         }
     }
 
@@ -152,6 +156,21 @@ class GemmaModelViewModel @Inject constructor(
 
     fun unloadModelFromMemory() {
         gemmaRepo.unloadModel()
+    }
+
+    // ── Master AI switch ──────────────────────────────────────────────────────
+
+    /**
+     * Turns every AI feature on or off. Disabling unloads the model right away — freeing the
+     * ~2.7 GB it holds is the main reason someone flips this off. The model *file* is left on
+     * disk (deleting it is a separate, explicit action) and auto-load keeps its own value, so
+     * re-enabling restores the previous setup.
+     */
+    fun setAiEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            prefs.setAiEnabled(enabled)
+            if (!enabled) gemmaRepo.unloadModel() else if (_state.value.autoLoad && canLoadNow()) loadModelInternal()
+        }
     }
 
     // ── Auto-load (load model into memory on app startup) ─────────────────────

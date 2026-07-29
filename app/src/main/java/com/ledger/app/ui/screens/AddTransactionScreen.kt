@@ -28,6 +28,7 @@ import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.util.capitalizeFirst
 import com.ledger.app.ui.viewmodel.CategoryViewModel
+import com.ledger.app.ui.viewmodel.SettingsViewModel
 import com.ledger.app.ui.viewmodel.TagViewModel
 import com.ledger.app.ui.viewmodel.TransactionViewModel
 import com.ledger.app.ui.viewmodel.WalletViewModel
@@ -40,8 +41,10 @@ fun AddTransactionScreen(
     transactionViewModel: TransactionViewModel = hiltViewModel(),
     walletViewModel: WalletViewModel = hiltViewModel(),
     tagViewModel: TagViewModel = hiltViewModel(),
-    categoryViewModel: CategoryViewModel = hiltViewModel()
+    categoryViewModel: CategoryViewModel = hiltViewModel(),
+    settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
+    val aiEnabled by settingsViewModel.aiEnabled.collectAsStateWithLifecycle()
     val walletState    by walletViewModel.state.collectAsStateWithLifecycle()
     val tagState       by tagViewModel.state.collectAsStateWithLifecycle()
     val categoryState  by categoryViewModel.state.collectAsStateWithLifecycle()
@@ -131,8 +134,10 @@ fun AddTransactionScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Screen.ReceiptScan.route) }) {
-                        Icon(Icons.Filled.DocumentScanner, contentDescription = "Scan a receipt")
+                    if (aiEnabled) {
+                        IconButton(onClick = { navController.navigate(Screen.ReceiptScan.route) }) {
+                            Icon(Icons.Filled.DocumentScanner, contentDescription = "Scan a receipt")
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceContainerLow)
@@ -246,24 +251,26 @@ fun AddTransactionScreen(
                     }
                 }
                 // AI suggests a category from the title (prefer existing, else invent a new one).
-                if (categorySuggesting) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = accentColor)
-                } else {
-                    IconButton(
-                        onClick = {
-                            if (title.isNotBlank() && !categorySuggesting) {
-                                scope.launch {
-                                    categorySuggesting = true
-                                    val cats = if (isExpense) expenseCategoryNames else incomeCategoryNames
-                                    transactionViewModel.suggestCategory(title, cats)?.let { selectedCategory = it }
-                                    categorySuggesting = false
+                if (aiEnabled) {
+                    if (categorySuggesting) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = accentColor)
+                    } else {
+                        IconButton(
+                            onClick = {
+                                if (title.isNotBlank() && !categorySuggesting) {
+                                    scope.launch {
+                                        categorySuggesting = true
+                                        val cats = if (isExpense) expenseCategoryNames else incomeCategoryNames
+                                        transactionViewModel.suggestCategory(title, cats)?.let { selectedCategory = it }
+                                        categorySuggesting = false
+                                    }
                                 }
-                            }
-                        },
-                        enabled = title.isNotBlank()
-                    ) {
-                        Icon(Icons.Filled.AutoAwesome, contentDescription = "Suggest category from title with AI",
-                            tint = if (title.isNotBlank()) accentColor else OnSurfaceVariant)
+                            },
+                            enabled = title.isNotBlank()
+                        ) {
+                            Icon(Icons.Filled.AutoAwesome, contentDescription = "Suggest category from title with AI",
+                                tint = if (title.isNotBlank()) accentColor else OnSurfaceVariant)
+                        }
                     }
                 }
             }
@@ -329,6 +336,7 @@ fun AddTransactionScreen(
                         item = item,
                         categoryOptions = categoryOptions,
                         accentColor = accentColor,
+                        aiEnabled = aiEnabled,
                         onDelete = { if (idx < lineItems.size) lineItems.removeAt(idx) },
                         onSuggestCategory = {
                             if (item.name.isNotBlank() && !item.suggesting) {
@@ -478,6 +486,7 @@ private fun LineItemRow(
     item: EditableLineItem,
     categoryOptions: List<String>,
     accentColor: Color,
+    aiEnabled: Boolean,
     onDelete: () -> Unit,
     onSuggestCategory: () -> Unit
 ) {
@@ -526,11 +535,13 @@ private fun LineItemRow(
                         }
                     }
                 }
-                if (item.suggesting) {
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = accentColor)
-                } else {
-                    IconButton(onClick = onSuggestCategory, enabled = item.name.isNotBlank()) {
-                        Icon(Icons.Filled.AutoAwesome, contentDescription = "Suggest category with AI", tint = accentColor)
+                if (aiEnabled) {
+                    if (item.suggesting) {
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = accentColor)
+                    } else {
+                        IconButton(onClick = onSuggestCategory, enabled = item.name.isNotBlank()) {
+                            Icon(Icons.Filled.AutoAwesome, contentDescription = "Suggest category with AI", tint = accentColor)
+                        }
                     }
                 }
             }
