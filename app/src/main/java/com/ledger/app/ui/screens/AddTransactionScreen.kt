@@ -3,6 +3,7 @@ package com.ledger.app.ui.screens
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -14,17 +15,23 @@ import java.time.format.DateTimeFormatter
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
+import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.capitalizeFirst
 import com.ledger.app.ui.viewmodel.CategoryViewModel
 import com.ledger.app.ui.viewmodel.TagViewModel
 import com.ledger.app.ui.viewmodel.TransactionViewModel
 import com.ledger.app.ui.viewmodel.WalletViewModel
+import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -69,6 +76,13 @@ fun AddTransactionScreen(
         mutableStateOf(if (isExpense) expenseCategoryNames[0] else incomeCategoryNames[0])
     }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
+    var categorySuggesting by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+
+    // Split mode: one screen → several transactions (e.g. a receipt with cigarettes + banana).
+    var splitMode by remember { mutableStateOf(false) }
+    val lineItems = remember { mutableStateListOf<EditableLineItem>() }
+    LaunchedEffect(splitMode) { if (splitMode && lineItems.isEmpty()) lineItems.add(EditableLineItem()) }
 
     val amountValue = amount.toDoubleOrNull()
     val isAmountValid = amountValue != null && amountValue > 0
@@ -114,6 +128,11 @@ fun AddTransactionScreen(
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
                         Icon(Icons.Filled.Close, contentDescription = "Close")
+                    }
+                },
+                actions = {
+                    IconButton(onClick = { navController.navigate(Screen.ReceiptScan.route) }) {
+                        Icon(Icons.Filled.DocumentScanner, contentDescription = "Scan a receipt")
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceContainerLow)
@@ -175,28 +194,76 @@ fun AddTransactionScreen(
                 }
             }
 
+            // Split toggle — turn one entry into several categorized transactions
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text("Split into items", style = MaterialTheme.typography.bodyMedium,
+                        color = OnSurface, fontWeight = FontWeight.Medium)
+                    Text("Enter a total, then add each item — one transaction per item.",
+                        style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                }
+                Spacer(Modifier.width(12.dp))
+                Switch(checked = splitMode, onCheckedChange = { splitMode = it })
+            }
+
+            if (splitMode) {
+                Text("Receipt total", style = MaterialTheme.typography.labelMedium,
+                    color = OnSurfaceVariant, fontWeight = FontWeight.SemiBold)
+            }
             LedgerAmountField(
                 amount = amount,
                 onAmountChange = { amount = it },
                 onCalculatorOpen = { showCalc = true },
                 prefix = if (isExpense) "-$" else "+$",
                 accentColor = accentColor,
-                showError = showErrors && !isAmountValid
+                showError = showErrors && !isAmountValid && !splitMode
             )
 
-            // Category selector — shown first, most important field
-            ExposedDropdownMenuBox(expanded = categoryMenuExpanded, onExpandedChange = { categoryMenuExpanded = it }) {
-                LedgerTextField(
-                    value = selectedCategory, onValueChange = {},
-                    label = "Category",
-                    leadingIcon = { Icon(Icons.Filled.Category, null, tint = OnSurfaceVariant) },
-                    trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryMenuExpanded) },
-                    modifier = Modifier.fillMaxWidth().menuAnchor()
-                )
-                ExposedDropdownMenu(expanded = categoryMenuExpanded, onDismissRequest = { categoryMenuExpanded = false }) {
-                    val cats = if (isExpense) expenseCategoryNames else incomeCategoryNames
-                    cats.forEach { cat ->
-                        DropdownMenuItem(text = { Text(cat) }, onClick = { selectedCategory = cat; categoryMenuExpanded = false })
+            if (!splitMode) {
+            // Category selector — with AI suggestion (✨) that picks from the title, same as receipt scanning
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ExposedDropdownMenuBox(
+                    expanded = categoryMenuExpanded,
+                    onExpandedChange = { categoryMenuExpanded = it },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    LedgerTextField(
+                        value = selectedCategory, onValueChange = {},
+                        label = "Category",
+                        leadingIcon = { Icon(Icons.Filled.Category, null, tint = OnSurfaceVariant) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = categoryMenuExpanded) },
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(expanded = categoryMenuExpanded, onDismissRequest = { categoryMenuExpanded = false }) {
+                        val cats = if (isExpense) expenseCategoryNames else incomeCategoryNames
+                        cats.forEach { cat ->
+                            DropdownMenuItem(text = { Text(cat) }, onClick = { selectedCategory = cat; categoryMenuExpanded = false })
+                        }
+                    }
+                }
+                // AI suggests a category from the title (prefer existing, else invent a new one).
+                if (categorySuggesting) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = accentColor)
+                } else {
+                    IconButton(
+                        onClick = {
+                            if (title.isNotBlank() && !categorySuggesting) {
+                                scope.launch {
+                                    categorySuggesting = true
+                                    val cats = if (isExpense) expenseCategoryNames else incomeCategoryNames
+                                    transactionViewModel.suggestCategory(title, cats)?.let { selectedCategory = it }
+                                    categorySuggesting = false
+                                }
+                            }
+                        },
+                        enabled = title.isNotBlank()
+                    ) {
+                        Icon(Icons.Filled.AutoAwesome, contentDescription = "Suggest category from title with AI",
+                            tint = if (title.isNotBlank()) accentColor else OnSurfaceVariant)
                     }
                 }
             }
@@ -225,6 +292,64 @@ fun AddTransactionScreen(
                             onClick = { title = suggestion; titleSuggestionsVisible = false }
                         )
                     }
+                }
+            }
+            } else {
+                // Split items — each line becomes its own transaction, reconciled against the total
+                val totalValue = amount.replace(',', '.').toDoubleOrNull()
+                val itemsSum = lineItems.mapNotNull { it.amount.replace(',', '.').toDoubleOrNull() }.sum()
+                val categoryOptions = ((if (isExpense) expenseCategoryNames else incomeCategoryNames) + lineItems.map { it.category })
+                    .filter { it.isNotBlank() }.distinct()
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text("Items (${lineItems.size})", style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold, color = OnSurface)
+                    Text("Σ %.2f".format(itemsSum), style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant)
+                }
+                if (totalValue != null && totalValue > 0) {
+                    val remaining = totalValue - itemsSum
+                    val matched = kotlin.math.abs(remaining) < 0.005
+                    Text(
+                        when {
+                            matched -> "Items match the total ✓"
+                            remaining > 0 -> "Remaining to add: %.2f".format(remaining)
+                            else -> "Over total by %.2f".format(-remaining)
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (matched) Color(0xFF2E7D32) else Color(0xFFE65100)
+                    )
+                }
+
+                lineItems.forEachIndexed { idx, item ->
+                    LineItemRow(
+                        item = item,
+                        categoryOptions = categoryOptions,
+                        accentColor = accentColor,
+                        onDelete = { if (idx < lineItems.size) lineItems.removeAt(idx) },
+                        onSuggestCategory = {
+                            if (item.name.isNotBlank() && !item.suggesting) {
+                                scope.launch {
+                                    item.suggesting = true
+                                    val cats = if (isExpense) expenseCategoryNames else incomeCategoryNames
+                                    transactionViewModel.suggestCategory(item.name, cats)?.let { item.category = it }
+                                    item.suggesting = false
+                                }
+                            }
+                        }
+                    )
+                }
+
+                OutlinedButton(
+                    onClick = { lineItems.add(EditableLineItem(category = categoryOptions.firstOrNull() ?: "")) },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Add item")
                 }
             }
 
@@ -285,12 +410,29 @@ fun AddTransactionScreen(
                 }
             }
 
+            val splitItems = lineItems.mapNotNull { li ->
+                val amt = li.amount.replace(',', '.').toDoubleOrNull()
+                if (amt != null && amt > 0) TransactionViewModel.LineItem(li.name, amt, li.category) else null
+            }
+
             Spacer(Modifier.height(8.dp))
             Button(
                 onClick = {
                     showErrors = true
                     val walletId = walletState.wallets.getOrNull(selectedWalletIndex)?.id
-                    if (isFormValid && walletId != null) {
+                    val iso = selectedDate.atStartOfDay().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
+                    if (splitMode) {
+                        if (walletId != null && splitItems.isNotEmpty()) {
+                            transactionViewModel.createSplitTransactions(
+                                walletId = walletId,
+                                items = splitItems,
+                                isIncome = !isExpense,
+                                note = note.ifBlank { null },
+                                createdAt = iso,
+                                tagNames = selectedTags.toList()
+                            ) { navController.popBackStack() }
+                        }
+                    } else if (isFormValid && walletId != null) {
                         transactionViewModel.createTransaction(
                             walletId = walletId,
                             title = title.ifBlank { selectedCategory },
@@ -298,7 +440,7 @@ fun AddTransactionScreen(
                             amount = amountValue!!,
                             isIncome = !isExpense,
                             note = note.ifBlank { null },
-                            createdAt = selectedDate.atStartOfDay().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME),
+                            createdAt = iso,
                             tagNames = selectedTags.toList()
                         ) { navController.popBackStack() }
                     }
@@ -309,10 +451,88 @@ fun AddTransactionScreen(
             ) {
                 Icon(Icons.Filled.Done, null, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(8.dp))
-                Text("Save Transaction", style = MaterialTheme.typography.labelLarge)
+                Text(
+                    if (splitMode) "Save ${splitItems.size} transaction${if (splitItems.size != 1) "s" else ""}"
+                    else "Save Transaction",
+                    style = MaterialTheme.typography.labelLarge
+                )
             }
             TextButton(onClick = { navController.popBackStack() }, modifier = Modifier.fillMaxWidth()) {
                 Text("Cancel", color = accentColor, style = MaterialTheme.typography.labelLarge)
+            }
+        }
+    }
+}
+
+// Compose-state-backed editable line item for split mode (mirrors ReceiptScanScreen.EditableItem).
+private class EditableLineItem(name: String = "", amount: String = "", category: String = "") {
+    var name by mutableStateOf(name)
+    var amount by mutableStateOf(amount)
+    var category by mutableStateOf(category)
+    var suggesting by mutableStateOf(false)  // AI is picking this row's category
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun LineItemRow(
+    item: EditableLineItem,
+    categoryOptions: List<String>,
+    accentColor: Color,
+    onDelete: () -> Unit,
+    onSuggestCategory: () -> Unit
+) {
+    var catExpanded by remember { mutableStateOf(false) }
+    Card(colors = CardDefaults.cardColors(containerColor = SurfaceContainerLowest)) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            LedgerTextField(
+                value = item.name,
+                onValueChange = { item.name = it },
+                label = "Item",
+                modifier = Modifier.fillMaxWidth()
+            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                LedgerTextField(
+                    value = item.amount,
+                    onValueChange = { item.amount = it },
+                    label = "Price",
+                    modifier = Modifier.weight(1f),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
+                )
+                IconButton(onClick = onDelete) {
+                    Icon(Icons.Filled.DeleteOutline, contentDescription = "Remove item", tint = MaterialTheme.colorScheme.error)
+                }
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                ExposedDropdownMenuBox(
+                    expanded = catExpanded,
+                    onExpandedChange = { catExpanded = it },
+                    modifier = Modifier.weight(1f)
+                ) {
+                    LedgerTextField(
+                        value = item.category,
+                        onValueChange = { item.category = capitalizeFirst(it) },
+                        label = "Category",
+                        leadingIcon = { Icon(Icons.Filled.Category, null, tint = OnSurfaceVariant) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = catExpanded) },
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        modifier = Modifier.fillMaxWidth().menuAnchor()
+                    )
+                    ExposedDropdownMenu(expanded = catExpanded, onDismissRequest = { catExpanded = false }) {
+                        categoryOptions.forEach { c ->
+                            DropdownMenuItem(text = { Text(c) }, onClick = { item.category = c; catExpanded = false })
+                        }
+                    }
+                }
+                if (item.suggesting) {
+                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp, color = accentColor)
+                } else {
+                    IconButton(onClick = onSuggestCategory, enabled = item.name.isNotBlank()) {
+                        Icon(Icons.Filled.AutoAwesome, contentDescription = "Suggest category with AI", tint = accentColor)
+                    }
+                }
             }
         }
     }
