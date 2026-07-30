@@ -414,9 +414,9 @@ Defined in `core/src/ledger.udl` and mirrored as Kotlin data classes in `ledger.
 
 See `TODO.md` for the full prioritized list. High-level phases:
 
-1. **ML Kit OCR** — Camera + gallery receipt scanning
-2. **Gemma AI pipeline** — OCR → parse → editable preview → save transaction
-3. **Transaction splitting** — Divide one transaction across multiple wallets
+1. ~~**ML Kit OCR** — Camera + gallery receipt scanning~~ ✅ done
+2. ~~**Gemma AI pipeline** — OCR → parse → editable preview → save transaction~~ ✅ done, extended with per-item parsing, category-suggestion wand, split-item transactions, and opt-in AI auto-load (see [AI / Gemma Integration](#ai--gemma-integration) above)
+3. **Transaction splitting (wallets)** — Divide one transaction across multiple wallets (note: splitting across *categories/items* is already done — see above; this is splitting one purchase across multiple *funding wallets*)
 4. **Shared expenses** — Group expense splitting (needs SharedExpenseViewModel + Room entity... or Rust entity)
 5. **Automatic backups** — WorkManager daily/weekly export + optional Google Drive
 6. **Real notifications** — WorkManager background checks for budget/bill/balance alerts
