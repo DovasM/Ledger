@@ -32,7 +32,9 @@ class ReceiptViewModel @Inject constructor(
         object Idle : State()
         object OcrRunning : State()
         object AiRunning : State()
-        data class Preview(val receipt: ParsedReceipt) : State()
+        // aiFailed = the model returned nothing usable (no items), so the preview opens empty
+        // for manual entry instead of silently looking like a successful scan.
+        data class Preview(val receipt: ParsedReceipt, val aiFailed: Boolean = false) : State()
         object Saving : State()
         data class Error(val msg: String) : State()
     }
@@ -72,7 +74,9 @@ class ReceiptViewModel @Inject constructor(
                         .getOrDefault(emptyList())
                 }
                 val receipt = gemmaRepo.parseReceipt(text, categories)
-                _state.value = State.Preview(receipt)
+                // No items means the model produced garbage or truncated JSON that even the
+                // regex fallback couldn't salvage — there is nothing to turn into transactions.
+                _state.value = State.Preview(receipt, aiFailed = receipt.items.isEmpty())
             } catch (e: Exception) {
                 _state.value = State.Error(e.message ?: "Unknown error")
             }

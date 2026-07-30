@@ -336,8 +336,35 @@ fun ReceiptScanScreen(
                         }
                     }
 
+                    // The AI gave nothing usable — say so plainly instead of showing an empty
+                    // form that looks like a successful scan.
+                    if (s.aiFailed) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFE65100).copy(alpha = 0.12f))
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.Top
+                            ) {
+                                Icon(Icons.Filled.Warning, null, tint = Color(0xFFE65100),
+                                    modifier = Modifier.size(18.dp))
+                                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                    Text("AI couldn't read this receipt",
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = OnSurface, fontWeight = FontWeight.SemiBold)
+                                    Text(
+                                        "Enter the products manually below, or try again with a clearer photo.",
+                                        style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     Text(
-                        "Review & edit",
+                        if (s.aiFailed) "Enter products" else "Review & edit",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
                         color = OnSurface

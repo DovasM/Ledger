@@ -95,11 +95,11 @@ Screens needing ViewModel integration. Unchecked ones still use hardcoded or loc
 ### Phase 6 — Gemma Infrastructure & Quality
 - [x] **Dynamic categories in prompt** — existing category names are passed into `parseReceipt(...)` and `suggestCategory(...)` at call time (prefer-existing prompt), so Gemma matches the user's actual categories instead of hardcoded ones
 - [ ] **User correction memory** — when user overrides Gemma's category suggestion, save the mapping (e.g. "Bolt" → Transportas) to DataStore as user preferences; inject into prompt next time so Gemma "learns" from corrections
-- [ ] **Fallback UI on parse failure** — when Gemma returns invalid JSON or garbage, currently silent defaults are returned; instead show clear UI message "AI nepavyko išanalizuoti — įvesk rankiniu būdu" and pre-fill fields as empty for manual entry
+- [x] **Fallback UI on parse failure** — `State.Preview` carries an `aiFailed` flag (set when the parse yields zero items); `ReceiptScanScreen` then shows a warning card ("AI couldn't read this receipt") and opens an empty row for manual entry instead of a silently blank form. Message is English, matching the rest of the receipt flow
 - [x] **Model version management** — `GemmaModelRepository` checks bundled model version vs `GemmaModelInfo.CURRENT_VERSION`, surfaces `ModelStatus.UpdateAvailable`
 - [x] **Model download progress UI** — `GemmaModelRepository.downloadModel()` emits real `Downloading(progressPercent, bytesDownloaded)` states shown in `AiModelScreen`
-- [ ] **Offline mode communication** — Gemma runs fully offline; explicitly communicate this to the user ("Visi AI skaičiavimai atliekami jūsų telefone — jūsų duomenys niekur nesiunčiami") as a key privacy advantage
-- [ ] **Master AI disable toggle** — single switch in `AiSettingsScreen` to disable all Gemma features at once for users who don't want AI; when off, all AI-powered UI elements are hidden across the app
+- [x] **Offline mode communication** — privacy card at the top of `AiModelScreen` ("Viskas vyksta jūsų telefone — visi AI skaičiavimai atliekami lokaliai..."). This was already implemented before the checkbox was ticked
+- [x] **Master AI disable toggle** — `ai_enabled` preference (defaults **true** so an update doesn't silently strip AI from existing installs), switch at the top of `AiModelScreen`. When off: the model is unloaded from memory, `LedgerApp` skips auto-load, and every AI control is hidden — receipt-scan entry points in `AddTransactionScreen` *and* `DashboardScreen`, plus the ✨ wands in single and split mode. The model file stays on disk and the auto-load preference keeps its value, so re-enabling restores the previous setup
 - [ ] **Context from transaction history** — when suggesting categories, pass user's last 50 transactions to prompt so Gemma can infer patterns (e.g. "Bolt Food" → Maistas, not Transportas, because user always tagged it that way)
 
 ## Core Money Management (Missing Use Cases)

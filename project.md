@@ -339,6 +339,20 @@ The `AiModelScreen` navigates from `SettingsScreen → Screen.AiModelSettings`.
 - **The same `AutoAwesome` wand is on `AddTransactionScreen`**: `TransactionViewModel.suggestCategory(title, categories)` mirrors the receipt version (own `inferenceMutex`, prefer-existing-else-capitalized-new) and drives `selectedCategory` from the transaction title. It's passed the expense/income category list per the current toggle. Note: the button is disabled until a title is entered (the title field sits below the category field), and a newly-invented category is stored as the transaction's category label but not auto-added to the managed category list.
 - **`AddTransactionScreen` split mode** (a `Switch`, default off): flips the single category+title fields for an editable item list (`EditableLineItem` + private `LineItemRow`, each with the ✨ wand) plus a live Σ-vs-total remaining indicator. The amount field becomes the receipt total (reference only — a mismatch warns but doesn't block). Saving calls `TransactionViewModel.createSplitTransactions(...)`, which — like the receipt `confirmAndCreate` — creates **one transaction per item**, auto-creating missing categories (icon `shopping_bag`, `isExpense = !isIncome`) and applying the shared wallet/date/note/tags. Single mode is unchanged.
 
+### Master AI switch
+
+`ai_enabled` in `PreferencesRepository` — **defaults to `true`**, because AI features already shipped and an app update must not silently remove them.
+
+- **Read from two places:** `SettingsViewModel.aiEnabled` (for ordinary screens) and `GemmaUiState.aiEnabled` (for `AiModelScreen`, which owns the switch). Screens needing to hide an AI control inject `SettingsViewModel` — don't reach for `GemmaModelViewModel` just to read this flag.
+- **Turning it off** (`GemmaModelViewModel.setAiEnabled(false)`) unloads the model immediately — reclaiming the ~2.7 GB is the main reason to flip it. The model *file* is deliberately left on disk and `ai_auto_load` keeps its value, so re-enabling restores the previous setup (and reloads if auto-load was on).
+- **Everything gated on it:** the receipt-scan entry points in **both** `AddTransactionScreen` (top-bar `DocumentScanner`) and `DashboardScreen` (add-sheet "Skenuoti čekį" card — easy to miss), the ✨ wand in `AddTransactionScreen` single mode and in `LineItemRow` (passed down as an `aiEnabled` param), and — in `AiModelScreen` — the inference-engine, auto-load, and test cards plus the one-time auto-load prompt. `LedgerApp.maybeAutoLoadModel` also bails out early.
+- **Deliberately NOT gated:** the `SettingsScreen → AI Modelis` entry (it's the only way back to the switch) and the model-file card with its Delete button (someone turning AI off usually wants the 2.7 GB back).
+- `ReceiptScanScreen` itself has no guard — with both entry points hidden the route is unreachable. Add one if a third entry point ever appears.
+
+### Receipt parse failure
+
+`GemmaRepository.parseReceiptJson` returns a `ParsedReceipt` with an empty `items` list when the model emits garbage even the regex fallback can't salvage. `ReceiptViewModel` detects that (`aiFailed = receipt.items.isEmpty()`) and passes it through `State.Preview`, so `ReceiptScanScreen` shows a warning card and the heading changes to "Enter products" — rather than an empty form that looks like a clean scan. The existing `LaunchedEffect` already seeds one blank row, and the auto-categorize loop skips blank names, so no wasted inference.
+
 ### AI auto-load
 
 Opt-in preference to warm the model into memory automatically. Keys in `PreferencesRepository`: `ai_auto_load` (the toggle) and `ai_auto_load_prompted` (whether the one-time prompt has been shown).

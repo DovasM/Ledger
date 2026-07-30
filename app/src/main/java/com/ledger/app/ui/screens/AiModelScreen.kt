@@ -49,7 +49,7 @@ fun AiModelScreen(
     }
 
     // One-time prompt: offer to auto-load the model on startup once the file is ready.
-    if (state.modelStatus is ModelStatus.Ready && !state.autoLoadPrompted && state.isNativeLibraryAvailable) {
+    if (state.aiEnabled && state.modelStatus is ModelStatus.Ready && !state.autoLoadPrompted && state.isNativeLibraryAvailable) {
         AlertDialog(
             onDismissRequest = { vm.dismissAutoLoadPrompt() },
             icon = { Icon(Icons.Filled.Memory, contentDescription = null, tint = Primary) },
@@ -108,6 +108,29 @@ fun AiModelScreen(
                             style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
                         )
                     }
+                }
+            }
+
+            // ── Master AI switch ──────────────────────────────────────────────
+            LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("AI funkcijos", style = MaterialTheme.typography.bodyMedium,
+                            color = OnSurface, fontWeight = FontWeight.Medium)
+                        Text(
+                            if (state.aiEnabled)
+                                "Čekių skenavimas ir kategorijų spėjimas įjungti."
+                            else
+                                "Išjungta — visi AI mygtukai paslėpti, modelis iškrautas iš atminties.",
+                            style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                        )
+                    }
+                    Spacer(Modifier.width(12.dp))
+                    Switch(checked = state.aiEnabled, onCheckedChange = { vm.setAiEnabled(it) })
                 }
             }
 
@@ -223,7 +246,7 @@ fun AiModelScreen(
             }
 
             // ── Inference engine (only when file is ready) ────────────────────
-            if (state.modelStatus is ModelStatus.Ready) {
+            if (state.aiEnabled && state.modelStatus is ModelStatus.Ready) {
                 LedgerCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         Text("AI Variklis", style = MaterialTheme.typography.labelMedium,
@@ -297,7 +320,7 @@ fun AiModelScreen(
             }
 
             // ── Auto-load setting (only when file is ready) ───────────────────
-            if (state.modelStatus is ModelStatus.Ready) {
+            if (state.aiEnabled && state.modelStatus is ModelStatus.Ready) {
                 LedgerCard(modifier = Modifier.fillMaxWidth()) {
                     Row(
                         modifier = Modifier.padding(horizontal = 20.dp, vertical = 16.dp),
@@ -319,7 +342,7 @@ fun AiModelScreen(
             }
 
             // ── Test section (only when inference is ready) ───────────────────
-            if (state.inferenceState == GemmaRepository.InferenceState.READY) {
+            if (state.aiEnabled && state.inferenceState == GemmaRepository.InferenceState.READY) {
                 LedgerCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Testas", style = MaterialTheme.typography.labelMedium,

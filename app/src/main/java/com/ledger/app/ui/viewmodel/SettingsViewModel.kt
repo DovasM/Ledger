@@ -43,6 +43,9 @@ class SettingsViewModel @Inject constructor(
     val secAuthLarge    = prefs.secAuthLarge.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val secLargeAmount  = prefs.secLargeAmount.stateIn(viewModelScope, SharingStarted.Eagerly, "500")
 
+    // Master AI switch — screens read this to hide AI-powered controls when it's off.
+    val aiEnabled       = prefs.aiEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+
     // ── Setters ───────────────────────────────────────────────────────────────
 
     fun setCurrency(v: String)         = viewModelScope.launch { prefs.setCurrency(v) }
