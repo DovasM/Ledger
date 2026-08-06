@@ -26,6 +26,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
             id          TEXT PRIMARY KEY,
             wallet_id   TEXT NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
             title       TEXT NOT NULL,
+            -- category_id is the real link. `category` is kept as the label the transaction was
+            -- filed under: it survives deleting the category, and reads fall back to it when
+            -- category_id is NULL. Renaming a category updates both.
+            category_id TEXT REFERENCES categories(id),
             category    TEXT NOT NULL DEFAULT '',
             amount      REAL NOT NULL,
             is_income   INTEGER NOT NULL DEFAULT 0,
@@ -108,5 +112,58 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     )
     .execute(pool)
     .await?;
+
+    migrate_transaction_categories(pool).await?;
+    Ok(())
+}
+
+// Transactions used to store only the category *name*, so renaming a category silently orphaned
+// every transaction filed under the old name (and a budget on it then matched nothing). This adds
+// the id link and backfills it, creating a category for any name that no longer has one.
+async fn migrate_transaction_categories(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    // ALTER fails once the column exists; there is no IF NOT EXISTS for columns in SQLite.
+    let _ = sqlx::query("ALTER TABLE transactions ADD COLUMN category_id TEXT REFERENCES categories(id)")
+        .execute(pool)
+        .await;
+
+    sqlx::query(
+        "UPDATE transactions
+         SET category_id = (SELECT c.id FROM categories c WHERE c.name = transactions.category COLLATE NOCASE)
+         WHERE category_id IS NULL AND category <> ''",
+    )
+    .execute(pool)
+    .await?;
+
+    // Names with no category row left — typically a category that was renamed or deleted before
+    // this migration existed. Recreate it so the history stays addressable instead of dangling.
+    let orphans: Vec<(String, bool)> = sqlx::query_as(
+        "SELECT category, MIN(is_income) FROM transactions
+         WHERE category_id IS NULL AND category <> '' GROUP BY category COLLATE NOCASE",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    for (name, is_income) in orphans {
+        let id = uuid::Uuid::new_v4().to_string();
+        sqlx::query(
+            "INSERT INTO categories (id, name, icon_name, color_hex, is_expense, created_at)
+             VALUES (?,?,?,?,?,?)",
+        )
+        .bind(&id)
+        .bind(&name)
+        .bind("shopping_bag")
+        .bind("#00838F")
+        .bind(!is_income)
+        .bind(chrono::Utc::now().to_rfc3339())
+        .execute(pool)
+        .await?;
+
+        sqlx::query("UPDATE transactions SET category_id = ? WHERE category_id IS NULL AND category = ? COLLATE NOCASE")
+            .bind(&id)
+            .bind(&name)
+            .execute(pool)
+            .await?;
+    }
+
     Ok(())
 }
