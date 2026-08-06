@@ -214,6 +214,10 @@ impl LedgerDb {
 
     pub fn delete_transaction(&self, id: String) -> Result<(), LedgerError> {
         self.rt.block_on(async {
+            // transaction_tags declares ON DELETE CASCADE, but SQLite ignores it without
+            // PRAGMA foreign_keys=ON. Clear the links here so they cannot pile up.
+            sqlx::query("DELETE FROM transaction_tags WHERE transaction_id=?")
+                .bind(&id).execute(&self.pool).await?;
             sqlx::query("DELETE FROM transactions WHERE id=?").bind(&id).execute(&self.pool).await?;
             Ok(())
         })
@@ -267,6 +271,16 @@ impl LedgerDb {
 
     pub fn delete_wallet(&self, id: String) -> Result<(), LedgerError> {
         self.rt.block_on(async {
+            // The ON DELETE CASCADE on transactions.wallet_id never fires (no PRAGMA
+            // foreign_keys), so deleting a wallet used to leave its transactions behind —
+            // counted by every report while belonging to an account that no longer exists.
+            sqlx::query(
+                "DELETE FROM transaction_tags WHERE transaction_id IN (SELECT id FROM transactions WHERE wallet_id=?)"
+            ).bind(&id).execute(&self.pool).await?;
+            sqlx::query("DELETE FROM transactions WHERE wallet_id=?")
+                .bind(&id).execute(&self.pool).await?;
+            sqlx::query("DELETE FROM recurring_transactions WHERE wallet_id=?")
+                .bind(&id).execute(&self.pool).await?;
             sqlx::query("DELETE FROM wallets WHERE id=?").bind(&id).execute(&self.pool).await?;
             Ok(())
         })
@@ -410,10 +424,12 @@ impl LedgerDb {
                 .execute(&self.pool).await?;
 
             // Reads resolve the name through category_id, so this is only keeping the fallback
-            // label current — it is what a transaction shows once its category is deleted.
-            sqlx::query("UPDATE transactions SET category=? WHERE category_id=?")
-                .bind(&name).bind(&id)
-                .execute(&self.pool).await?;
+            // label current — it is what a row shows once its category is deleted.
+            for table in ["transactions", "recurring_transactions"] {
+                sqlx::query(&format!("UPDATE {table} SET category=? WHERE category_id=?"))
+                    .bind(&name).bind(&id)
+                    .execute(&self.pool).await?;
+            }
 
             let row = sqlx::query_as::<_, CategoryRow>(
                 "SELECT id, name, icon_name, color_hex, is_expense, created_at FROM categories WHERE id=?"
@@ -429,7 +445,13 @@ impl LedgerDb {
             // SQLite enforces foreign keys only with PRAGMA foreign_keys=ON, which is off by
             // default, so clear the link explicitly rather than trusting ON DELETE. The `category`
             // label stays, so historical transactions still read as what they were filed under.
-            sqlx::query("UPDATE transactions SET category_id=NULL WHERE category_id=?")
+            for table in ["transactions", "recurring_transactions"] {
+                sqlx::query(&format!("UPDATE {table} SET category_id=NULL WHERE category_id=?"))
+                    .bind(&id).execute(&self.pool).await?;
+            }
+            // A budget whose category is gone can never be seen or edited again — the screens all
+            // resolve it through the category — so it would linger invisibly forever.
+            sqlx::query("DELETE FROM budgets WHERE category_id=?")
                 .bind(&id).execute(&self.pool).await?;
             sqlx::query("DELETE FROM categories WHERE id=?").bind(&id).execute(&self.pool).await?;
             Ok(())
@@ -551,7 +573,7 @@ impl LedgerDb {
     pub fn list_recurring(&self) -> Result<Vec<RecurringTransaction>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, RecurringTransactionRow>(
-                "SELECT id, title, amount, category, wallet_id, is_income, frequency, next_date, created_at FROM recurring_transactions ORDER BY next_date ASC"
+                &format!("{RECURRING_SELECT} ORDER BY r.next_date ASC")
             )
             .fetch_all(&self.pool).await?;
             Ok(rows.into_iter().map(row_to_recurring).collect())
@@ -564,14 +586,15 @@ impl LedgerDb {
         self.rt.block_on(async {
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
+            let category_id = resolve_category_id(&self.pool, &category, is_income).await?;
             sqlx::query(
-                "INSERT INTO recurring_transactions (id, title, amount, category, wallet_id, is_income, frequency, next_date, created_at) VALUES (?,?,?,?,?,?,?,?,?)"
+                "INSERT INTO recurring_transactions (id, title, amount, category_id, category, wallet_id, is_income, frequency, next_date, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
             )
-            .bind(&id).bind(&title).bind(amount).bind(&category).bind(&wallet_id).bind(is_income).bind(&frequency).bind(&next_date).bind(&now)
+            .bind(&id).bind(&title).bind(amount).bind(&category_id).bind(&category).bind(&wallet_id).bind(is_income).bind(&frequency).bind(&next_date).bind(&now)
             .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, RecurringTransactionRow>(
-                "SELECT id, title, amount, category, wallet_id, is_income, frequency, next_date, created_at FROM recurring_transactions WHERE id=?"
+                &format!("{RECURRING_SELECT} WHERE r.id=?")
             )
             .bind(&id).fetch_one(&self.pool).await?;
             Ok(row_to_recurring(row))
@@ -581,12 +604,17 @@ impl LedgerDb {
     pub fn update_recurring(&self, id: String, title: String, amount: f64, category: String, frequency: String, next_date: String) -> Result<RecurringTransaction, LedgerError> {
         if title.is_empty() { return Err(LedgerError::InvalidInput("title is required".into())); }
         self.rt.block_on(async {
-            sqlx::query("UPDATE recurring_transactions SET title=?, amount=?, category=?, frequency=?, next_date=? WHERE id=?")
-                .bind(&title).bind(amount).bind(&category).bind(&frequency).bind(&next_date).bind(&id)
+            let is_income: bool = sqlx::query_as::<_, (bool,)>("SELECT is_income FROM recurring_transactions WHERE id=?")
+                .bind(&id).fetch_optional(&self.pool).await?
+                .map(|(v,)| v).unwrap_or(false);
+            let category_id = resolve_category_id(&self.pool, &category, is_income).await?;
+
+            sqlx::query("UPDATE recurring_transactions SET title=?, amount=?, category_id=?, category=?, frequency=?, next_date=? WHERE id=?")
+                .bind(&title).bind(amount).bind(&category_id).bind(&category).bind(&frequency).bind(&next_date).bind(&id)
                 .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, RecurringTransactionRow>(
-                "SELECT id, title, amount, category, wallet_id, is_income, frequency, next_date, created_at FROM recurring_transactions WHERE id=?"
+                &format!("{RECURRING_SELECT} WHERE r.id=?")
             )
             .bind(&id).fetch_optional(&self.pool).await?
             .ok_or(LedgerError::NotFound)?;
@@ -632,6 +660,8 @@ impl LedgerDb {
 
     pub fn delete_tag(&self, id: String) -> Result<(), LedgerError> {
         self.rt.block_on(async {
+            sqlx::query("DELETE FROM transaction_tags WHERE tag_id=?")
+                .bind(&id).execute(&self.pool).await?;
             sqlx::query("DELETE FROM tags WHERE id=?").bind(&id).execute(&self.pool).await?;
             Ok(())
         })
@@ -732,6 +762,12 @@ const TX_SELECT: &str = "SELECT t.id, t.wallet_id, t.title, \
      t.amount, t.is_income, t.note, t.created_at \
      FROM transactions t LEFT JOIN categories c ON c.id = t.category_id";
 
+// Recurring transactions had the same name-only storage, so a rename skipped them too.
+const RECURRING_SELECT: &str = "SELECT r.id, r.title, r.amount, \
+     COALESCE(c.name, r.category) AS category, \
+     r.wallet_id, r.is_income, r.frequency, r.next_date, r.created_at \
+     FROM recurring_transactions r LEFT JOIN categories c ON c.id = r.category_id";
+
 // Writes still take a category *name* (the whole app works that way), so the name is matched
 // case-insensitively against existing categories and created when it is genuinely new. Without
 // this, a transaction could name a category that does not exist and rename would miss it again.
@@ -745,10 +781,14 @@ async fn resolve_category_id(
         return Ok(None);
     }
 
+    // Match the type as well as the name. A Money Manager import legitimately produces the same
+    // name in both directions (Gifts, Other), and matching on name alone linked expense rows to
+    // the income category — invisible until that category was renamed or deleted.
     if let Some((id,)) = sqlx::query_as::<_, (String,)>(
-        "SELECT id FROM categories WHERE name = ? COLLATE NOCASE",
+        "SELECT id FROM categories WHERE name = ? COLLATE NOCASE AND is_expense = ?",
     )
     .bind(trimmed)
+    .bind(!is_income)
     .fetch_optional(pool)
     .await?
     {
