@@ -182,8 +182,12 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 
 ## Minor / Polish
 
-- [ ] **Warn before deleting a category that has transactions** — deletion now detaches them cleanly (they keep their label) but says nothing about it. Needs a transaction count per category, which means a new UDL method and a UniFFI regeneration, so it was deliberately left out of the `category_id` change
-- [ ] **`recurring_transactions.category` is still a bare name** — the same rename problem the transactions table just had. Lower impact (far fewer rows) but the same fix applies
+- [ ] **Warn before deleting a category or wallet that has data** — both now clean up correctly, but silently: deleting a category detaches its transactions and drops its budget, and deleting a wallet **deletes every transaction in it**. Neither says so first. Needs a count method, which means a UDL change and a UniFFI regeneration
+- [ ] **Stale `armeabi-v7a` native library** — `app/src/main/jniLibs/armeabi-v7a/libuniffi_ledger.so` is from April and predates the `category_id` schema. Harmless today because `abiFilters` is `arm64-v8a` + `x86_64`, but it would ship a broken build if that ABI is ever re-enabled. Either rebuild it or delete the folder
+- [x] **`recurring_transactions.category`** — had the same rename problem; now carries `category_id` and resolves through it
+- [x] **Dead `ON DELETE CASCADE`s** — SQLite ignores foreign keys without `PRAGMA foreign_keys=ON`, which this pool never sets, so all three declared cascades did nothing. Deleting a wallet left its transactions and recurring rows behind; deleting a transaction or tag left link rows. Each `delete_*` now cleans up explicitly and `clean_orphans` sweeps existing strays
+- [x] **Deleting a category orphaned its budget** — invisible forever, since every screen resolves a budget through its category. The budget is now deleted with it
+- [x] **Category links ignored income vs expense** — `resolve_category_id` matched on name alone, so 175 expense transactions linked to the income-side twin (Gifts, Other, NEATITIKMUO all exist in both directions after a Money Manager import). Now matches on name **and** `is_expense`, with a repair pass for existing rows
 - [ ] **HelpSupportScreen** — FAQ items are hardcoded; acceptable as static content but could be loaded from remote
 - [ ] **EditTransaction date picker** — verify date picker persists correctly to DB
 - [ ] Seed data utility (`SeedDataUtil.kt`) — decide if this stays for dev only or gets removed before release

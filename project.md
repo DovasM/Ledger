@@ -551,9 +551,14 @@ and the widget would have counted that spending as unbudgeted.
 - **Reads** resolve the name through the link: `COALESCE(c.name, t.category)` via `TX_SELECT` in
   `core/src/lib.rs`. A rename therefore shows up everywhere with no extra work.
 - **Writes** still take a category *name* — the whole app works that way. `resolve_category_id`
-  matches it case-insensitively and **creates the category when it is genuinely new**. Note this
+  matches it case-insensitively **on name *and* `is_expense`**, and creates the category when it is
+  genuinely new. Matching on name alone is wrong: a Money Manager import legitimately produces the
+  same name in both directions (Gifts, Other, NEATITIKMUO), and 175 expense transactions ended up
+  linked to the income twin — invisible until that category was renamed or deleted. Note this also
   changed `AddTransactionScreen` single mode: an invented category name now joins the managed list
   instead of existing only as a loose label.
+- **`recurring_transactions` gets the identical treatment** — it stored a bare name too, so a rename
+  skipped it. `RECURRING_SELECT` resolves through the link the same way.
 - **Rename** (`update_category`) refreshes the stored label too, so the fallback stays current.
 - **Delete** (`delete_category`) clears `category_id` and keeps the label, so history still reads as
   what it was filed under. It does *not* rely on `ON DELETE SET NULL` — SQLite enforces foreign keys
@@ -564,6 +569,23 @@ and the widget would have counted that spending as unbudgeted.
 
 The UDL is unchanged — `Transaction.category` is still a string — so this needed **no UniFFI
 regeneration**, only a rebuilt `.so`.
+
+### Every `ON DELETE CASCADE` in this schema is inert
+
+SQLite honours foreign keys only under `PRAGMA foreign_keys=ON`, and this pool never sets it. The
+three cascades declared in `db/mod.rs` (`transactions.wallet_id`, both columns of
+`transaction_tags`) therefore did nothing, and deleting a wallet left its transactions behind —
+still counted by every report while belonging to an account that no longer existed.
+
+**Each `delete_*` cleans up explicitly instead.** Deleting a wallet removes its transactions, their
+tag links and its recurring rows; deleting a transaction or a tag removes the links; deleting a
+category detaches its transactions and recurring rows and deletes its budget (a budget whose
+category is gone can never be seen or edited again, because every screen resolves it through the
+category). `clean_orphans` sweeps anything earlier builds already stranded.
+
+Enabling the pragma was considered and rejected: it would turn loose historical rows into hard
+write failures at runtime, and explicit cleanup is deterministic and testable. **If you add a table
+with a foreign key, write the cleanup into the delete path — do not rely on the declaration.**
 
 ## Data Entities
 

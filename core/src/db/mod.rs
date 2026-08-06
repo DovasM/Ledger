@@ -76,11 +76,12 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         );
 
         CREATE TABLE IF NOT EXISTS recurring_transactions (
-            id         TEXT PRIMARY KEY,
-            title      TEXT NOT NULL,
-            amount     REAL NOT NULL,
-            category   TEXT NOT NULL DEFAULT '',
-            wallet_id  TEXT NOT NULL,
+            id          TEXT PRIMARY KEY,
+            title       TEXT NOT NULL,
+            amount      REAL NOT NULL,
+            category_id TEXT REFERENCES categories(id),
+            category    TEXT NOT NULL DEFAULT '',
+            wallet_id   TEXT NOT NULL REFERENCES wallets(id),
             is_income  INTEGER NOT NULL DEFAULT 0,
             frequency  TEXT NOT NULL DEFAULT 'monthly',
             next_date  TEXT NOT NULL,
@@ -114,6 +115,25 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     .await?;
 
     migrate_transaction_categories(pool).await?;
+    clean_orphans(pool).await?;
+    Ok(())
+}
+
+// Every ON DELETE CASCADE in this schema is inert: SQLite honours foreign keys only under
+// PRAGMA foreign_keys=ON and this pool does not set it. The delete_* functions now clean up
+// explicitly, which is deterministic and needs no pragma — this sweeps whatever earlier builds
+// already stranded. Enabling the pragma instead was considered and rejected: it would turn loose
+// historical rows into hard write failures at runtime.
+async fn clean_orphans(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    for stmt in [
+        "DELETE FROM transaction_tags WHERE transaction_id NOT IN (SELECT id FROM transactions)",
+        "DELETE FROM transaction_tags WHERE tag_id NOT IN (SELECT id FROM tags)",
+        "DELETE FROM transactions WHERE wallet_id NOT IN (SELECT id FROM wallets)",
+        "DELETE FROM recurring_transactions WHERE wallet_id NOT IN (SELECT id FROM wallets)",
+        "DELETE FROM budgets WHERE category_id NOT IN (SELECT id FROM categories)",
+    ] {
+        sqlx::query(stmt).execute(pool).await?;
+    }
     Ok(())
 }
 
@@ -125,14 +145,40 @@ async fn migrate_transaction_categories(pool: &SqlitePool) -> Result<(), sqlx::E
     let _ = sqlx::query("ALTER TABLE transactions ADD COLUMN category_id TEXT REFERENCES categories(id)")
         .execute(pool)
         .await;
+    let _ = sqlx::query("ALTER TABLE recurring_transactions ADD COLUMN category_id TEXT REFERENCES categories(id)")
+        .execute(pool)
+        .await;
 
-    sqlx::query(
-        "UPDATE transactions
-         SET category_id = (SELECT c.id FROM categories c WHERE c.name = transactions.category COLLATE NOCASE)
-         WHERE category_id IS NULL AND category <> ''",
-    )
-    .execute(pool)
-    .await?;
+    // is_expense must match too: the same name legitimately exists in both directions after a
+    // Money Manager import (Gifts, Other), and matching on name alone links expense rows to the
+    // income category.
+    for table in ["transactions", "recurring_transactions"] {
+        sqlx::query(&format!(
+            "UPDATE {table}
+             SET category_id = (SELECT c.id FROM categories c
+                                WHERE c.name = {table}.category COLLATE NOCASE
+                                  AND c.is_expense <> {table}.is_income)
+             WHERE category_id IS NULL AND category <> ''"
+        ))
+        .execute(pool)
+        .await?;
+
+        // Repair rows an earlier build linked to the wrong-typed twin. Idempotent: once the link
+        // points at the right type the first EXISTS stops matching.
+        sqlx::query(&format!(
+            "UPDATE {table}
+             SET category_id = (SELECT c.id FROM categories c
+                                WHERE c.name = {table}.category COLLATE NOCASE
+                                  AND c.is_expense <> {table}.is_income)
+             WHERE EXISTS (SELECT 1 FROM categories bad
+                           WHERE bad.id = {table}.category_id AND bad.is_expense = {table}.is_income)
+               AND EXISTS (SELECT 1 FROM categories good
+                           WHERE good.name = {table}.category COLLATE NOCASE
+                             AND good.is_expense <> {table}.is_income)"
+        ))
+        .execute(pool)
+        .await?;
+    }
 
     // Names with no category row left — typically a category that was renamed or deleted before
     // this migration existed. Recreate it so the history stays addressable instead of dangling.
@@ -158,11 +204,15 @@ async fn migrate_transaction_categories(pool: &SqlitePool) -> Result<(), sqlx::E
         .execute(pool)
         .await?;
 
-        sqlx::query("UPDATE transactions SET category_id = ? WHERE category_id IS NULL AND category = ? COLLATE NOCASE")
+        for table in ["transactions", "recurring_transactions"] {
+            sqlx::query(&format!(
+                "UPDATE {table} SET category_id = ? WHERE category_id IS NULL AND category = ? COLLATE NOCASE"
+            ))
             .bind(&id)
             .bind(&name)
             .execute(pool)
             .await?;
+        }
     }
 
     Ok(())
