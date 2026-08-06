@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Themed-icon (Android 13+) layer: the system tints this a single colour, so it is the flat
+  silhouette of the mark — no shadows, no midrib, no gradients. The L and the leaf never touch in the
+  source artwork, so they stay legible as two shapes. Same <group> as the other two launcher layers.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:pivotX="0"
+        android:pivotY="0"
+        android:scaleX="0.149378"
+        android:scaleY="0.149378"
+        android:translateX="13.967"
+        android:translateY="14.49">
+        <path
+            android:fillColor="#000000"
+            android:pathData="M154,94 C148,94 145,96 145,99 C145,103 150,105 158,105 C174,106 183,109 187,115 C189,119 189,124 189,131 L189,357 C189,373 185,383 176,388 C169,392 159,393 151,395 C146,396 144,399 145,401 C146,403 149,404 154,404 L296,404 L296,378 L264,378 C252,378 246,373 246,360 L246,132 C246,120 251,113 260,110 C269,107 281,106 289,104 C294,103 296,100 294,97 C293,95 290,94 286,94 Z" />
+        <path
+            android:fillColor="#000000"
+            android:pathData="M307,399 C314,353 350,303 431,283 C430,336 392,387 320,402 C314,403 309,403 307,399 Z" />
+    </group>
+</vector>
