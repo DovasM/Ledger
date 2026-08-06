@@ -115,6 +115,7 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 - [x] **AI auto-load** — opt-in preference (`ai_auto_load` in `PreferencesRepository`) to warm the model into memory on app startup if already downloaded; one-time prompt to enable it from `AiModelScreen`
 
 ### Phase 4 — Extended OCR Features
+- [ ] **Money Manager transfers are not imported** — the backup's `transfer` table (35 rows in a real file) is ignored entirely, so account-to-account moves are simply missing after an import. Blocked on Ledger having a transfer type at all (see Wallet Operations below)
 - [ ] **Bank statement import** — PDF or bank app screenshot; ML Kit extracts all transactions at once and bulk-creates them; naturally extends existing `TransactionImportScreen` with a new "Import from screenshot/PDF" tab
 - [ ] **Receipt photo attached to transaction** — camera captures receipt and attaches it as an image to an existing transaction (proof of purchase, not a new transaction); OCR additionally fills the `note` field from the receipt text
 
@@ -193,6 +194,7 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 - [x] FinancialCalendarScreen deleted — Settings entry redirected to CashFlowForecast
 - [x] SpendingStreaksScreen rewritten with real streak computation, week grid, and 7 achievements
 - [x] TransactionImportScreen — Money Manager .mmbackup import
+- [x] Import: Money Manager's built-in categories no longer collapse into "Other" — they carry an empty `title` in the backup (the name is localised at runtime from the uid), so 1110 of 1993 transactions in a real backup landed in one bucket with Groceries and Cafe merged. `ImportViewModel.defaultCategoryNames` maps the uids back; icon mapping extended so the defaults don't all fall through to the same generic vector
 - [x] RecurringTransactionsScreen — connected to DB via RecurringViewModel
 - [x] BudgetsScreen — connected to DB via BudgetViewModel
 - [x] NetWorthScreen — real wallet + debt data
