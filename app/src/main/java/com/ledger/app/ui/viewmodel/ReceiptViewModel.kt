@@ -9,6 +9,7 @@ import com.ledger.app.data.ParsedReceipt
 import com.ledger.app.data.ReceiptOcrRepository
 import com.ledger.app.ui.util.capitalizeFirst
 import com.ledger.app.ui.util.normalizeCategoryName
+import com.ledger.app.widget.WidgetUpdater
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -26,6 +27,7 @@ class ReceiptViewModel @Inject constructor(
     private val ocrRepo: ReceiptOcrRepository,
     private val gemmaRepo: GemmaRepository,
     private val bridge: ILedgerBridge,
+    private val widgetUpdater: WidgetUpdater,
 ) : ViewModel() {
 
     sealed class State {
@@ -125,6 +127,7 @@ class ReceiptViewModel @Inject constructor(
                         createdAt = dateIso
                     )
                 }
+                widgetUpdater.refresh()
                 withContext(Dispatchers.Main) {
                     _state.value = State.Idle
                     onDone()

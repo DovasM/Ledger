@@ -49,6 +49,9 @@ class PreferencesRepository @Inject constructor(
         val KEY_SEC_HIDE_SWITCHER  = booleanPreferencesKey("sec_hide_switcher")
         val KEY_SEC_AUTH_LARGE     = booleanPreferencesKey("sec_auth_large")
         val KEY_SEC_LARGE_AMOUNT   = stringPreferencesKey("sec_large_amount")
+        // Daily allowance
+        val KEY_ALLOWANCE_ROLLOVER = booleanPreferencesKey("allowance_rollover")
+        val KEY_ALLOWANCE_WINDOW   = stringPreferencesKey("allowance_window")
         // AI
         val KEY_AI_ENABLED            = booleanPreferencesKey("ai_enabled")
         val KEY_AI_AUTO_LOAD          = booleanPreferencesKey("ai_auto_load")
@@ -84,6 +87,12 @@ class PreferencesRepository @Inject constructor(
     val secAuthLarge: Flow<Boolean>   = ds.data.map { it[KEY_SEC_AUTH_LARGE]     ?: false }
     val secLargeAmount: Flow<String>  = ds.data.map { it[KEY_SEC_LARGE_AMOUNT]   ?: "500" }
 
+    // Rollover carries an unspent day forward and makes an overspent day bite into the next one.
+    // Off instead caps the daily figure at the plain share, so it can only ever move down.
+    val allowanceRollover: Flow<Boolean> = ds.data.map { it[KEY_ALLOWANCE_ROLLOVER] ?: true }
+    // "weekly" | "monthly" — when the carried balance resets.
+    val allowanceWindow: Flow<String>    = ds.data.map { it[KEY_ALLOWANCE_WINDOW]   ?: "monthly" }
+
     // Defaults to true: AI features already shipped, so an update must not silently remove them.
     val aiEnabled: Flow<Boolean>          = ds.data.map { it[KEY_AI_ENABLED]            ?: true }
     val aiAutoLoad: Flow<Boolean>         = ds.data.map { it[KEY_AI_AUTO_LOAD]          ?: false }
@@ -117,6 +126,9 @@ class PreferencesRepository @Inject constructor(
     suspend fun setSecHideSwitcher(value: Boolean)  = ds.edit { it[KEY_SEC_HIDE_SWITCHER]  = value }
     suspend fun setSecAuthLarge(value: Boolean)     = ds.edit { it[KEY_SEC_AUTH_LARGE]     = value }
     suspend fun setSecLargeAmount(value: String)    = ds.edit { it[KEY_SEC_LARGE_AMOUNT]   = value }
+
+    suspend fun setAllowanceRollover(value: Boolean) = ds.edit { it[KEY_ALLOWANCE_ROLLOVER] = value }
+    suspend fun setAllowanceWindow(value: String)    = ds.edit { it[KEY_ALLOWANCE_WINDOW]   = value }
 
     suspend fun setAiEnabled(value: Boolean)          = ds.edit { it[KEY_AI_ENABLED]            = value }
     suspend fun setAiAutoLoad(value: Boolean)         = ds.edit { it[KEY_AI_AUTO_LOAD]          = value }

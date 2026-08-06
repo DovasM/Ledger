@@ -23,13 +23,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.AllowanceSettings
+import com.ledger.app.ui.util.DayState
+import com.ledger.app.ui.util.STREAK_LOOKBACK_DAYS
+import com.ledger.app.ui.util.computeStreakStats
 import com.ledger.app.ui.viewmodel.BudgetViewModel
 import com.ledger.app.ui.viewmodel.CategoryViewModel
 import com.ledger.app.ui.viewmodel.GoalViewModel
+import com.ledger.app.ui.viewmodel.SettingsViewModel
 import com.ledger.app.ui.viewmodel.TransactionViewModel
 import java.time.DayOfWeek
 import java.time.LocalDate
-import java.time.temporal.ChronoUnit
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -38,7 +42,8 @@ fun SpendingStreaksScreen(
     txViewModel: TransactionViewModel = hiltViewModel(),
     budgetViewModel: BudgetViewModel = hiltViewModel(),
     categoryViewModel: CategoryViewModel = hiltViewModel(),
-    goalViewModel: GoalViewModel = hiltViewModel()
+    goalViewModel: GoalViewModel = hiltViewModel(),
+    settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
     val txState     by txViewModel.state.collectAsStateWithLifecycle()
     val budgetState by budgetViewModel.state.collectAsStateWithLifecycle()
@@ -56,64 +61,19 @@ fun SpendingStreaksScreen(
 
     // ── Core computations ─────────────────────────────────────────────────────
 
-    // Daily expense totals: date string → amount
-    val dailyExpenses = remember(txState.transactions) {
-        txState.transactions
-            .filter { !it.isIncome }
-            .groupBy { it.createdAt.take(10) }
-            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+    // Shared with the home-screen widgets — see ui/util/StreakCalculator.kt.
+    val rollover by settingsViewModel.allowanceRollover.collectAsStateWithLifecycle()
+    val window by settingsViewModel.allowanceWindow.collectAsStateWithLifecycle()
+    val stats = remember(txState.transactions, budgetState.budgets, catState.categories, today, rollover, window) {
+        computeStreakStats(
+            txState.transactions, budgetState.budgets, catState.categories, today,
+            AllowanceSettings.of(rollover, window)
+        )
     }
-
-    // Daily allowance = total monthly budget / days in month (0 if no budgets)
-    val totalMonthlyBudget = remember(budgetState.budgets) {
-        budgetState.budgets.sumOf { it.limitAmount }
-    }
-    val dailyAllowance = remember(totalMonthlyBudget, today) {
-        if (totalMonthlyBudget > 0) totalMonthlyBudget / today.lengthOfMonth() else 0.0
-    }
-
-    // "Good day": under daily allowance (if budgets set) or any transaction logged
-    fun isGoodDay(date: LocalDate): Boolean {
-        val key = date.toString()
-        return if (dailyAllowance > 0) {
-            (dailyExpenses[key] ?: 0.0) <= dailyAllowance
-        } else {
-            txState.transactions.any { it.createdAt.take(10) == key }
-        }
-    }
-
-    // Current streak (backwards from today)
-    val currentStreak = remember(dailyExpenses, dailyAllowance, today) {
-        var streak = 0
-        var d = today
-        val limit = today.minusDays(180)
-        while (!d.isBefore(limit) && isGoodDay(d)) {
-            streak++
-            d = d.minusDays(1)
-        }
-        streak
-    }
-
-    // Best streak in last 180 days
-    val bestStreak = remember(dailyExpenses, dailyAllowance, today) {
-        var best = 0
-        var run = 0
-        for (i in 0..179) {
-            val d = today.minusDays(i.toLong())
-            if (isGoodDay(d)) {
-                run++
-                if (run > best) best = run
-            } else {
-                run = 0
-            }
-        }
-        best
-    }
-
-    // Total days with any transaction
-    val daysWithData = remember(txState.transactions) {
-        txState.transactions.map { it.createdAt.take(10) }.distinct().size
-    }
+    val dailyAllowance = stats.dailyAllowance
+    val currentStreak  = stats.currentStreak
+    val bestStreak     = stats.bestStreak
+    val daysWithData   = stats.daysWithData
 
     // Current week Mon–Sun grid
     val weekStart = remember(today) {
@@ -137,7 +97,7 @@ fun SpendingStreaksScreen(
     val weeklyBudgetShare = dailyAllowance * 7.0
     val weekBudgetPct = if (weeklyBudgetShare > 0) (weekExpenses / weeklyBudgetShare).coerceIn(0.0, 1.5).toFloat() else 0f
 
-    val todayExpenses = dailyExpenses[today.toString()] ?: 0.0
+    val todayExpenses = stats.spentToday
     val todayPct = if (dailyAllowance > 0) (todayExpenses / dailyAllowance).coerceIn(0.0, 1.5).toFloat() else 0f
 
     // ── Achievements ──────────────────────────────────────────────────────────
@@ -182,9 +142,8 @@ fun SpendingStreaksScreen(
         // Consistent: any 14-day run with transactions
         val isConsistent = run {
             var run = 0
-            for (i in 0..179) {
-                val d = today.minusDays(i.toLong())
-                if (txState.transactions.any { it.createdAt.take(10) == d.toString() }) {
+            for (i in 0 until STREAK_LOOKBACK_DAYS) {
+                if (today.minusDays(i.toLong()).toString() in stats.daysWithTx) {
                     run++
                     if (run >= 14) return@run true
                 } else run = 0
@@ -261,10 +220,7 @@ fun SpendingStreaksScreen(
                     // Week grid
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                         weekDays.forEachIndexed { i, date ->
-                            val isFuture = date.isAfter(today)
-                            val good = !isFuture && isGoodDay(date)
-                            val hasData = !isFuture && (dailyExpenses[date.toString()] != null ||
-                                txState.transactions.any { it.createdAt.take(10) == date.toString() })
+                            val state = stats.dayState(date)
                             Column(
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -274,20 +230,20 @@ fun SpendingStreaksScreen(
                                         .size(32.dp)
                                         .clip(CircleShape)
                                         .background(
-                                            when {
-                                                isFuture  -> SurfaceContainerHigh.copy(alpha = 0.4f)
-                                                good      -> if (currentStreak > 0 && !date.isAfter(today)) Color(0xFFE65100) else Primary
-                                                hasData   -> Tertiary.copy(alpha = 0.7f)
-                                                else      -> SurfaceContainerHigh
+                                            when (state) {
+                                                DayState.Future -> SurfaceContainerHigh.copy(alpha = 0.4f)
+                                                DayState.Good   -> if (currentStreak > 0) Color(0xFFE65100) else Primary
+                                                DayState.Over   -> Tertiary.copy(alpha = 0.7f)
+                                                DayState.Empty  -> SurfaceContainerHigh
                                             }
                                         ),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    when {
-                                        isFuture -> Text(weekLabels[i], style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant.copy(alpha = 0.4f))
-                                        good     -> Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
-                                        hasData  -> Icon(Icons.Filled.Close, null, tint = Color.White, modifier = Modifier.size(14.dp))
-                                        else     -> Text(weekLabels[i], style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                    when (state) {
+                                        DayState.Future -> Text(weekLabels[i], style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant.copy(alpha = 0.4f))
+                                        DayState.Good   -> Icon(Icons.Filled.Check, null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                        DayState.Over   -> Icon(Icons.Filled.Close, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                                        DayState.Empty  -> Text(weekLabels[i], style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                                     }
                                 }
                                 Text(weekLabels[i], style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)

@@ -10,7 +10,7 @@ Screens needing ViewModel integration. Unchecked ones still use hardcoded or loc
 - [x] **AppearanceSettingsScreen** — wired to `SettingsViewModel`; theme/accent/density/number-format persisted via DataStore
 - [x] **NotificationSettingsScreen** — wired to `SettingsViewModel`; all toggles + thresholds persisted via DataStore
 - [x] **SecuritySettingsScreen** — wired to `SettingsViewModel`; toggles persisted via DataStore. Note: persistence only — nothing *enforces* the lock yet, tracked separately under [Security](#security-ui-exists-but-non-functional)
-- [ ] **WidgetSettingsScreen** — hardcoded widget list; wire to real AppWidget configuration
+- [x] **WidgetSettingsScreen** — rewritten: real `hide amounts` preference, live previews from the widget snapshot, and `requestPinAppWidget` buttons per widget
 - [ ] **ConnectAccountScreen** — local state for API key input; needs broker integration or at minimum DataStore persistence
 - [ ] **ConnectedAccountDetailsScreen** — hardcoded chart/account data; needs real broker API or cached data
 
@@ -40,8 +40,41 @@ Screens needing ViewModel integration. Unchecked ones still use hardcoded or loc
 
 ## Widgets
 
-- [ ] Implement actual Android home screen widgets (balance, budget progress, quick-add)
-- [ ] Wire WidgetSettingsScreen to real AppWidgetProvider
+Built on Glance. Architecture note: widgets read a **cached snapshot** in a separate DataStore file
+(`ledger_widget`) rather than opening the Rust DB from a broadcast receiver — see the "Home Screen
+Widgets" section of `project.md`. Every new widget should use that snapshot, not the bridge.
+
+### Shipped
+- [x] **Quick Add (4×1)** — add-transaction button, receipt-scan button (hidden when `ai_enabled` is off), and up to 2 shortcuts to the categories used most in the last 60 days, which prefill the add form
+- [x] **Left Today (2×2)** — remaining daily allowance (monthly budget ÷ days in month − today's spend) with a pacing bar; falls back to total balance + "Set a budget" when no budgets exist
+- [x] **Streak (2×2)** — current streak, flame/check state, and the Mon–Sun week grid; shares `computeStreakStats` with `SpendingStreaksScreen`
+- [x] Widget deep links via `ledger://open?route=…` (URI, not intent extras — PendingIntents ignore extras)
+- [x] `hide amounts` preference — every figure becomes ••• on the home screen
+- [x] Refresh triggers: transaction/budget/receipt/currency writes, app start, and the receivers' own update broadcast
+- [x] **User-chosen shortcut categories** — pick up to 2 in Settings → Widgets, or leave it automatic (most-used); deleted/renamed categories drop out silently
+- [x] **Allowance maths fixed** — each budget is paced inside its **own** period window (weekly limits against Mon–Sun, not the month); only budgeted-category spending counts against the limit, with unbudgeted spend shown separately; the streak keeps the stable `dailyAllowance` bar
+- [x] **Rollover, user-controlled** — `allowance_rollover` (default on) carries a surplus or deficit both ways; `allowance_window` (`weekly` | `monthly`, default monthly) chooses when the carried balance resets. Independent of `Budget.period`. Widget shows the **per-day** effect (`todayAllowance − baseDaily`), not the carried pool
+- [x] **BudgetsScreen fixed** — was comparing a whole month's spending against a weekly limit and labelling weekly budgets "MONTHLY OVERVIEW". Now shares `categoryPaces` with the widgets, shows each budget's period on its card, and switches the headline to "MONTHLY EQUIVALENT" when any budget is non-monthly. Also adopts `MoneyFormat`
+- [x] **Streak off-by-one** — current-streak loop covered 181 days vs the best-streak loop's 180, so a perfect record showed "current 181 / best 180"
+- [x] **Tightest-category line** — the summary widget always names the budget furthest through its limit (no longer gated on the alert threshold); `isAlerting` only picks the colour. Scales to any number of budgets because it shows exactly one
+- [x] **Per-instance category tracking** — each placed Left Today widget chooses "All budgets" or a single category via `AllowanceWidgetConfigActivity` (`android:configure` + `reconfigurable`), stored in Glance state by `GlanceId`. Place it twice to watch two categories. Snapshot carries `categoryAllowances` for every budgeted category since it can't know what an instance wants
+- [x] **Currency picker** — `SettingsScreen` currency row had an empty `onClick`, so `currency_code` was stuck on USD and every amount rendered as `$`
+
+### Next widgets
+- [ ] **AI insight of the day (4×1)** — one Gemma-generated sentence. Inference (~20s, 2.7 GB) **cannot** run in a widget update: a WorkManager job (daily, charging + idle) must generate the sentence and cache it, with the widget only reading the cached string. Blocked on Phase 5 "Budget insights narration" below
+- [ ] **Goal progress (2×2)** — progress ring over the goal's photo (`GoalImageStore` already exists)
+- [ ] **Category pacing (4×2)** — 3 budget rows, each with a bar and a marker for where you *should* be by this day of the month. Cap at 3 rows and reuse the pinned-or-automatic pattern from the Quick Add shortcuts (default: the 3 categories nearest their alert threshold, user-overridable) — a category list is unbounded and must never drive widget height
+- [ ] **Upcoming bills (4×2)** — next 3 from `listRecurring()` with a "in 3 d." badge; shares logic with the push-notification work
+- [ ] **Net worth (2×2)** — wallets − debts plus a trend sparkline
+- [ ] **Month heatmap (4×3)** — calendar grid coloured by daily spend, no-spend days highlighted
+
+### Widget polish
+- [ ] Adopt `ui/util/MoneyFormat.kt` across the app's remaining screens — `BudgetsScreen` and the widgets use it, but most others still hardcode `"$%,.2f"` and ignore the currency preference
+- [ ] Stale widget-snapshot keys — `w_daily_allowance` lingers in the DataStore after being renamed to `w_today_allowance`. Harmless (nothing reads it) but confusing when debugging the `.preferences_pb`
+- [ ] Replace `previewLayout` XMLs with richer picker previews, and `widget_preview_generic.xml` with a real `previewImage` for API < 31
+- [ ] Dark-theme pass on the widgets — day/night `ColorProvider`s are declared but untested on a dark home screen
+- [ ] **Wallet-level budget** — a spending cap per funding wallet ("$800 from Checking this month"). Would give an unambiguous monthly total instead of summing whatever category budgets happen to exist, and complements (does not replace) per-category budgets. Needs a Rust schema change: `wallet_id` on `Budget` or a separate table, plus `.so` rebuild and UniFFI regen
+- [ ] **Carry-over budgets** — `AddEditBudgetScreen` shows a "Carry unspent amount to next period" row, but nothing implements it
 
 ## Transaction Splitting & Shared Expenses
 

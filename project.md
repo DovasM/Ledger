@@ -64,6 +64,7 @@ Ledger is a personal finance Android app with a hybrid Kotlin + Rust architectur
 | FFI bridge | UniFFI 0.28 |
 | Native interop | JNA 5.14.0 |
 | AI / LLM | Google AI Edge `aicore` 0.0.1-exp01 (Gemma 4 E2B) |
+| Home screen widgets | Glance (`glance-appwidget` + `glance-material3`) 1.1.1 |
 | Background work | WorkManager 2.9.0 |
 | Serialization | kotlinx.serialization 1.7.3 |
 | Build | AGP 8.13.2, Gradle with version catalog |
@@ -91,11 +92,21 @@ Ledger/
 │       │   └── SeedDataUtil.kt            # Dev seed data
 │       ├── ui/
 │       │   ├── navigation/NavGraph.kt     # All routes + NavHost
-│       │   ├── viewmodel/                 # 12 ViewModels
+│       │   ├── viewmodel/                 # 13 ViewModels
 │       │   ├── screens/                   # 60+ Composable screens
 │       │   ├── components/                # Shared components
 │       │   ├── theme/                     # Color, Type, Theme
-│       │   └── util/                      # CategoryIcons, CsvExport, GoalImageStore
+│       │   └── util/                      # CategoryIcons, CsvExport, GoalImageStore,
+│       │                                  #   MoneyFormat, StreakCalculator
+│       ├── widget/                        # Glance home-screen widgets
+│       │   ├── WidgetSnapshot.kt          # Snapshot model + DataStore repository
+│       │   ├── WidgetUpdater.kt           # Bridge → snapshot → updateAll; WidgetEntryPoint
+│       │   ├── WidgetTheme.kt             # Glance colors + route-intent builder
+│       │   ├── LedgerWidgetReceiver.kt    # Shared receiver base (goAsync refresh)
+│       │   ├── AllowanceWidgetConfigActivity.kt  # android:configure target (per-instance)
+│       │   ├── QuickAddWidget.kt
+│       │   ├── DailyAllowanceWidget.kt
+│       │   └── StreakWidget.kt
 │       └── uniffi/uniffi/ledger/
 │           └── ledger.kt                  # Auto-generated UniFFI bindings
 │
@@ -361,6 +372,139 @@ Opt-in preference to warm the model into memory automatically. Keys in `Preferen
 
 ---
 
+## Home Screen Widgets
+
+Three Glance widgets live in `widget/`: **QuickAdd** (4×1), **DailyAllowance** (2×2), **Streak** (2×2).
+
+### Widgets never touch the Rust bridge
+
+`WidgetSnapshotRepository` owns a **separate DataStore file** (`ledger_widget`) holding everything the
+widgets render — balances, today's spend, daily allowance, streak, week grid, top categories — plus a
+copy of `currency_code` / `number_format_index` so a widget reads exactly one store. A widget refresh
+is therefore a preference read, not a SQLite open from a broadcast receiver, and widgets stay correct
+when the app process is cold.
+
+Amounts are stored **with the currency code they were computed in**. When multi-currency wallets land,
+only `WidgetUpdater` changes; no widget code does.
+
+`WidgetUpdater.refresh()` reads the bridge, recomputes the snapshot, writes it, and calls
+`updateAll()` on all three widgets. It is called from:
+- `TransactionViewModel` (create / split / update / delete), `BudgetViewModel` (budgets set the allowance),
+  and `ReceiptViewModel.confirmAndCreate`
+- `LedgerApp.onCreate` — covers imports, due recurring transactions, and the day rolling over
+- `LedgerWidgetReceiver.onUpdate` (shared base) via `goAsync()` — covers a freshly placed widget and
+  the 30-minute `updatePeriodMillis` on the two data widgets (QuickAdd uses `0`; it has no clock-sensitive data)
+
+### Shared computation, not a second implementation
+
+`ui/util/StreakCalculator.kt` (`computeStreakStats`, `StreakStats`, `CategoryPace`, `DayState`) is
+used by **both** `SpendingStreaksScreen` and `WidgetUpdater`, so the widget can never disagree with
+the screen. It takes `(transactions, budgets, categories, today)` — categories are required to map
+`Budget.categoryId` to the category *name* that transactions carry.
+
+**Four rules the allowance maths follows.** Each one fixes a way the number used to lie, and each was
+caught by a real number on screen — check against `files/datastore/ledger_widget.preferences_pb` on
+device when something looks off.
+
+1. **Every budget is paced inside its own period window** (`BudgetPeriod.start/end/lengthInDays`):
+   weekly against Mon–Sun, monthly against the calendar month, yearly against the year. Flattening a
+   weekly limit into a month turned "2030 per week" into "8990 per month" and then spread it over the
+   remaining days of the *month*. `monthlyEquivalent` exists only for adding mixed periods together
+   in a headline figure — never for pacing.
+2. **Only spending in budgeted categories counts against the allowance.** The limit is built from
+   categories that *have* budgets, so charging unbudgeted spending against it made a user go negative
+   without breaking any actual budget. Unbudgeted spend is surfaced separately
+   (`StreakStats.unbudgetedToday`) rather than hidden.
+3. **Two allowance figures, deliberately:**
+   - `staticDaily` / `dailyAllowance` — `limit ÷ daysInPeriod`. A *stable* bar, which is what judging
+     a past day for the streak needs, and the baseline the widget compares against.
+   - `todayDaily` / `todayAllowance` — depends on `AllowanceSettings`:
+     - **rollover on** (default): `(windowBudget − spentInWindowBeforeToday) ÷ daysLeftInWindow`.
+       Symmetric — a cheap day funds tomorrow, an expensive one bites into it.
+     - **rollover off**: `min(staticDaily, …)`, so the figure can only ever move *down*.
+
+   `AllowanceSettings(rollover, window)` comes from the `allowance_rollover` / `allowance_window`
+   preferences (`weekly` | `monthly`, defaults `true` / `monthly`), edited on the Left Today card in
+   `WidgetSettingsScreen`. The window is **independent of `Budget.period`** on purpose — a monthly
+   budget can still be lived week to week. Budget limits are pro-rated into the window via
+   `staticDaily × daysInWindow`, which is what makes mixed periods work in either direction.
+
+   **Show the per-day effect, never the carried pool.** `StreakStats.carriedIntoToday` is the whole
+   surplus (5 unspent days of a 2030/month budget = 327), but it is spread across the days that
+   remain, so today only gains 12.60. The widget renders `todayAllowance − baseDaily`; printing 327
+   next to a daily figure reads as if all of it were spendable now.
+4. **The streak's two loops must cover the same window.** The current-streak `while` used an
+   inclusive `today − STREAK_LOOKBACK_DAYS` bound (181 days) while the best-streak `for` ran exactly
+   180, so a perfect record reported current 181 / best 180.
+
+### Answering "can I still spend on groceries?"
+
+A single blended figure can't, so the Left Today widget attacks it from two directions.
+
+**`StreakStats.tightestCategory`** returns the `CategoryPace` furthest through its own limit —
+deliberately **not** gated on `isAlerting`, because a widget that only speaks up once you're already
+over is the problem rather than the fix. `isAlerting` drives colour only. It always yields at most
+one category, so the widget reads the same with 3 budgets or 30.
+
+**Per-instance tracking.** Each placed Left Today instance stores what it tracks in Glance state
+(`DailyAllowanceWidget.KEY_TRACKS`, `TRACK_ALL` = the summary), read via
+`getAppWidgetState(context, PreferencesGlanceStateDefinition, id)`. A shared preference would change
+every placed copy at once, which defeats placing two. Because the snapshot can't know which instance
+wants which category, it carries `categoryAllowances` for **every** budgeted category.
+
+`AllowanceWidgetConfigActivity` is the `android:configure` target (plus
+`android:widgetFeatures="reconfigurable"` so it can be reopened from a long-press). It sets
+`RESULT_CANCELED` up front — backing out must not leave a stranded widget — resolves the
+`appWidgetId` to a `GlanceId` via `GlanceAppWidgetManager.getGlanceIdBy`, writes with
+`updateAppWidgetState`, then calls `update()` on that one instance. It runs `widgetUpdater.refresh()`
+first, since a widget can be placed before the app has ever been opened.
+
+A tracked category that is later renamed or deleted falls back to the summary rather than rendering
+an empty widget.
+
+`BudgetsScreen` consumes the same `categoryPaces`, so each card shows its **own period's** spend
+against its own limit (it used to compare a month's spending to a weekly limit) and labels the period
+on the card. The overview total switches to "MONTHLY EQUIVALENT" whenever any budget is non-monthly,
+because the headline is then a converted figure rather than what the user typed.
+
+`ui/util/MoneyFormat.kt` (`formatAmount`, `formatAmountCompact`, `currencySymbol`) is the first place
+`currency_code` is actually honoured — most screens still hardcode `"$%,.2f"` and should migrate to it.
+`SettingsScreen` now has a real currency picker (`CurrencyPickerDialog`); `SettingsViewModel.setCurrency`
+and `setNumberFormatIndex` push a widget refresh because the snapshot caches both.
+
+### The widget's one adaptive line
+
+`DailyAllowanceWidget.Footnote` picks one of three messages, most urgent first: a category at/over its
+alert threshold → unbudgeted spending today → plain "of $X". Keeping it to a single line is what lets
+a 2×2 carry per-category information at all.
+
+### Quick Add shortcut categories
+
+`WidgetSnapshotRepository.pinnedCategories` (empty = automatic) holds the user's picks, capped at
+`MAX_PINNED_CATEGORIES`. `WidgetUpdater` prefers them, drops any that no longer exist, and falls back
+to the most-used categories of the last 60 days. `write()` never touches that key or `hideAmounts`, so
+both survive every refresh. The picker lives in the Quick Add card of `WidgetSettingsScreen`; picking
+past the cap drops the oldest so chips stay tappable. **Any future multi-category widget should reuse
+this pinned-or-automatic-with-a-cap pattern** rather than trying to fit an unbounded category list.
+
+### Deep links
+
+Widgets open the app through a URI, **not** intent extras: `PendingIntent.filterEquals` ignores extras,
+so buttons differing only by extra collapse into one PendingIntent and every button opens the same
+screen. `widgetRouteIntent(context, route)` builds `ledger://open?route=<encoded>`; `MainActivity`
+(now `launchMode="singleTop"`) reads it in `onCreate` **and** `onNewIntent` into a `pendingRoute` flow
+that a `LaunchedEffect` navigates on, wrapped in `runCatching` so an unknown route can't crash launch.
+
+`Screen.AddTransaction` is now `add_transaction?category={category}` — **navigate via
+`createRoute()`, never `.route`**, which carries the literal placeholder.
+
+### WidgetSettingsScreen
+
+Rewritten from a fictional on/off list (Android widgets are placed from the launcher, not toggled in
+app settings) into: a real `hide amounts` preference, live previews driven by the same snapshot the
+widgets render, and per-widget `AppWidgetManager.requestPinAppWidget` buttons (API 26+, exactly our
+minSdk). Launchers may refuse the pin request, so the long-press instruction stays on screen.
+
 ## Data Entities
 
 Defined in `core/src/ledger.udl` and mirrored as Kotlin data classes in `ledger.kt`:
@@ -390,7 +534,7 @@ Defined in `core/src/ledger.udl` and mirrored as Kotlin data classes in `ledger.
 - Colors: import from `com.ledger.app.ui.theme.*` — use `Primary`, `OnSurface`, `OnSurfaceVariant`, etc.
 - No comments in code unless the WHY is non-obvious
 - No trailing summary comments
-- UI text is in Lithuanian (app language) — **exception:** the receipt-scan flow (`ReceiptScanScreen`, `ReceiptViewModel`, and `GemmaRepository`'s receipt prompt/errors) is in English. `AiModelScreen`, including the auto-load toggle/prompt, is still Lithuanian.
+- UI text is in **English** across the app, including the receipt-scan flow and the widgets — **exception:** `AiModelScreen` (including the auto-load toggle/prompt) and its two entry points are in Lithuanian: the `DashboardScreen` add-sheet "Skenuoti čekį" card and the `SettingsScreen` "AI Modelis" row. Match English for anything new unless it sits inside the AI-model screen.
 
 ---
 
@@ -420,7 +564,16 @@ Defined in `core/src/ledger.udl` and mirrored as Kotlin data classes in `ledger.
 
 7. **Soft keyboard covering input fields** — the app is edge-to-edge (`enableEdgeToEdge()` → `decorFitsSystemWindows=false`), so the manifest's `windowSoftInputMode="adjustResize"` does NOT resize the Compose content and the IME overlaps bottom fields. Fix is global: `NavHost` carries `Modifier.fillMaxSize().imePadding()` in `NavGraph.kt`, so every screen's content lifts above the keyboard and focused `TextField`s scroll into view. Don't re-add `imePadding()` per screen (double padding).
 
-8. **Category names are normalized + deduped** — always create/edit categories through `CategoryViewModel`, which uses `ui/util/CategoryName.kt`: `capitalizeFirst` for LIVE text input (no trim, so spaces are still typable) and `normalizeCategoryName` (trim + capitalize) at save. `create`/`updateCategory` reject case-insensitive duplicates with a friendly error surfaced on the name field. The receipt path (`ReceiptViewModel.confirmAndCreate`) normalizes the same way and already matches existing categories case-insensitively before auto-creating.
+8. **Glance APIs are split across packages, and the compiler error is unhelpful.** Three that cost a build each:
+   - `ColorProvider(day = …, night = …)` is in **`androidx.glance.color`** (`DayNightColorProviders.kt`), not `androidx.glance.unit` (that one only takes a single color or a resId) and not `androidx.glance.appwidget.unit` (that file is about checkable colors). Its return type *is* `androidx.glance.unit.ColorProvider`.
+   - `actionStartActivity(intent: Intent)` is in **`androidx.glance.appwidget.action`**. The `androidx.glance.action` version takes a `ComponentName`/`Class`, so importing the wrong one reports "actual type is Intent, but ComponentName was expected".
+   - `defaultWeight()` is a **member of `RowScope`/`ColumnScope`**, so it cannot be used inside a helper extension function declared outside the layout lambda. Branch inline: `(if (wide) GlanceModifier.defaultWeight() else GlanceModifier.fillMaxWidth())`.
+
+9. **Glance cannot reuse the app's theme or icons.** No Material3 `MaterialTheme`, no `ImageVector` from `material-icons-extended`. Colors are re-declared in `widget/WidgetTheme.kt`; icons must be vector **drawables** (`res/drawable/ic_widget_*.xml`) loaded via `ImageProvider(R.drawable.…)`. Category shortcuts deliberately render as text chips rather than mapping all 18 `categoryIconNames` to new drawables.
+
+10. **Widget PendingIntents ignore extras.** Two widget buttons whose intents differ only in extras resolve to the same PendingIntent, so both open whatever the first one requested. Encode the destination in the intent's **data URI** (`ledger://open?route=…`) — that *is* compared by `filterEquals`. See the widgets section above.
+
+11. **Category names are normalized + deduped** — always create/edit categories through `CategoryViewModel`, which uses `ui/util/CategoryName.kt`: `capitalizeFirst` for LIVE text input (no trim, so spaces are still typable) and `normalizeCategoryName` (trim + capitalize) at save. `create`/`updateCategory` reject case-insensitive duplicates with a friendly error surfaced on the name field. The receipt path (`ReceiptViewModel.confirmAndCreate`) normalizes the same way and already matches existing categories case-insensitively before auto-creating.
 
 ---
 
@@ -430,12 +583,13 @@ See `TODO.md` for the full prioritized list. High-level phases:
 
 1. ~~**ML Kit OCR** — Camera + gallery receipt scanning~~ ✅ done
 2. ~~**Gemma AI pipeline** — OCR → parse → editable preview → save transaction~~ ✅ done, extended with per-item parsing, category-suggestion wand, split-item transactions, and opt-in AI auto-load (see [AI / Gemma Integration](#ai--gemma-integration) above)
-3. **Transaction splitting (wallets)** — Divide one transaction across multiple wallets (note: splitting across *categories/items* is already done — see above; this is splitting one purchase across multiple *funding wallets*)
-4. **Shared expenses** — Group expense splitting (needs SharedExpenseViewModel + Room entity... or Rust entity)
-5. **Automatic backups** — WorkManager daily/weekly export + optional Google Drive
-6. **Real notifications** — WorkManager background checks for budget/bill/balance alerts
-7. **Biometric / PIN lock** — Wire `BiometricPrompt` to security settings toggles
-8. **Live currency rates** — `exchangerate.host` or `frankfurter.app` API
-9. **Wallet transfers** — Dedicated transfer type in Rust schema
-10. **Onboarding wizard** — Replace SeedDataUtil for real users
-11. **Tests** — Unit tests for ViewModels + DAOs once schema stabilises
+3. ~~**Home screen widgets** — Quick Add, Left Today, Streak~~ ✅ done (see [Home Screen Widgets](#home-screen-widgets)). Remaining widget ideas live in `TODO.md`: AI insight of the day, goal progress, upcoming bills, net worth, month heatmap
+4. **Transaction splitting (wallets)** — Divide one transaction across multiple wallets (note: splitting across *categories/items* is already done — see above; this is splitting one purchase across multiple *funding wallets*)
+5. **Shared expenses** — Group expense splitting (needs SharedExpenseViewModel + Room entity... or Rust entity)
+6. **Automatic backups** — WorkManager daily/weekly export + optional Google Drive
+7. **Real notifications** — WorkManager background checks for budget/bill/balance alerts
+8. **Biometric / PIN lock** — Wire `BiometricPrompt` to security settings toggles
+9. **Live currency rates** — `exchangerate.host` or `frankfurter.app` API
+10. **Wallet transfers** — Dedicated transfer type in Rust schema
+11. **Onboarding wizard** — Replace SeedDataUtil for real users
+12. **Tests** — Unit tests for ViewModels + DAOs once schema stabilises

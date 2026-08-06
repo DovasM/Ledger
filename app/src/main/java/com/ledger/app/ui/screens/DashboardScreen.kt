@@ -173,7 +173,7 @@ fun DashboardScreen(
             ) {
                 Text("Add New", style = MaterialTheme.typography.titleLarge, color = OnSurface, fontWeight = FontWeight.Bold, modifier = Modifier.padding(bottom = 4.dp))
                 AddActionCard(Icons.Filled.SwapHoriz, "Add Transaction", "Record income or expense", Primary) {
-                    showAddSheet = false; navController.navigate(Screen.AddTransaction.route)
+                    showAddSheet = false; navController.navigate(Screen.AddTransaction.createRoute())
                 }
                 AddActionCard(Icons.Filled.EmojiEvents, "New Savings Goal", "Set a target and track progress", Color(0xFF1565C0)) {
                     showAddSheet = false; navController.navigate(Screen.AddGoal.route)

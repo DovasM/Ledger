@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="ic_launcher_background">#006B54</color>
+
+    <!-- Widget preview/loading layouts only; the live widgets get their colors from WidgetColors.kt -->
+    <color name="widget_surface">#F8FAF5</color>
+    <color name="widget_surface_raised">#FFFFFF</color>
+    <color name="widget_primary">#00513F</color>
+    <color name="widget_on_surface">#191C1A</color>
+    <color name="widget_on_surface_muted">#3E4944</color>
+    <color name="widget_flame">#E65100</color>
+    <color name="widget_track">#E1E3DE</color>
 </resources>

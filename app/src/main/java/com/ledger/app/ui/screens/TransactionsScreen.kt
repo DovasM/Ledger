@@ -85,7 +85,7 @@ fun TransactionsScreen(
                     }
                 },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Screen.AddTransaction.route) }) {
+                    IconButton(onClick = { navController.navigate(Screen.AddTransaction.createRoute()) }) {
                         Icon(Icons.Filled.Add, contentDescription = "Add transaction")
                     }
                 },
@@ -94,7 +94,7 @@ fun TransactionsScreen(
         },
         bottomBar = { LedgerBottomNavBar(navController) },
         floatingActionButton = {
-            FloatingActionButton(onClick = { navController.navigate(Screen.AddTransaction.route) },
+            FloatingActionButton(onClick = { navController.navigate(Screen.AddTransaction.createRoute()) },
                 containerColor = Primary, contentColor = OnPrimary) {
                 Icon(Icons.Filled.Add, contentDescription = "Add transaction")
             }

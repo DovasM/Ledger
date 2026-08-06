@@ -23,6 +23,7 @@ import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.currencySymbol
 import com.ledger.app.ui.viewmodel.SettingsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -32,6 +33,15 @@ fun SettingsScreen(
     vm: SettingsViewModel = hiltViewModel()
 ) {
     val currencyCode by vm.currencyCode.collectAsStateWithLifecycle()
+    var showCurrencyPicker by remember { mutableStateOf(false) }
+
+    if (showCurrencyPicker) {
+        CurrencyPickerDialog(
+            selected = currencyCode,
+            onPick = { vm.setCurrency(it); showCurrencyPicker = false },
+            onDismiss = { showCurrencyPicker = false }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -114,7 +124,10 @@ fun SettingsScreen(
                 SettingsDivider()
                 SettingsNavItem(Icons.Filled.Lock, Color(0xFF1565C0), "Security", "Biometric, PIN and auto-lock settings") { navController.navigate(Screen.SecuritySettings.route) }
                 SettingsDivider()
-                SettingsNavItem(Icons.Filled.AttachMoney, Color(0xFF00513F), "Currency", "Currently: $currencyCode") {}
+                SettingsNavItem(
+                    Icons.Filled.AttachMoney, Color(0xFF00513F), "Currency",
+                    "Currently: $currencyCode (${currencySymbol(currencyCode)})"
+                ) { showCurrencyPicker = true }
                 SettingsDivider()
                 SettingsNavItem(Icons.Filled.Psychology, Color(0xFF6A1B9A), "AI Modelis", "Gemma 4 E2B — čekių skanavimas ir įžvalgos") { navController.navigate(Screen.AiModelSettings.route) }
             }
@@ -179,4 +192,56 @@ private fun SettingsNavItem(icon: ImageVector, iconColor: Color, title: String, 
             Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))
         }
     }
+}
+
+// The currency preference existed since the first settings screen but had no way to change it, so
+// every amount in the app rendered as USD. MoneyFormat resolves the symbol for each of these.
+private val supportedCurrencies = listOf(
+    "EUR", "USD", "GBP", "PLN", "SEK", "NOK", "DKK", "CHF", "CZK", "RON", "UAH", "CAD", "AUD", "JPY"
+)
+
+@Composable
+private fun CurrencyPickerDialog(
+    selected: String,
+    onPick: (String) -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Currency") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth().heightIn(max = 380.dp).verticalScroll(rememberScrollState())) {
+                supportedCurrencies.forEach { code ->
+                    Surface(
+                        onClick = { onPick(code) },
+                        color = Color.Transparent,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                currencySymbol(code),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = if (code == selected) Primary else OnSurfaceVariant,
+                                modifier = Modifier.width(44.dp)
+                            )
+                            Text(
+                                code,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = OnSurface,
+                                modifier = Modifier.weight(1f)
+                            )
+                            if (code == selected) {
+                                Icon(Icons.Filled.Check, null, tint = Primary, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Close") } }
+    )
 }

@@ -1,4 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Ledger</string>
+
+    <string name="widget_quick_add_label">Ledger — Quick Add</string>
+    <string name="widget_quick_add_description">Add a transaction, scan a receipt, or jump into a category you use often.</string>
+
+    <string name="widget_allowance_label">Ledger — Left Today</string>
+    <string name="widget_allowance_description">How much you can still spend today without breaking this month\'s budget.</string>
+
+    <string name="widget_streak_label">Ledger — Streak</string>
+    <string name="widget_streak_description">Consecutive days you stayed within your daily allowance.</string>
 </resources>
