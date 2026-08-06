@@ -139,7 +139,40 @@ Ledger/
 
 ### Rust Native Library
 
-Prerequisites: Android NDK installed, path set in `local.properties` (`ndk.dir=...`).
+Prerequisites: Android NDK installed. `build.rs` finds it through **`ANDROID_NDK_HOME`**, not
+`local.properties`.
+
+**`build.rs` builds llama.cpp via cmake on every build** (only Vulkan is behind a feature flag), so
+this is a multi-minute compile, and two Windows-specific settings are mandatory:
+
+- **`CMAKE_GENERATOR=Ninja`** — otherwise cmake picks the Visual Studio generator and dies with
+  *"The BaseOutputPath/OutputPath property is not set for project 'VCTargetsPath.vcxproj'"*. If a
+  build already got that far, its `CMakeCache.txt` pins the wrong generator and every later build
+  fails with *"Does not match the generator used previously"* — delete
+  `$CARGO_TARGET_DIR/<target>/release/build/ledger-core-*/out` before retrying.
+- **`CARGO_TARGET_DIR=C:\lt`** — the default `target/` path blows past Windows' 260-character limit
+  during cmake sub-project compilation.
+
+Ninja and cmake ship inside the Android SDK (`Sdk/cmake/<version>/bin`) and are usually not on PATH.
+
+```bash
+NDK=$ANDROID_SDK/ndk/<version>
+CMAKEBIN=$ANDROID_SDK/cmake/<version>/bin
+TC=$NDK/toolchains/llvm/prebuilt/windows-x86_64/bin
+
+export ANDROID_NDK_HOME=$NDK
+export PATH="$CMAKEBIN:$PATH"
+export CMAKE_GENERATOR=Ninja
+export CMAKE_MAKE_PROGRAM="$CMAKEBIN/ninja.exe"
+export CARGO_TARGET_DIR=C:/lt
+export CC_aarch64_linux_android="$TC/aarch64-linux-android26-clang.cmd"
+export CXX_aarch64_linux_android="$TC/aarch64-linux-android26-clang++.cmd"
+```
+
+Note `abiFilters` is `arm64-v8a` + `x86_64`, so `armeabi-v7a` does not need rebuilding.
+
+**Check the real exit code.** `cargo build … | tail` reports *tail's* status, so a failed build looks
+like a success. Use `set -o pipefail`, or redirect to a file and echo `$?`.
 
 ```bash
 cd core
@@ -504,6 +537,33 @@ Rewritten from a fictional on/off list (Android widgets are placed from the laun
 app settings) into: a real `hide amounts` preference, live previews driven by the same snapshot the
 widgets render, and per-widget `AppWidgetManager.requestPinAppWidget` buttons (API 26+, exactly our
 minSdk). Launchers may refuse the pin request, so the long-press instruction stays on screen.
+
+## How transactions link to categories
+
+A transaction stores **both** `category_id` (the link) and `category` (the label it was filed under).
+
+Originally it stored only the name, so renaming a category left every transaction pointing at a
+string nothing owned any more — 93 transactions in a real database were stranded on "Servicez" after
+it was renamed to "Services". Everything downstream matches by name (`groupBy { it.category }` in
+eight screens, plus `CategoryPace`), so a budget on the renamed category would have matched nothing
+and the widget would have counted that spending as unbudgeted.
+
+- **Reads** resolve the name through the link: `COALESCE(c.name, t.category)` via `TX_SELECT` in
+  `core/src/lib.rs`. A rename therefore shows up everywhere with no extra work.
+- **Writes** still take a category *name* — the whole app works that way. `resolve_category_id`
+  matches it case-insensitively and **creates the category when it is genuinely new**. Note this
+  changed `AddTransactionScreen` single mode: an invented category name now joins the managed list
+  instead of existing only as a loose label.
+- **Rename** (`update_category`) refreshes the stored label too, so the fallback stays current.
+- **Delete** (`delete_category`) clears `category_id` and keeps the label, so history still reads as
+  what it was filed under. It does *not* rely on `ON DELETE SET NULL` — SQLite enforces foreign keys
+  only under `PRAGMA foreign_keys=ON`, which this pool does not set.
+- **Migration** (`migrate_transaction_categories`) adds the column, backfills it by name, and
+  recreates a category for any name left without one. `ALTER TABLE … ADD COLUMN` has no
+  `IF NOT EXISTS` in SQLite, so the error from re-running it is deliberately ignored.
+
+The UDL is unchanged — `Transaction.category` is still a string — so this needed **no UniFFI
+regeneration**, only a rebuilt `.so`.
 
 ## Data Entities
 

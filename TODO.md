@@ -182,6 +182,8 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 
 ## Minor / Polish
 
+- [ ] **Warn before deleting a category that has transactions** — deletion now detaches them cleanly (they keep their label) but says nothing about it. Needs a transaction count per category, which means a new UDL method and a UniFFI regeneration, so it was deliberately left out of the `category_id` change
+- [ ] **`recurring_transactions.category` is still a bare name** — the same rename problem the transactions table just had. Lower impact (far fewer rows) but the same fix applies
 - [ ] **HelpSupportScreen** — FAQ items are hardcoded; acceptable as static content but could be loaded from remote
 - [ ] **EditTransaction date picker** — verify date picker persists correctly to DB
 - [ ] Seed data utility (`SeedDataUtil.kt`) — decide if this stays for dev only or gets removed before release
@@ -193,6 +195,7 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 - [x] BudgetInsights reduced to 2 tabs — removed duplicate Categories and Trends tabs
 - [x] FinancialCalendarScreen deleted — Settings entry redirected to CashFlowForecast
 - [x] SpendingStreaksScreen rewritten with real streak computation, week grid, and 7 achievements
+- [x] **Renaming a category now follows through to its transactions** — transactions stored only the category *name*, so a rename orphaned every one of them (93 stranded on "Servicez" in a real database) and a budget on that category would have matched nothing. Transactions now carry `category_id`; reads resolve the name through it, writes resolve a name to an id (creating the category when new), and delete detaches the link while keeping the historical label. Migration backfills existing rows. UDL unchanged, so no UniFFI regeneration — only a rebuilt `.so`
 - [x] TransactionImportScreen — Money Manager .mmbackup import
 - [x] Import: Money Manager's built-in categories no longer collapse into "Other" — they carry an empty `title` in the backup (the name is localised at runtime from the uid), so 1110 of 1993 transactions in a real backup landed in one bucket with Groceries and Cafe merged. `ImportViewModel.defaultCategoryNames` maps the uids back; icon mapping extended so the defaults don't all fall through to the same generic vector
 - [x] RecurringTransactionsScreen — connected to DB via RecurringViewModel

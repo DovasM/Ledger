@@ -150,8 +150,7 @@ impl LedgerDb {
     pub fn list_transactions(&self, wallet_id: String, limit: u32, offset: u32) -> Result<Vec<Transaction>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, TransactionRow>(
-                "SELECT id, wallet_id, title, category, amount, is_income, note, created_at
-                 FROM transactions WHERE wallet_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?"
+                &format!("{TX_SELECT} WHERE t.wallet_id = ? ORDER BY t.created_at DESC LIMIT ? OFFSET ?")
             )
             .bind(&wallet_id).bind(limit as i64).bind(offset as i64)
             .fetch_all(&self.pool).await?;
@@ -162,8 +161,7 @@ impl LedgerDb {
     pub fn list_all_transactions(&self, limit: u32, offset: u32) -> Result<Vec<Transaction>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, TransactionRow>(
-                "SELECT id, wallet_id, title, category, amount, is_income, note, created_at
-                 FROM transactions ORDER BY created_at DESC LIMIT ? OFFSET ?"
+                &format!("{TX_SELECT} ORDER BY t.created_at DESC LIMIT ? OFFSET ?")
             )
             .bind(limit as i64).bind(offset as i64)
             .fetch_all(&self.pool).await?;
@@ -180,10 +178,12 @@ impl LedgerDb {
             let date = created_at.unwrap_or_else(|| Utc::now().to_rfc3339());
             let sign: f64 = if is_income { amount } else { -amount };
 
+            let category_id = resolve_category_id(&self.pool, &category, is_income).await?;
+
             sqlx::query(
-                "INSERT INTO transactions (id, wallet_id, title, category, amount, is_income, note, created_at) VALUES (?,?,?,?,?,?,?,?)"
+                "INSERT INTO transactions (id, wallet_id, title, category_id, category, amount, is_income, note, created_at) VALUES (?,?,?,?,?,?,?,?,?)"
             )
-            .bind(&id).bind(&wallet_id).bind(&title).bind(&category)
+            .bind(&id).bind(&wallet_id).bind(&title).bind(&category_id).bind(&category)
             .bind(amount).bind(is_income).bind(&note).bind(&date)
             .execute(&self.pool).await?;
 
@@ -191,25 +191,23 @@ impl LedgerDb {
                 .bind(sign).bind(&wallet_id)
                 .execute(&self.pool).await?;
 
-            let row = sqlx::query_as::<_, TransactionRow>(
-                "SELECT id, wallet_id, title, category, amount, is_income, note, created_at FROM transactions WHERE id = ?"
-            )
-            .bind(&id).fetch_one(&self.pool).await?;
+            let row = sqlx::query_as::<_, TransactionRow>(&format!("{TX_SELECT} WHERE t.id = ?"))
+                .bind(&id).fetch_one(&self.pool).await?;
             Ok(row_to_transaction(row))
         })
     }
 
     pub fn update_transaction(&self, id: String, title: String, category: String, amount: f64, is_income: bool, note: Option<String>, created_at: Option<String>) -> Result<Transaction, LedgerError> {
         self.rt.block_on(async {
-            sqlx::query("UPDATE transactions SET title=?, category=?, amount=?, is_income=?, note=?, created_at=COALESCE(?,created_at) WHERE id=?")
-                .bind(&title).bind(&category).bind(amount).bind(is_income).bind(&note).bind(&created_at).bind(&id)
+            let category_id = resolve_category_id(&self.pool, &category, is_income).await?;
+
+            sqlx::query("UPDATE transactions SET title=?, category_id=?, category=?, amount=?, is_income=?, note=?, created_at=COALESCE(?,created_at) WHERE id=?")
+                .bind(&title).bind(&category_id).bind(&category).bind(amount).bind(is_income).bind(&note).bind(&created_at).bind(&id)
                 .execute(&self.pool).await?;
 
-            let row = sqlx::query_as::<_, TransactionRow>(
-                "SELECT id, wallet_id, title, category, amount, is_income, note, created_at FROM transactions WHERE id = ?"
-            )
-            .bind(&id).fetch_optional(&self.pool).await?
-            .ok_or(LedgerError::NotFound)?;
+            let row = sqlx::query_as::<_, TransactionRow>(&format!("{TX_SELECT} WHERE t.id = ?"))
+                .bind(&id).fetch_optional(&self.pool).await?
+                .ok_or(LedgerError::NotFound)?;
             Ok(row_to_transaction(row))
         })
     }
@@ -411,6 +409,12 @@ impl LedgerDb {
                 .bind(&name).bind(&icon_name).bind(&color_hex).bind(is_expense).bind(&id)
                 .execute(&self.pool).await?;
 
+            // Reads resolve the name through category_id, so this is only keeping the fallback
+            // label current — it is what a transaction shows once its category is deleted.
+            sqlx::query("UPDATE transactions SET category=? WHERE category_id=?")
+                .bind(&name).bind(&id)
+                .execute(&self.pool).await?;
+
             let row = sqlx::query_as::<_, CategoryRow>(
                 "SELECT id, name, icon_name, color_hex, is_expense, created_at FROM categories WHERE id=?"
             )
@@ -422,6 +426,11 @@ impl LedgerDb {
 
     pub fn delete_category(&self, id: String) -> Result<(), LedgerError> {
         self.rt.block_on(async {
+            // SQLite enforces foreign keys only with PRAGMA foreign_keys=ON, which is off by
+            // default, so clear the link explicitly rather than trusting ON DELETE. The `category`
+            // label stays, so historical transactions still read as what they were filed under.
+            sqlx::query("UPDATE transactions SET category_id=NULL WHERE category_id=?")
+                .bind(&id).execute(&self.pool).await?;
             sqlx::query("DELETE FROM categories WHERE id=?").bind(&id).execute(&self.pool).await?;
             Ok(())
         })
@@ -711,6 +720,55 @@ impl LedgerDb {
             Ok(())
         })
     }
+}
+
+// ── Category linkage ──────────────────────────────────────────────────────────
+
+// Every transaction read resolves its category name through category_id, so a rename is picked up
+// automatically. The stored `category` text is only a fallback for transactions whose category has
+// since been deleted.
+const TX_SELECT: &str = "SELECT t.id, t.wallet_id, t.title, \
+     COALESCE(c.name, t.category) AS category, \
+     t.amount, t.is_income, t.note, t.created_at \
+     FROM transactions t LEFT JOIN categories c ON c.id = t.category_id";
+
+// Writes still take a category *name* (the whole app works that way), so the name is matched
+// case-insensitively against existing categories and created when it is genuinely new. Without
+// this, a transaction could name a category that does not exist and rename would miss it again.
+async fn resolve_category_id(
+    pool: &sqlx::SqlitePool,
+    name: &str,
+    is_income: bool,
+) -> Result<Option<String>, sqlx::Error> {
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Ok(None);
+    }
+
+    if let Some((id,)) = sqlx::query_as::<_, (String,)>(
+        "SELECT id FROM categories WHERE name = ? COLLATE NOCASE",
+    )
+    .bind(trimmed)
+    .fetch_optional(pool)
+    .await?
+    {
+        return Ok(Some(id));
+    }
+
+    let id = Uuid::new_v4().to_string();
+    sqlx::query(
+        "INSERT INTO categories (id, name, icon_name, color_hex, is_expense, created_at) VALUES (?,?,?,?,?,?)",
+    )
+    .bind(&id)
+    .bind(trimmed)
+    .bind("shopping_bag")
+    .bind("#00838F")
+    .bind(!is_income)
+    .bind(Utc::now().to_rfc3339())
+    .execute(pool)
+    .await?;
+
+    Ok(Some(id))
 }
 
 // ── Row converters ────────────────────────────────────────────────────────────
