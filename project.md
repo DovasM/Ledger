@@ -616,6 +616,19 @@ Defined in `core/src/ledger.udl` and mirrored as Kotlin data classes in `ledger.
 - Colors: import from `com.ledger.app.ui.theme.*` — use `Primary`, `OnSurface`, `OnSurfaceVariant`, etc.
 - No comments in code unless the WHY is non-obvious
 - No trailing summary comments
+- App icon: an ivory serif **L** with a mint leaf on a forest-green tile, transcribed from
+  `ledger_logo_14E_refined_final.svg` into three vectors — `drawable/ic_launcher_background.xml`
+  (linear gradient `#003F32 → #00513F → #096A55` plus a mint radial glow),
+  `ic_launcher_foreground.xml` (the mark), `ic_launcher_monochrome.xml` (Android 13+ themed icon).
+  **Paths keep the source SVG's own coordinate space** (482pt tile) and one shared `<group>`
+  (`scale 0.149378 · translate 13.967,14.49`) maps that tile onto the 72dp the launcher shows, so
+  the artwork keeps its designed proportions and the mask replaces the source's rounded rect. That
+  puts the furthest point of the mark 31.4dp from centre, inside the 33dp safe radius. **Keep the
+  group identical in all three files** — the themed icon drifts out of register otherwise. Editing
+  the artwork means re-transcribing from the SVG, not nudging numbers here.
+  Two things in the source are deliberately dropped: the inset border stroke and the top-edge rim
+  light, both of which hug a tile edge that no longer exists under a mask. The drop shadow survives
+  as the source's own offset copies at `fillAlpha` 0.27/0.30 — vector drawables have no blur.
 - UI text is in **English** across the app, including the receipt-scan flow and the widgets — **exception:** `AiModelScreen` (including the auto-load toggle/prompt) and its two entry points are in Lithuanian: the `DashboardScreen` add-sheet "Skenuoti čekį" card and the `SettingsScreen` "AI Modelis" row. Match English for anything new unless it sits inside the AI-model screen.
 
 ---
@@ -657,7 +670,12 @@ Defined in `core/src/ledger.udl` and mirrored as Kotlin data classes in `ledger.
 
 11. **Money Manager's built-in categories have an empty `title`.** Their identity lives in the `uid` (`DefaultCafe`, `DefaultProducts`, `DefaultHome`, `other_expense`, …) and the displayed name is localised at runtime by that app — it is never written to the database. Reading `category.title` verbatim silently drops all 15 defaults and collapses their transactions into one bucket: on a real 1993-transaction backup that was **1110 transactions**, with Groceries (413) and Cafe (209) merged together. `ImportViewModel.defaultCategoryNames` maps the uids back to names; verify any additions against the `position` column, which orders the list exactly as the app renders it. Note that the transaction→category link lives in `sync_link` (`entityType='Transaction'`, `otherType='Category'`), not on the transaction row.
 
-12. **Category names are normalized + deduped** — always create/edit categories through `CategoryViewModel`, which uses `ui/util/CategoryName.kt`: `capitalizeFirst` for LIVE text input (no trim, so spaces are still typable) and `normalizeCategoryName` (trim + capitalize) at save. `create`/`updateCategory` reject case-insensitive duplicates with a friendly error surfaced on the name field. The receipt path (`ReceiptViewModel.confirmAndCreate`) normalizes the same way and already matches existing categories case-insensitively before auto-creating.
+12. **The manifest must point at `@mipmap/ic_launcher`, not at the foreground drawable.** It pointed
+    at `@drawable/ic_launcher_foreground`, so the launcher rendered the bare foreground on a
+    transparent tile and the `adaptive-icon` XMLs in `mipmap-anydpi-v26/` — background, masking,
+    themed icon — were dead files that nothing ever read. Editing them looks like it does nothing.
+
+13. **Category names are normalized + deduped** — always create/edit categories through `CategoryViewModel`, which uses `ui/util/CategoryName.kt`: `capitalizeFirst` for LIVE text input (no trim, so spaces are still typable) and `normalizeCategoryName` (trim + capitalize) at save. `create`/`updateCategory` reject case-insensitive duplicates with a friendly error surfaced on the name field. The receipt path (`ReceiptViewModel.confirmAndCreate`) normalizes the same way and already matches existing categories case-insensitively before auto-creating.
 
 ---
 

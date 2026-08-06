@@ -1,11 +1,90 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  Adaptive-icon foreground, from ledger_logo_14E_refined_final.svg: ivory serif L + mint leaf.
+
+  Paths stay in the source SVG's coordinate space; the <group> maps the source's 482pt tile onto the
+  72dp the launcher shows. Furthest point of the mark then sits 31.1dp from centre — inside the 33dp
+  safe radius. Keep that group identical here, in ic_launcher_background and in ic_launcher_monochrome.
+
+  The two #001C16 paths are the source's translate(9 11) shadow copies, kept as separate paths
+  because vector drawables have no blur.
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- "L" lettermark for Ledger -->
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M38,24 L38,84 L70,84 L70,74 L48,74 L48,24 Z"/>
+
+    <group
+        android:pivotX="0"
+        android:pivotY="0"
+        android:scaleX="0.149378"
+        android:scaleY="0.149378"
+        android:translateX="13.967"
+        android:translateY="14.49">
+
+        <group
+            android:translateX="9"
+            android:translateY="11">
+            <path
+                android:fillAlpha="0.27"
+                android:fillColor="#001C16"
+                android:pathData="M154,94 C148,94 145,96 145,99 C145,103 150,105 158,105 C174,106 183,109 187,115 C189,119 189,124 189,131 L189,357 C189,373 185,383 176,388 C169,392 159,393 151,395 C146,396 144,399 145,401 C146,403 149,404 154,404 L296,404 L296,378 L264,378 C252,378 246,373 246,360 L246,132 C246,120 251,113 260,110 C269,107 281,106 289,104 C294,103 296,100 294,97 C293,95 290,94 286,94 Z" />
+            <path
+                android:fillAlpha="0.30"
+                android:fillColor="#001C16"
+                android:pathData="M307,399 C314,353 350,303 431,283 C430,336 392,387 320,402 C314,403 309,403 307,399 Z" />
+        </group>
+
+        <path
+            android:pathData="M154,94 C148,94 145,96 145,99 C145,103 150,105 158,105 C174,106 183,109 187,115 C189,119 189,124 189,131 L189,357 C189,373 185,383 176,388 C169,392 159,393 151,395 C146,396 144,399 145,401 C146,403 149,404 154,404 L296,404 L296,378 L264,378 C252,378 246,373 246,360 L246,132 C246,120 251,113 260,110 C269,107 281,106 289,104 C294,103 296,100 294,97 C293,95 290,94 286,94 Z"
+            android:strokeColor="#F8FAF5"
+            android:strokeWidth="1.2"
+            android:strokeLineJoin="round">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="155"
+                    android:startY="92"
+                    android:endX="292"
+                    android:endY="406">
+                    <item android:offset="0" android:color="#FFFFFF" />
+                    <item android:offset="1" android:color="#EFF1EC" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <path
+            android:pathData="M307,399 C314,353 350,303 431,283 C430,336 392,387 320,402 C314,403 309,403 307,399 Z"
+            android:strokeColor="#F8FAF5"
+            android:strokeWidth="2.4"
+            android:strokeLineJoin="round">
+            <aapt:attr name="android:fillColor">
+                <gradient
+                    android:type="linear"
+                    android:startX="329"
+                    android:startY="302"
+                    android:endX="418"
+                    android:endY="394">
+                    <item android:offset="0" android:color="#E7FFF6" />
+                    <item android:offset="0.48" android:color="#BFEAD7" />
+                    <item android:offset="1" android:color="#82D7BA" />
+                </gradient>
+            </aapt:attr>
+        </path>
+
+        <path
+            android:pathData="M312,397 C345,351 386,314 430,285"
+            android:strokeColor="#00513F"
+            android:strokeWidth="7"
+            android:strokeLineCap="round" />
+
+        <path
+            android:pathData="M316,393 C350,349 389,315 426,289"
+            android:strokeAlpha="0.22"
+            android:strokeColor="#F8FAF5"
+            android:strokeWidth="1.2"
+            android:strokeLineCap="round" />
+    </group>
 </vector>
