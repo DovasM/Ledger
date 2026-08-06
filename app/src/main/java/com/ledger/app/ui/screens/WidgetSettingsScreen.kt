@@ -1,8 +1,15 @@
 package com.ledger.app.ui.screens
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
+import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -12,33 +19,63 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.DayState
+import com.ledger.app.ui.util.formatAmountCompact
+import com.ledger.app.ui.viewmodel.SettingsViewModel
+import com.ledger.app.ui.viewmodel.WidgetSettingsViewModel
+import com.ledger.app.widget.DailyAllowanceWidgetReceiver
+import com.ledger.app.widget.QuickAddWidgetReceiver
+import com.ledger.app.widget.StreakWidgetReceiver
+import com.ledger.app.widget.WidgetSnapshot
 
-private data class WidgetConfig(
-    val id: Int, val name: String, val description: String,
-    val icon: ImageVector, val color: Color,
-    val size: String
+private data class WidgetEntry(
+    val name: String,
+    val description: String,
+    val icon: ImageVector,
+    val color: Color,
+    val size: String,
+    val provider: Class<*>
 )
 
-private val widgets = listOf(
-    WidgetConfig(0, "Balance Widget", "Shows total balance at a glance", Icons.Filled.AccountBalance, Primary, "Small (2×1)"),
-    WidgetConfig(1, "Budget Progress", "Your top budget categories and usage", Icons.Filled.PieChart, Color(0xFF1565C0), "Medium (4×2)"),
-    WidgetConfig(2, "Recent Transactions", "Last 5 transactions", Icons.Filled.List, Color(0xFF6A1B9A), "Medium (4×3)"),
-    WidgetConfig(3, "Net Worth", "Total net worth with monthly change", Icons.Filled.TrendingUp, Color(0xFF00838F), "Small (2×2)"),
+private val widgetEntries = listOf(
+    WidgetEntry(
+        "Quick Add", "Add a transaction, scan a receipt, or start from a frequent category",
+        Icons.Filled.AddCircle, Primary, "4×1", QuickAddWidgetReceiver::class.java
+    ),
+    WidgetEntry(
+        "Left Today", "All budgets combined, or a single category — chosen per widget when you place it",
+        Icons.Filled.Savings, Color(0xFF1565C0), "2×2", DailyAllowanceWidgetReceiver::class.java
+    ),
+    WidgetEntry(
+        "Streak", "Consecutive days within your daily allowance, plus this week's grid",
+        Icons.Filled.LocalFireDepartment, Color(0xFFE65100), "2×2", StreakWidgetReceiver::class.java
+    )
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun WidgetSettingsScreen(navController: NavController) {
-    var enabledWidgets by remember { mutableStateOf(setOf(0)) }
+fun WidgetSettingsScreen(
+    navController: NavController,
+    vm: WidgetSettingsViewModel = hiltViewModel(),
+    settingsViewModel: SettingsViewModel = hiltViewModel()
+) {
+    val context = LocalContext.current
+    val snapshot by vm.snapshot.collectAsStateWithLifecycle()
+    val pinned by vm.pinnedCategories.collectAsStateWithLifecycle()
+    val expenseCategories by vm.expenseCategories.collectAsStateWithLifecycle()
+    val rollover by settingsViewModel.allowanceRollover.collectAsStateWithLifecycle()
+    val window by settingsViewModel.allowanceWindow.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {
@@ -54,77 +91,306 @@ fun WidgetSettingsScreen(navController: NavController) {
             modifier = Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Info card
             LedgerCard(modifier = Modifier.fillMaxWidth()) {
                 Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Icon(Icons.Filled.Widgets, null, tint = Primary, modifier = Modifier.size(24.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Home Screen Widgets", style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
-                        Text("Configure which data shows in each widget. To add a widget to your home screen, long-press an empty area and select Widgets.", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                        Text(
+                            "Widgets read a cached snapshot, so they stay fast and work even when the app isn't running. The snapshot refreshes whenever you add or edit data.",
+                            style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                        )
                     }
+                }
+            }
+
+            // A home screen is a public surface — someone glancing over your shoulder shouldn't
+            // read your balance.
+            LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Icon(Icons.Filled.VisibilityOff, null, tint = OnSurfaceVariant, modifier = Modifier.size(22.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("Hide amounts", style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
+                        Text("Replace every figure with ••• on the home screen", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                    }
+                    Switch(
+                        checked = snapshot.hideAmounts,
+                        onCheckedChange = { vm.setHideAmounts(it) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = OnPrimary, checkedTrackColor = Primary)
+                    )
                 }
             }
 
             Text("Available Widgets", style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.SemiBold)
 
-            widgets.forEach { widget ->
-                val isEnabled = widget.id in enabledWidgets
+            widgetEntries.forEach { entry ->
                 LedgerCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Box(
-                                modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(widget.color.copy(alpha = 0.12f)),
+                                modifier = Modifier.size(44.dp).clip(RoundedCornerShape(10.dp)).background(entry.color.copy(alpha = 0.12f)),
                                 contentAlignment = Alignment.Center
-                            ) { Icon(widget.icon, null, tint = widget.color, modifier = Modifier.size(22.dp)) }
+                            ) { Icon(entry.icon, null, tint = entry.color, modifier = Modifier.size(22.dp)) }
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(widget.name, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
-                                Text(widget.description, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
-                                Text(widget.size, style = MaterialTheme.typography.labelSmall, color = widget.color, fontWeight = FontWeight.Medium)
+                                Text(entry.name, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
+                                Text(entry.description, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                                Text(entry.size, style = MaterialTheme.typography.labelSmall, color = entry.color, fontWeight = FontWeight.Medium)
                             }
-                            Switch(
-                                checked = isEnabled,
-                                onCheckedChange = { enabledWidgets = if (isEnabled) enabledWidgets - widget.id else enabledWidgets + widget.id },
-                                colors = SwitchDefaults.colors(checkedThumbColor = OnPrimary, checkedTrackColor = widget.color)
+                        }
+
+                        WidgetPreview(entry, snapshot)
+
+                        if (entry.provider == DailyAllowanceWidgetReceiver::class.java) {
+                            AllowanceSettingsPicker(
+                                rollover = rollover,
+                                window = window,
+                                onRollover = settingsViewModel::setAllowanceRollover,
+                                onWindow = settingsViewModel::setAllowanceWindow
                             )
                         }
 
-                        // Widget preview
-                        if (isEnabled) {
-                            Box(
-                                modifier = Modifier.fillMaxWidth().height(80.dp).clip(RoundedCornerShape(12.dp))
-                                    .background(Brush.horizontalGradient(listOf(widget.color.copy(alpha = 0.15f), widget.color.copy(alpha = 0.05f)))),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                when (widget.id) {
-                                    0 -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("TOTAL BALANCE", style = MaterialTheme.typography.labelSmall, color = widget.color.copy(alpha = 0.7f))
-                                        Text("\$24,530.80", style = MaterialTheme.typography.titleLarge, color = widget.color, fontWeight = FontWeight.Bold)
-                                    }
-                                    1 -> Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                        listOf("Housing" to 0.85f, "Food" to 0.42f, "Transport" to 0.61f).forEach { (name, pct) ->
-                                            Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                                Text(name, style = MaterialTheme.typography.labelSmall, color = widget.color, modifier = Modifier.width(60.dp))
-                                                LinearProgressIndicator(progress = { pct }, modifier = Modifier.weight(1f).height(4.dp), color = widget.color, trackColor = widget.color.copy(alpha = 0.2f))
-                                            }
-                                        }
-                                    }
-                                    2 -> Column(modifier = Modifier.padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                        listOf("-\$67 Groceries", "+\$5,200 Salary", "-\$15.99 Netflix").forEach { tx ->
-                                            Text(tx, style = MaterialTheme.typography.labelSmall, color = widget.color)
-                                        }
-                                    }
-                                    3 -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("NET WORTH", style = MaterialTheme.typography.labelSmall, color = widget.color.copy(alpha = 0.7f))
-                                        Text("\$14,350", style = MaterialTheme.typography.titleLarge, color = widget.color, fontWeight = FontWeight.Bold)
-                                        Text("+\$850 this month", style = MaterialTheme.typography.labelSmall, color = widget.color.copy(alpha = 0.8f))
-                                    }
-                                    else -> {}
-                                }
-                            }
+                        if (entry.provider == QuickAddWidgetReceiver::class.java) {
+                            CategoryShortcutPicker(
+                                available = expenseCategories,
+                                pinned = pinned,
+                                max = vm.maxPinned,
+                                onToggle = vm::toggleCategory,
+                                onAutomatic = vm::useAutomaticCategories
+                            )
+                        }
+
+                        OutlinedButton(
+                            onClick = { requestPin(context, entry.provider) },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.outlinedButtonColors(contentColor = entry.color)
+                        ) {
+                            Icon(Icons.Filled.AddToHomeScreen, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Add to home screen")
                         }
                     }
                 }
             }
+
+            Text(
+                "You can also long-press an empty spot on the home screen and pick Ledger from the widget list.",
+                style = MaterialTheme.typography.bodySmall,
+                color = OnSurfaceVariant
+            )
         }
+    }
+}
+
+@Composable
+private fun AllowanceSettingsPicker(
+    rollover: Boolean,
+    window: String,
+    onRollover: (Boolean) -> Unit,
+    onWindow: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        HorizontalDivider(color = OutlineVariant.copy(alpha = 0.15f))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Carry days forward", style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (rollover) "A cheap day leaves more for tomorrow; an expensive one leaves less"
+                    else "Today never exceeds the plain daily share, but overspending still lowers it",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OnSurfaceVariant
+                )
+            }
+            Switch(
+                checked = rollover,
+                onCheckedChange = onRollover,
+                colors = SwitchDefaults.colors(checkedThumbColor = OnPrimary, checkedTrackColor = Primary)
+            )
+        }
+        if (rollover) {
+            Text("Reset the carried balance", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+            SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                listOf("weekly" to "Weekly", "monthly" to "Monthly").forEachIndexed { index, (value, label) ->
+                    SegmentedButton(
+                        selected = window == value,
+                        onClick = { onWindow(value) },
+                        shape = SegmentedButtonDefaults.itemShape(index = index, count = 2)
+                    ) { Text(label) }
+                }
+            }
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun CategoryShortcutPicker(
+    available: List<String>,
+    pinned: List<String>,
+    max: Int,
+    onToggle: (String) -> Unit,
+    onAutomatic: () -> Unit
+) {
+    if (available.isEmpty()) return
+
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        HorizontalDivider(color = OutlineVariant.copy(alpha = 0.15f))
+        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Shortcut categories", style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (pinned.isEmpty()) "Automatic — your $max most-used categories"
+                    else "Pick up to $max; choosing a third replaces the oldest",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = OnSurfaceVariant
+                )
+            }
+            if (pinned.isNotEmpty()) {
+                TextButton(onClick = onAutomatic) { Text("Automatic") }
+            }
+        }
+        FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            available.forEach { name ->
+                val selected = pinned.any { it.equals(name, ignoreCase = true) }
+                FilterChip(
+                    selected = selected,
+                    onClick = { onToggle(name) },
+                    label = { Text(name, style = MaterialTheme.typography.labelMedium) },
+                    leadingIcon = if (selected) {
+                        { Icon(Icons.Filled.Check, null, modifier = Modifier.size(16.dp)) }
+                    } else null,
+                    colors = FilterChipDefaults.filterChipColors(
+                        selectedContainerColor = Primary.copy(alpha = 0.15f),
+                        selectedLabelColor = Primary,
+                        selectedLeadingIconColor = Primary
+                    )
+                )
+            }
+        }
+    }
+}
+
+// Live preview using the same snapshot the real widget renders from, so what's shown here is what
+// lands on the home screen — no mock figures.
+@Composable
+private fun WidgetPreview(entry: WidgetEntry, snapshot: WidgetSnapshot) {
+    fun money(amount: Double) =
+        if (snapshot.hideAmounts) "•••" else formatAmountCompact(amount, snapshot.currency, snapshot.numberFormat)
+
+    Box(
+        modifier = Modifier.fillMaxWidth().height(88.dp).clip(RoundedCornerShape(16.dp)).background(SurfaceContainerLowest),
+        contentAlignment = Alignment.Center
+    ) {
+        when (entry.provider) {
+            QuickAddWidgetReceiver::class.java -> Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(12.dp)).background(Primary),
+                    contentAlignment = Alignment.Center
+                ) { Text("+ Add", style = MaterialTheme.typography.labelLarge, color = OnPrimary) }
+                if (snapshot.aiEnabled) {
+                    Box(
+                        modifier = Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(SurfaceContainerHighest),
+                        contentAlignment = Alignment.Center
+                    ) { Icon(Icons.Filled.DocumentScanner, null, tint = Primary, modifier = Modifier.size(20.dp)) }
+                }
+                snapshot.topCategories.take(2).forEach { shortcut ->
+                    Box(
+                        modifier = Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(12.dp)).background(SurfaceContainerHighest),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(shortcut.name, style = MaterialTheme.typography.labelSmall, color = OnSurface, maxLines = 1)
+                    }
+                }
+            }
+
+            DailyAllowanceWidgetReceiver::class.java -> Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                if (snapshot.hasAllowance) {
+                    Text("LEFT TODAY", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Text(
+                        money(snapshot.remainingToday),
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = if (snapshot.remainingToday < 0) Tertiary else Primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    val carryDelta = snapshot.todayAllowance - snapshot.baseDaily
+                    when {
+                        carryDelta >= 0.5 ->
+                            Text("+${money(carryDelta)}/day carried", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                        carryDelta <= -0.5 ->
+                            Text("${money(carryDelta)}/day carried", style = MaterialTheme.typography.labelSmall, color = Tertiary)
+                        snapshot.unbudgetedToday > 0 ->
+                            Text("+${money(snapshot.unbudgetedToday)} unbudgeted", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                        else ->
+                            Text("of ${money(snapshot.todayAllowance)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    }
+                    snapshot.tightestCategory?.let { tight ->
+                        Text(
+                            if (snapshot.tightestRemaining < 0) "$tight over ${money(-snapshot.tightestRemaining)}"
+                            else "$tight ${money(snapshot.tightestRemaining)} left",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = if (snapshot.tightestAlerting) Tertiary else OnSurface
+                        )
+                    }
+                } else {
+                    Text("BALANCE", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Text(money(snapshot.totalBalance), style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
+                    Text("set a budget for a daily figure", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                }
+            }
+
+            else -> Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(if (snapshot.streakCurrent >= 7) "🔥" else "✅", fontSize = 16.sp)
+                    Text(
+                        "${snapshot.streakCurrent}",
+                        style = MaterialTheme.typography.headlineSmall,
+                        color = if (snapshot.streakCurrent >= 7) Color(0xFFE65100) else Primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    snapshot.weekGrid.forEach { day ->
+                        Box(
+                            modifier = Modifier.size(10.dp).clip(CircleShape).background(
+                                when (day) {
+                                    DayState.Good   -> if (snapshot.streakCurrent >= 7) Color(0xFFE65100) else Primary
+                                    DayState.Over   -> Tertiary
+                                    DayState.Empty  -> SurfaceContainerHighest
+                                    DayState.Future -> SurfaceContainerHigh.copy(alpha = 0.5f)
+                                }
+                            )
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+// API 26+ lets the app offer a one-tap pin, but the launcher may refuse (many third-party ones do),
+// so the fallback instruction stays visible at the bottom of the screen.
+private fun requestPin(context: Context, provider: Class<*>) {
+    val manager = context.getSystemService(AppWidgetManager::class.java)
+    val supported = manager != null && manager.isRequestPinAppWidgetSupported
+    if (supported) {
+        manager.requestPinAppWidget(ComponentName(context, provider), null, null)
+    } else {
+        Toast.makeText(
+            context,
+            "Your launcher doesn't support adding widgets from inside apps — long-press the home screen instead.",
+            Toast.LENGTH_LONG
+        ).show()
     }
 }

@@ -3,6 +3,7 @@ package com.ledger.app.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ledger.app.data.PreferencesRepository
+import com.ledger.app.widget.WidgetUpdater
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.stateIn
@@ -11,7 +12,8 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val prefs: PreferencesRepository
+    private val prefs: PreferencesRepository,
+    private val widgetUpdater: WidgetUpdater
 ) : ViewModel() {
 
     // ── State flows ───────────────────────────────────────────────────────────
@@ -43,17 +45,25 @@ class SettingsViewModel @Inject constructor(
     val secAuthLarge    = prefs.secAuthLarge.stateIn(viewModelScope, SharingStarted.Eagerly, false)
     val secLargeAmount  = prefs.secLargeAmount.stateIn(viewModelScope, SharingStarted.Eagerly, "500")
 
+    val allowanceRollover = prefs.allowanceRollover.stateIn(viewModelScope, SharingStarted.Eagerly, true)
+    val allowanceWindow   = prefs.allowanceWindow.stateIn(viewModelScope, SharingStarted.Eagerly, "monthly")
+
     // Master AI switch — screens read this to hide AI-powered controls when it's off.
     val aiEnabled       = prefs.aiEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, true)
 
     // ── Setters ───────────────────────────────────────────────────────────────
 
-    fun setCurrency(v: String)         = viewModelScope.launch { prefs.setCurrency(v) }
+    // The widget snapshot caches currency + number format, so both setters must push a refresh —
+    // otherwise the home screen keeps rendering the old symbol until the next transaction.
+    fun setCurrency(v: String)         = viewModelScope.launch { prefs.setCurrency(v); widgetUpdater.refresh() }
     fun setAccentIndex(v: Int)         = viewModelScope.launch { prefs.setAccentIndex(v) }
     fun setDensityIndex(v: Int)        = viewModelScope.launch { prefs.setDensityIndex(v) }
     fun setHomeTabIndex(v: Int)        = viewModelScope.launch { prefs.setHomeTabIndex(v) }
-    fun setNumberFormatIndex(v: Int)   = viewModelScope.launch { prefs.setNumberFormatIndex(v) }
+    fun setNumberFormatIndex(v: Int)   = viewModelScope.launch { prefs.setNumberFormatIndex(v); widgetUpdater.refresh() }
     fun setDarkMode(v: Boolean)        = viewModelScope.launch { prefs.setDarkMode(v) }
+
+    fun setAllowanceRollover(v: Boolean) = viewModelScope.launch { prefs.setAllowanceRollover(v); widgetUpdater.refresh() }
+    fun setAllowanceWindow(v: String)    = viewModelScope.launch { prefs.setAllowanceWindow(v); widgetUpdater.refresh() }
 
     fun setNotifMaster(v: Boolean)     = viewModelScope.launch { prefs.setNotifMaster(v) }
     fun setNotifBudget(v: Boolean)     = viewModelScope.launch { prefs.setNotifBudget(v) }

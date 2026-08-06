@@ -6,6 +6,7 @@ import com.ledger.app.data.GemmaModelRepository
 import com.ledger.app.data.GemmaRepository
 import com.ledger.app.data.ModelStatus
 import com.ledger.app.data.PreferencesRepository
+import com.ledger.app.widget.WidgetUpdater
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
@@ -23,6 +24,7 @@ interface LedgerAppEntryPoint {
     fun gemmaRepository(): GemmaRepository
     fun gemmaModelRepository(): GemmaModelRepository
     fun preferencesRepository(): PreferencesRepository
+    fun widgetUpdater(): WidgetUpdater
 }
 
 @HiltAndroidApp
@@ -34,6 +36,16 @@ class LedgerApp : Application() {
     override fun onCreate() {
         super.onCreate()
         maybeAutoLoadModel()
+        refreshWidgets()
+    }
+
+    // Catches everything that changed the numbers without going through a ViewModel — an import,
+    // a due recurring transaction, or simply the day rolling over while the app was closed.
+    private fun refreshWidgets() {
+        val ep = EntryPointAccessors.fromApplication(this, LedgerAppEntryPoint::class.java)
+        appScope.launch {
+            try { ep.widgetUpdater().refresh() } catch (_: Exception) {}
+        }
     }
 
     // If the user opted into auto-load and the model file is present, warm it into memory now

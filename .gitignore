@@ -77,3 +77,6 @@ Desktop.ini
 
 # Test folder
 test/
+
+# Kotlin 2.x build session data
+.kotlin/

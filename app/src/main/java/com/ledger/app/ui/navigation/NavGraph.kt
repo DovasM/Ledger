@@ -1,12 +1,15 @@
 package com.ledger.app.ui.navigation
 
+import android.net.Uri
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavHostController
+import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.navArgument
 import com.ledger.app.ui.screens.*
 
 sealed class Screen(val route: String) {
@@ -14,7 +17,13 @@ sealed class Screen(val route: String) {
     object Notifications : Screen("notifications")
     object Activity : Screen("activity")
     object Transactions : Screen("transactions")
-    object AddTransaction : Screen("add_transaction")
+    // Optional query arg so the quick-add widget's category shortcuts can prefill the form.
+    // Navigate through createRoute(), never through .route — that string carries the placeholder.
+    object AddTransaction : Screen("add_transaction?category={category}") {
+        fun createRoute(category: String? = null) =
+            if (category.isNullOrBlank()) "add_transaction"
+            else "add_transaction?category=${Uri.encode(category)}"
+    }
     object EditTransaction : Screen("edit_transaction/{id}") {
         fun createRoute(id: String) = "edit_transaction/$id"
     }
@@ -102,7 +111,21 @@ fun LedgerNavGraph(navController: NavHostController) {
         composable(Screen.Notifications.route) { NotificationsScreen(navController) }
         composable(Screen.Activity.route) { ActivityScreen(navController) }
         composable(Screen.Transactions.route) { TransactionsScreen(navController) }
-        composable(Screen.AddTransaction.route) { AddTransactionScreen(navController) }
+        composable(
+            Screen.AddTransaction.route,
+            arguments = listOf(
+                navArgument("category") {
+                    type = NavType.StringType
+                    nullable = true
+                    defaultValue = null
+                }
+            )
+        ) { backStack ->
+            AddTransactionScreen(
+                navController,
+                initialCategory = backStack.arguments?.getString("category")
+            )
+        }
         composable(Screen.EditTransaction.route) { backStack ->
             val id = backStack.arguments?.getString("id") ?: return@composable
             EditTransactionScreen(navController, id)

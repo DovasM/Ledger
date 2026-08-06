@@ -6,6 +6,7 @@ import com.ledger.app.data.GemmaRepository
 import com.ledger.app.data.ILedgerBridge
 import com.ledger.app.ui.util.capitalizeFirst
 import com.ledger.app.ui.util.normalizeCategoryName
+import com.ledger.app.widget.WidgetUpdater
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -30,7 +31,8 @@ data class TransactionUiState(
 @HiltViewModel
 class TransactionViewModel @Inject constructor(
     private val bridge: ILedgerBridge,
-    private val gemmaRepo: GemmaRepository
+    private val gemmaRepo: GemmaRepository,
+    private val widgetUpdater: WidgetUpdater
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(TransactionUiState())
@@ -91,6 +93,7 @@ class TransactionViewModel @Inject constructor(
                     bridge.addTagToTransaction(tx.id, tag.id)
                 }
                 loadAll()
+                widgetUpdater.refresh()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message)
@@ -146,6 +149,7 @@ class TransactionViewModel @Inject constructor(
                     }
                 }
                 loadAll()
+                widgetUpdater.refresh()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message)
@@ -163,6 +167,7 @@ class TransactionViewModel @Inject constructor(
             try {
                 bridge.updateTransaction(id, title, category, amount, isIncome, note, createdAt)
                 loadAll()
+                widgetUpdater.refresh()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message)
@@ -175,6 +180,7 @@ class TransactionViewModel @Inject constructor(
             try {
                 bridge.deleteTransaction(id)
                 loadAll()
+                widgetUpdater.refresh()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message)

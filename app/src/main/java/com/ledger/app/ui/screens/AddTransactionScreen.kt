@@ -38,6 +38,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun AddTransactionScreen(
     navController: NavController,
+    initialCategory: String? = null,
     transactionViewModel: TransactionViewModel = hiltViewModel(),
     walletViewModel: WalletViewModel = hiltViewModel(),
     tagViewModel: TagViewModel = hiltViewModel(),
@@ -75,8 +76,15 @@ fun AddTransactionScreen(
         .ifEmpty { listOf("Housing", "Food & Dining", "Transportation", "Entertainment", "Health", "Shopping", "Other") }
     val incomeCategoryNames = categoryState.categories.filter { !it.isExpense }.map { it.name }
         .ifEmpty { listOf("Salary", "Freelance", "Investments", "Other Income") }
+    // initialCategory arrives from the home-screen quick-add widget; it only wins on the expense
+    // side and only while it still matches a real category.
     var selectedCategory by remember(isExpense, expenseCategoryNames, incomeCategoryNames) {
-        mutableStateOf(if (isExpense) expenseCategoryNames[0] else incomeCategoryNames[0])
+        val fromWidget = initialCategory?.takeIf { widgetCat ->
+            isExpense && expenseCategoryNames.any { it.equals(widgetCat, ignoreCase = true) }
+        }
+        mutableStateOf(
+            fromWidget ?: if (isExpense) expenseCategoryNames[0] else incomeCategoryNames[0]
+        )
     }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
     var categorySuggesting by remember { mutableStateOf(false) }

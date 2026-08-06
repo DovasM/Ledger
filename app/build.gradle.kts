@@ -75,5 +75,7 @@ dependencies {
     // LlamaCppWrapper handles missing library gracefully (AI features disabled, no crash)
     implementation(libs.androidx.work.runtime.ktx)
     implementation(libs.mlkit.text.recognition)
+    implementation(libs.androidx.glance.appwidget)
+    implementation(libs.androidx.glance.material3)
     debugImplementation(libs.androidx.ui.tooling)
 }

@@ -153,7 +153,7 @@ fun ActivityScreen(
                     IconButton(onClick = { navController.navigate(Screen.RecurringTransactions.route) }) {
                         Icon(Icons.Filled.Repeat, contentDescription = "Recurring")
                     }
-                    IconButton(onClick = { navController.navigate(Screen.AddTransaction.route) }) {
+                    IconButton(onClick = { navController.navigate(Screen.AddTransaction.createRoute()) }) {
                         Icon(Icons.Filled.Add, contentDescription = "Add transaction")
                     }
                 },
@@ -162,7 +162,7 @@ fun ActivityScreen(
         },
         bottomBar = { LedgerBottomNavBar(navController) },
         floatingActionButton = {
-            FloatingActionButton(onClick = { navController.navigate(Screen.AddTransaction.route) },
+            FloatingActionButton(onClick = { navController.navigate(Screen.AddTransaction.createRoute()) },
                 containerColor = Primary, contentColor = OnPrimary) {
                 Icon(Icons.Filled.Add, contentDescription = "Add")
             }
@@ -253,7 +253,7 @@ fun ActivityScreen(
                         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Icon(Icons.Filled.ReceiptLong, null, tint = OnSurfaceVariant, modifier = Modifier.size(40.dp))
                             Text("No transactions yet.", style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant)
-                            TextButton(onClick = { navController.navigate(Screen.AddTransaction.route) }) {
+                            TextButton(onClick = { navController.navigate(Screen.AddTransaction.createRoute()) }) {
                                 Text("Add your first transaction", color = Primary)
                             }
                         }

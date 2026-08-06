@@ -3,6 +3,7 @@ package com.ledger.app.ui.viewmodel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.ledger.app.data.ILedgerBridge
+import com.ledger.app.widget.WidgetUpdater
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -20,7 +21,8 @@ data class BudgetUiState(
 
 @HiltViewModel
 class BudgetViewModel @Inject constructor(
-    private val bridge: ILedgerBridge
+    private val bridge: ILedgerBridge,
+    private val widgetUpdater: WidgetUpdater
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(BudgetUiState())
@@ -45,6 +47,7 @@ class BudgetViewModel @Inject constructor(
             try {
                 bridge.createBudget(categoryId, limitAmount, period, alertThreshold)
                 load()
+                widgetUpdater.refresh()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message)
@@ -57,6 +60,7 @@ class BudgetViewModel @Inject constructor(
             try {
                 bridge.updateBudget(id, limitAmount, period, alertThreshold)
                 load()
+                widgetUpdater.refresh()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message)
@@ -69,6 +73,7 @@ class BudgetViewModel @Inject constructor(
             try {
                 bridge.deleteBudget(id)
                 load()
+                widgetUpdater.refresh()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message)
