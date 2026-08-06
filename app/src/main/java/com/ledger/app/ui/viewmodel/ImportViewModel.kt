@@ -233,6 +233,38 @@ class ImportViewModel @Inject constructor(
 
     // ── Internal parsing ──────────────────────────────────────────────────────
 
+    // Money Manager stores its built-in categories with an EMPTY `title` — the name shown in the
+    // app is localised at runtime from the uid and never written to the database. Taking `title`
+    // verbatim therefore dropped every default category and collapsed each of their transactions
+    // into a single "Other": on one real 1993-transaction backup that was 1110 transactions, with
+    // Groceries (413) and Cafe (209) landing in the same bucket.
+    //
+    // The names below were read off the app's own category screen and cross-checked against the
+    // `position` column, which orders the list exactly as it renders.
+    private val defaultCategoryNames = mapOf(
+        "DefaultCafe" to "Cafe",
+        "DefaultHome" to "Home",
+        "DefaultProducts" to "Groceries",
+        "DefaultHealth" to "Health",
+        "DefaultLeisure" to "Leisure",
+        "DefaultEducation" to "Education",
+        "DefaultPresents" to "Gifts",
+        "DefaultFamily" to "Family",
+        "DefaultSport" to "Workout",
+        "DefaultTransport" to "Transportation",
+        "other_expense" to "Other",
+        "DefaultSalary" to "Salary",
+        "DefaultPresent" to "Gifts",
+        "DefaultPercents" to "Interest",
+        "other_income" to "Other"
+    )
+
+    private fun resolveCategoryTitle(uid: String?, title: String?): String {
+        val stored = title?.trim().orEmpty()
+        if (stored.isNotEmpty()) return stored
+        return defaultCategoryNames[uid?.trim()] ?: ""
+    }
+
     private fun parseAccounts(db: SQLiteDatabase): List<MmAccount> {
         // account_balance stores the balance AT BACKUP TIME (current balance).
         // Since Ledger computes wallet balance as initialBalance + transaction net,
@@ -288,14 +320,15 @@ class ImportViewModel @Inject constructor(
             null
         ).use { c ->
             while (c.moveToNext()) {
-                val title = c.getString(1) ?: ""
+                val uid = c.getString(0)
+                val title = resolveCategoryTitle(uid, c.getString(1))
                 if (title.isBlank()) continue
                 val isExpense = c.getString(2)?.equals("Expense", ignoreCase = true) ?: true
                 val mmIcon = c.getString(3) ?: "other"
                 val argb = c.getInt(4)
                 cats.add(
                     MmCategory(
-                        uid = c.getString(0),
+                        uid = uid,
                         title = title,
                         isExpense = isExpense,
                         ledgerIcon = mapMmIcon(mmIcon),
@@ -311,7 +344,7 @@ class ImportViewModel @Inject constructor(
         val txs = mutableListOf<MmTransaction>()
         val query = """
             SELECT t.uid, t.type, t.amountInDefaultCurrency, t.date, t.comment,
-                   acc.uid, cat.title
+                   acc.uid, cat.title, cat.uid
             FROM "transaction" t
             LEFT JOIN sync_link la ON la.entityType='Transaction' AND la.entityUid=t.uid AND la.otherType='Account' AND la.isRemoved=0
             LEFT JOIN account acc ON acc.uid=la.otherUid
@@ -329,7 +362,7 @@ class ImportViewModel @Inject constructor(
                         date = c.getString(3) ?: "",
                         comment = c.getString(4) ?: "",
                         accountUid = c.getString(5) ?: "",
-                        categoryTitle = c.getString(6) ?: ""
+                        categoryTitle = resolveCategoryTitle(c.getString(7), c.getString(6))
                     )
                 )
             }
@@ -337,23 +370,27 @@ class ImportViewModel @Inject constructor(
         return txs
     }
 
+    // Money Manager ships far more icon names than Ledger has vectors for; anything unmapped falls
+    // back to a generic one. The default categories' icons (products, heart, purse, present…) were
+    // all landing on that fallback, so every imported default looked identical.
     private fun mapMmIcon(mmIcon: String): String = when (mmIcon.lowercase()) {
         "sport", "sports", "basketball", "football" -> "fitness_center"
         "bank", "calculator", "percent", "percents" -> "payments"
         "travels", "travel", "plane", "trip" -> "flight"
         "education" -> "school"
         "sweets", "pizza", "fastfood", "eating" -> "restaurant"
-        "health", "medicine", "doctor", "medical" -> "health_and_safety"
-        "cafe", "coffee", "tea" -> "local_cafe"
+        "health", "medicine", "doctor", "medical", "heart" -> "health_and_safety"
+        "cafe", "coffee", "tea", "beer", "bar", "alcohol" -> "local_cafe"
         "shopping", "shop", "clothes", "dress" -> "shopping_bag"
-        "home", "house", "rent" -> "home"
-        "car", "transport", "auto", "fuel", "gas" -> "directions_car"
+        "purse", "wallet", "present", "presents", "gift", "gifts" -> "shopping_bag"
+        "home", "house", "rent", "building", "apartment" -> "home"
+        "car", "transport", "auto", "fuel", "gas", "scooter", "bike", "bicycle" -> "directions_car"
         "entertainment", "movie", "cinema", "film" -> "movie"
         "music", "headphones" -> "music_note"
         "art", "design", "brush" -> "brush"
         "pets", "animal", "cat", "dog" -> "pets"
         "game", "games", "gaming" -> "sports_esports"
-        "grocery", "supermarket", "food" -> "local_grocery_store"
+        "grocery", "groceries", "supermarket", "food", "products" -> "local_grocery_store"
         "hospital" -> "local_hospital"
         "work", "job", "office" -> "work"
         "restaurant" -> "restaurant"
