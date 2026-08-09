@@ -40,10 +40,10 @@ class WalletViewModel @Inject constructor(
         }
     }
 
-    fun createWallet(name: String, description: String, initialBalance: Double, onSuccess: () -> Unit = {}) {
+    fun createWallet(name: String, description: String, currency: String, initialBalance: Double, onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.createWallet(name, description, initialBalance)
+                bridge.createWallet(name, description, currency, initialBalance)
                 load()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
@@ -52,10 +52,10 @@ class WalletViewModel @Inject constructor(
         }
     }
 
-    fun updateWallet(id: String, name: String, description: String, onSuccess: () -> Unit = {}) {
+    fun updateWallet(id: String, name: String, description: String, currency: String, onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.updateWallet(id, name, description)
+                bridge.updateWallet(id, name, description, currency)
                 load()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {

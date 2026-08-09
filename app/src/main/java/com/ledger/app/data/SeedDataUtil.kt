@@ -30,9 +30,9 @@ object SeedDataUtil {
         val catLoans     = bridge.createCategory("Loan Payments", "school",              "#4E342E", true)
 
         // ── Wallets ───────────────────────────────────────────────────────────
-        val checking = bridge.createWallet("Checking Account", "Day-to-day spending",    0.0)
-        val savings  = bridge.createWallet("Savings Account",  "Emergency fund & goals", 10000.0)
-        val cash     = bridge.createWallet("Cash",             "Physical cash on hand",  180.0)
+        val checking = bridge.createWallet("Checking Account", "Day-to-day spending",    "EUR",     0.0)
+        val savings  = bridge.createWallet("Savings Account",  "Emergency fund & goals", "EUR", 10000.0)
+        val cash     = bridge.createWallet("Cash",             "Physical cash on hand",  "EUR",   180.0)
 
         // ── Savings goals ─────────────────────────────────────────────────────
         val emergency = bridge.createGoal("Emergency Fund",   15000.0, "2027-01-01")
@@ -43,11 +43,11 @@ object SeedDataUtil {
         bridge.addContribution(laptop.id,     800.0)
 
         // ── Budgets ───────────────────────────────────────────────────────────
-        bridge.createBudget(catDining.id,    350.0, "monthly", 80.0)
-        bridge.createBudget(catGroceries.id, 400.0, "monthly", 85.0)
-        bridge.createBudget(catTransport.id, 150.0, "monthly", 80.0)
-        bridge.createBudget(catEntertain.id,  80.0, "monthly", 80.0)
-        bridge.createBudget(catShopping.id,  200.0, "monthly", 80.0)
+        bridge.createBudget(catDining.id, null,    350.0, "monthly", 80.0)
+        bridge.createBudget(catGroceries.id, null, 400.0, "monthly", 85.0)
+        bridge.createBudget(catTransport.id, null, 150.0, "monthly", 80.0)
+        bridge.createBudget(catEntertain.id, null,  80.0, "monthly", 80.0)
+        bridge.createBudget(catShopping.id, null,  200.0, "monthly", 80.0)
 
         // ── Debts ─────────────────────────────────────────────────────────────
         bridge.createDebt("Student Loan", "loan", 24000.0, 18500.0, 4.5, 280.0)

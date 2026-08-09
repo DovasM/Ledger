@@ -263,9 +263,18 @@ fun AddEditBudgetScreen(
                         val period = selectedPeriod.lowercase()
                         val threshold = alertAt.toDoubleOrNull()?.coerceIn(1.0, 100.0) ?: 80.0
                         if (isEdit && budgetId != null) {
-                            budgetViewModel.updateBudget(budgetId, limitAmount!!, period, threshold) { navController.popBackStack() }
+                            // A budget can now be scoped to a wallet as well as a category; this
+                            // screen still only edits category budgets, so carry the rest through
+                            // untouched rather than blanking them.
+                            budgetViewModel.updateBudget(
+                                budgetId,
+                                existingBudget?.categoryId,
+                                existingBudget?.walletId,
+                                limitAmount!!, period, threshold,
+                                existingBudget?.carryOver ?: false
+                            ) { navController.popBackStack() }
                         } else if (categoryId != null) {
-                            budgetViewModel.createBudget(categoryId, limitAmount!!, period, threshold) { navController.popBackStack() }
+                            budgetViewModel.createBudget(categoryId, null, limitAmount!!, period, threshold) { navController.popBackStack() }
                         }
                     }
                 },

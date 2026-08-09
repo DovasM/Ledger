@@ -38,13 +38,24 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
 
     override fun listWallets() = db.listWallets()
 
-    override fun createWallet(name: String, description: String, initialBalance: Double) =
-        db.createWallet(name, description, initialBalance)
+    override fun createWallet(name: String, description: String, currency: String, initialBalance: Double) =
+        db.createWallet(name, description, currency, initialBalance)
 
-    override fun updateWallet(id: String, name: String, description: String) =
-        db.updateWallet(id, name, description)
+    override fun updateWallet(id: String, name: String, description: String, currency: String) =
+        db.updateWallet(id, name, description, currency)
 
     override fun deleteWallet(id: String) = db.deleteWallet(id)
+
+    override fun countTransactionsForWallet(id: String) = db.countTransactionsForWallet(id)
+
+    // ── Transfers ─────────────────────────────────────────────────────────────
+
+    override fun listTransfers(limit: UInt, offset: UInt) = db.listTransfers(limit, offset)
+
+    override fun createTransfer(fromWalletId: String, toWalletId: String, amount: Double, note: String?, createdAt: String?) =
+        db.createTransfer(fromWalletId, toWalletId, amount, note, createdAt)
+
+    override fun deleteTransfer(id: String) = db.deleteTransfer(id)
 
     // ── Savings Goals ─────────────────────────────────────────────────────────
 
@@ -138,15 +149,17 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
 
     override fun deleteCategory(id: String) = db.deleteCategory(id)
 
+    override fun countTransactionsForCategory(id: String) = db.countTransactionsForCategory(id)
+
     // ── Budgets ───────────────────────────────────────────────────────────────
 
     override fun listBudgets() = db.listBudgets()
 
-    override fun createBudget(categoryId: String, limitAmount: Double, period: String, alertThreshold: Double) =
-        db.createBudget(categoryId, limitAmount, period, alertThreshold)
+    override fun createBudget(categoryId: String?, walletId: String?, limitAmount: Double, period: String, alertThreshold: Double, carryOver: Boolean) =
+        db.createBudget(categoryId, walletId, limitAmount, period, alertThreshold, carryOver)
 
-    override fun updateBudget(id: String, limitAmount: Double, period: String, alertThreshold: Double) =
-        db.updateBudget(id, limitAmount, period, alertThreshold)
+    override fun updateBudget(id: String, categoryId: String?, walletId: String?, limitAmount: Double, period: String, alertThreshold: Double, carryOver: Boolean) =
+        db.updateBudget(id, categoryId, walletId, limitAmount, period, alertThreshold, carryOver)
 
     override fun deleteBudget(id: String) = db.deleteBudget(id)
 

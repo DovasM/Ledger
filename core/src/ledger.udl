@@ -36,7 +36,19 @@ dictionary Wallet {
     string id;
     string name;
     string description;
+    string currency;
     f64 balance;
+    string created_at;
+};
+
+// Neither income nor expense: folded into Transaction it would be counted twice by every report,
+// once in each wallet.
+dictionary Transfer {
+    string id;
+    string from_wallet_id;
+    string to_wallet_id;
+    f64 amount;
+    string? note;
     string created_at;
 };
 
@@ -65,12 +77,16 @@ dictionary Category {
     string created_at;
 };
 
+// category_id is optional so a budget can cap a whole wallet regardless of category; wallet_id is
+// optional so a category budget can apply across every wallet. At least one must be set.
 dictionary Budget {
     string id;
-    string category_id;
+    string? category_id;
+    string? wallet_id;
     f64 limit_amount;
     string period;
     f64 alert_threshold;
+    boolean carry_over;
     string created_at;
 };
 
@@ -145,13 +161,27 @@ interface LedgerDb {
     sequence<Wallet> list_wallets();
 
     [Throws=LedgerError]
-    Wallet create_wallet(string name, string description, f64 initial_balance);
+    Wallet create_wallet(string name, string description, string currency, f64 initial_balance);
 
     [Throws=LedgerError]
-    Wallet update_wallet(string id, string name, string description);
+    Wallet update_wallet(string id, string name, string description, string currency);
 
     [Throws=LedgerError]
     void delete_wallet(string id);
+
+    // Deleting a wallet removes every transaction in it, so the UI needs to say how many first.
+    [Throws=LedgerError]
+    u32 count_transactions_for_wallet(string id);
+
+    // ── Transfers ─────────────────────────────────────────────────────────────
+    [Throws=LedgerError]
+    sequence<Transfer> list_transfers(u32 limit, u32 offset);
+
+    [Throws=LedgerError]
+    Transfer create_transfer(string from_wallet_id, string to_wallet_id, f64 amount, string? note, string? created_at);
+
+    [Throws=LedgerError]
+    void delete_transfer(string id);
 
     // ── Savings Goals ─────────────────────────────────────────────────────────
     [Throws=LedgerError]
@@ -186,15 +216,19 @@ interface LedgerDb {
     [Throws=LedgerError]
     void delete_category(string id);
 
+    // Deleting a category detaches its transactions and drops its budget — worth warning about.
+    [Throws=LedgerError]
+    u32 count_transactions_for_category(string id);
+
     // ── Budgets ───────────────────────────────────────────────────────────────
     [Throws=LedgerError]
     sequence<Budget> list_budgets();
 
     [Throws=LedgerError]
-    Budget create_budget(string category_id, f64 limit_amount, string period, f64 alert_threshold);
+    Budget create_budget(string? category_id, string? wallet_id, f64 limit_amount, string period, f64 alert_threshold, boolean carry_over);
 
     [Throws=LedgerError]
-    Budget update_budget(string id, f64 limit_amount, string period, f64 alert_threshold);
+    Budget update_budget(string id, string? category_id, string? wallet_id, f64 limit_amount, string period, f64 alert_threshold, boolean carry_over);
 
     [Throws=LedgerError]
     void delete_budget(string id);

@@ -18,7 +18,18 @@ pub struct WalletRow {
     pub id: String,
     pub name: String,
     pub description: String,
+    pub currency: String,
     pub balance: f64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct TransferRow {
+    pub id: String,
+    pub from_wallet_id: String,
+    pub to_wallet_id: String,
+    pub amount: f64,
+    pub note: Option<String>,
     pub created_at: String,
 }
 
@@ -45,10 +56,12 @@ pub struct CategoryRow {
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct BudgetRow {
     pub id: String,
-    pub category_id: String,
+    pub category_id: Option<String>,
+    pub wallet_id: Option<String>,
     pub limit_amount: f64,
     pub period: String,
     pub alert_threshold: f64,
+    pub carry_over: bool,
     pub created_at: String,
 }
 

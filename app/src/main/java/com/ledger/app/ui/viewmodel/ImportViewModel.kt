@@ -188,7 +188,9 @@ class ImportViewModel @Inject constructor(
                 val walletIdMap = mutableMapOf<String, String>()
                 for (acc in result.accounts) {
                     if (acc.uid !in selected) continue
-                    val w = bridge.createWallet(acc.title, acc.currencyCode, acc.balance)
+                    // The currency used to be passed as the wallet *description*, which is why every
+                    // imported wallet was described as "EUR". It now goes in its own column.
+                    val w = bridge.createWallet(acc.title, "", acc.currencyCode, acc.balance)
                     walletIdMap[acc.uid] = w.id
                 }
 

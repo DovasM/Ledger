@@ -45,6 +45,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         m3_indexes(pool).await?;
         record_version(pool, 3).await?;
     }
+    if applied < 4 {
+        m4_transfers_currency_budgets(pool).await?;
+        record_version(pool, 4).await?;
+    }
 
     Ok(())
 }
@@ -72,6 +76,131 @@ async fn m3_indexes(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     ] {
         sqlx::query(stmt).execute(pool).await?;
     }
+    Ok(())
+}
+
+async fn m4_transfers_currency_budgets(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    // A transfer is neither income nor expense. Folded into `transactions` it would appear as an
+    // expense in one wallet and income in the other, and every report would count it twice.
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS transfers (
+            id             TEXT PRIMARY KEY,
+            from_wallet_id TEXT NOT NULL REFERENCES wallets(id),
+            to_wallet_id   TEXT NOT NULL REFERENCES wallets(id),
+            amount         REAL NOT NULL,
+            note           TEXT,
+            created_at     TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_transfer_from ON transfers(from_wallet_id);
+        CREATE INDEX IF NOT EXISTS idx_transfer_to   ON transfers(to_wallet_id);
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    let _ = sqlx::query("ALTER TABLE wallets ADD COLUMN currency TEXT NOT NULL DEFAULT ''")
+        .execute(pool)
+        .await;
+
+    // The Money Manager import passed the account's currency code as the wallet *description*,
+    // so every imported wallet is described as "EUR". Move it to the column it belongs in.
+    sqlx::query(
+        "UPDATE wallets SET currency = description, description = ''
+         WHERE currency = '' AND description GLOB '[A-Z][A-Z][A-Z]'",
+    )
+    .execute(pool)
+    .await?;
+
+    rebuild_budgets_if_needed(pool).await?;
+    dedupe_before_unique_indexes(pool).await?;
+
+    sqlx::query(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_categories_unique
+         ON categories(name COLLATE NOCASE, is_expense)",
+    )
+    .execute(pool)
+    .await?;
+    // NULLs compare distinct in SQLite, so this does not stop several wallet-only budgets sharing
+    // a period. It catches the case that actually bit: repeated budgets for one category, which
+    // CategoryPace sums.
+    sqlx::query(
+        "CREATE UNIQUE INDEX IF NOT EXISTS idx_budgets_unique
+         ON budgets(category_id, wallet_id, period)",
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+// budgets.category_id was TEXT NOT NULL, but a wallet-level budget ("800 from Checking, any
+// category") has no category. SQLite cannot relax NOT NULL in place, so the table is rebuilt —
+// guarded by the current shape, which makes it idempotent.
+async fn rebuild_budgets_if_needed(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    let cols: Vec<(i64, String, String, i64, Option<String>, i64)> =
+        sqlx::query_as("PRAGMA table_info(budgets)").fetch_all(pool).await?;
+    let category_is_not_null = cols.iter().any(|c| c.1 == "category_id" && c.3 == 1);
+    if !category_is_not_null {
+        return Ok(());
+    }
+
+    sqlx::query(
+        r#"
+        CREATE TABLE budgets_rebuilt (
+            id              TEXT PRIMARY KEY,
+            category_id     TEXT REFERENCES categories(id),
+            wallet_id       TEXT REFERENCES wallets(id),
+            limit_amount    REAL NOT NULL,
+            period          TEXT NOT NULL DEFAULT 'monthly',
+            alert_threshold REAL NOT NULL DEFAULT 80,
+            carry_over      INTEGER NOT NULL DEFAULT 0,
+            created_at      TEXT NOT NULL
+        );
+        INSERT INTO budgets_rebuilt (id, category_id, wallet_id, limit_amount, period, alert_threshold, carry_over, created_at)
+            SELECT id, category_id, NULL, limit_amount, period, alert_threshold, 0, created_at FROM budgets;
+        DROP TABLE budgets;
+        ALTER TABLE budgets_rebuilt RENAME TO budgets;
+        CREATE INDEX IF NOT EXISTS idx_budget_cat ON budgets(category_id);
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    Ok(())
+}
+
+// The unique indexes below cannot be created while duplicates exist. Keep the oldest row of each
+// group and re-point everything that referenced the others.
+async fn dedupe_before_unique_indexes(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    let dupes: Vec<(String, String)> = sqlx::query_as(
+        "SELECT c.id, keep.id FROM categories c
+         JOIN (SELECT MIN(created_at) AS ca, name, is_expense FROM categories
+               GROUP BY name COLLATE NOCASE, is_expense) g
+           ON g.name = c.name COLLATE NOCASE AND g.is_expense = c.is_expense
+         JOIN categories keep ON keep.name = c.name COLLATE NOCASE
+                             AND keep.is_expense = c.is_expense AND keep.created_at = g.ca
+         WHERE c.id <> keep.id",
+    )
+    .fetch_all(pool)
+    .await?;
+
+    for (dead, keep) in dupes {
+        for table in ["transactions", "recurring_transactions", "budgets"] {
+            sqlx::query(&format!("UPDATE {table} SET category_id = ? WHERE category_id = ?"))
+                .bind(&keep).bind(&dead).execute(pool).await?;
+        }
+        sqlx::query("DELETE FROM categories WHERE id = ?").bind(&dead).execute(pool).await?;
+    }
+
+    sqlx::query(
+        "DELETE FROM budgets WHERE id NOT IN (
+            SELECT MIN(id) FROM budgets GROUP BY category_id, wallet_id, period
+         )",
+    )
+    .execute(pool)
+    .await?;
+
     Ok(())
 }
 

@@ -42,10 +42,10 @@ class BudgetViewModel @Inject constructor(
         }
     }
 
-    fun createBudget(categoryId: String, limitAmount: Double, period: String, alertThreshold: Double = 80.0, onSuccess: () -> Unit = {}) {
+    fun createBudget(categoryId: String?, walletId: String?, limitAmount: Double, period: String, alertThreshold: Double = 80.0, carryOver: Boolean = false, onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.createBudget(categoryId, limitAmount, period, alertThreshold)
+                bridge.createBudget(categoryId, walletId, limitAmount, period, alertThreshold, carryOver)
                 load()
                 widgetUpdater.refresh()
                 launch(Dispatchers.Main) { onSuccess() }
@@ -55,10 +55,10 @@ class BudgetViewModel @Inject constructor(
         }
     }
 
-    fun updateBudget(id: String, limitAmount: Double, period: String, alertThreshold: Double = 80.0, onSuccess: () -> Unit = {}) {
+    fun updateBudget(id: String, categoryId: String?, walletId: String?, limitAmount: Double, period: String, alertThreshold: Double = 80.0, carryOver: Boolean = false, onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.updateBudget(id, limitAmount, period, alertThreshold)
+                bridge.updateBudget(id, categoryId, walletId, limitAmount, period, alertThreshold, carryOver)
                 load()
                 widgetUpdater.refresh()
                 launch(Dispatchers.Main) { onSuccess() }

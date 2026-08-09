@@ -11,7 +11,7 @@ pub fn llama_create(model_path: String, n_ctx: u32) -> Result<Arc<LlamaEngine>, 
 
 use db::open_pool;
 use db::models::{
-    TransactionRow, WalletRow, SavingsGoalRow,
+    TransactionRow, WalletRow, TransferRow, SavingsGoalRow,
     CategoryRow, BudgetRow, DebtRow, RecurringTransactionRow, TagRow, PriceAlertRow,
 };
 use sqlx::SqlitePool;
@@ -54,7 +54,17 @@ pub struct Wallet {
     pub id: String,
     pub name: String,
     pub description: String,
+    pub currency: String,
     pub balance: f64,
+    pub created_at: String,
+}
+
+pub struct Transfer {
+    pub id: String,
+    pub from_wallet_id: String,
+    pub to_wallet_id: String,
+    pub amount: f64,
+    pub note: Option<String>,
     pub created_at: String,
 }
 
@@ -85,10 +95,12 @@ pub struct Category {
 
 pub struct Budget {
     pub id: String,
-    pub category_id: String,
+    pub category_id: Option<String>,
+    pub wallet_id: Option<String>,
     pub limit_amount: f64,
     pub period: String,
     pub alert_threshold: f64,
+    pub carry_over: bool,
     pub created_at: String,
 }
 
@@ -228,40 +240,40 @@ impl LedgerDb {
     pub fn list_wallets(&self) -> Result<Vec<Wallet>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, WalletRow>(
-                "SELECT id, name, description, balance, created_at FROM wallets ORDER BY created_at ASC"
+                "SELECT id, name, description, currency, balance, created_at FROM wallets ORDER BY created_at ASC"
             )
             .fetch_all(&self.pool).await?;
             Ok(rows.into_iter().map(row_to_wallet).collect())
         })
     }
 
-    pub fn create_wallet(&self, name: String, description: String, initial_balance: f64) -> Result<Wallet, LedgerError> {
+    pub fn create_wallet(&self, name: String, description: String, currency: String, initial_balance: f64) -> Result<Wallet, LedgerError> {
         if name.is_empty() { return Err(LedgerError::InvalidInput("name is required".into())); }
         self.rt.block_on(async {
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
             sqlx::query(
-                "INSERT INTO wallets (id, name, description, balance, created_at) VALUES (?,?,?,?,?)"
+                "INSERT INTO wallets (id, name, description, currency, balance, created_at) VALUES (?,?,?,?,?,?)"
             )
-            .bind(&id).bind(&name).bind(&description).bind(initial_balance).bind(&now)
+            .bind(&id).bind(&name).bind(&description).bind(&currency).bind(initial_balance).bind(&now)
             .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, WalletRow>(
-                "SELECT id, name, description, balance, created_at FROM wallets WHERE id=?"
+                "SELECT id, name, description, currency, balance, created_at FROM wallets WHERE id=?"
             )
             .bind(&id).fetch_one(&self.pool).await?;
             Ok(row_to_wallet(row))
         })
     }
 
-    pub fn update_wallet(&self, id: String, name: String, description: String) -> Result<Wallet, LedgerError> {
+    pub fn update_wallet(&self, id: String, name: String, description: String, currency: String) -> Result<Wallet, LedgerError> {
         self.rt.block_on(async {
-            sqlx::query("UPDATE wallets SET name=?, description=? WHERE id=?")
-                .bind(&name).bind(&description).bind(&id)
+            sqlx::query("UPDATE wallets SET name=?, description=?, currency=? WHERE id=?")
+                .bind(&name).bind(&description).bind(&currency).bind(&id)
                 .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, WalletRow>(
-                "SELECT id, name, description, balance, created_at FROM wallets WHERE id=?"
+                "SELECT id, name, description, currency, balance, created_at FROM wallets WHERE id=?"
             )
             .bind(&id).fetch_optional(&self.pool).await?
             .ok_or(LedgerError::NotFound)?;
@@ -281,7 +293,79 @@ impl LedgerDb {
                 .bind(&id).execute(&self.pool).await?;
             sqlx::query("DELETE FROM recurring_transactions WHERE wallet_id=?")
                 .bind(&id).execute(&self.pool).await?;
+            sqlx::query("DELETE FROM transfers WHERE from_wallet_id=? OR to_wallet_id=?")
+                .bind(&id).bind(&id).execute(&self.pool).await?;
             sqlx::query("DELETE FROM wallets WHERE id=?").bind(&id).execute(&self.pool).await?;
+            Ok(())
+        })
+    }
+
+    pub fn count_transactions_for_wallet(&self, id: String) -> Result<u32, LedgerError> {
+        self.rt.block_on(async {
+            let (n,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM transactions WHERE wallet_id=?")
+                .bind(&id).fetch_one(&self.pool).await?;
+            Ok(n as u32)
+        })
+    }
+
+    // ── Transfers ────────────────────────────────────────────────────────────
+
+    pub fn list_transfers(&self, limit: u32, offset: u32) -> Result<Vec<Transfer>, LedgerError> {
+        self.rt.block_on(async {
+            let rows = sqlx::query_as::<_, TransferRow>(
+                "SELECT id, from_wallet_id, to_wallet_id, amount, note, created_at
+                 FROM transfers ORDER BY created_at DESC LIMIT ? OFFSET ?"
+            )
+            .bind(limit as i64).bind(offset as i64)
+            .fetch_all(&self.pool).await?;
+            Ok(rows.into_iter().map(row_to_transfer).collect())
+        })
+    }
+
+    pub fn create_transfer(&self, from_wallet_id: String, to_wallet_id: String, amount: f64, note: Option<String>, created_at: Option<String>) -> Result<Transfer, LedgerError> {
+        if amount <= 0.0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
+        if from_wallet_id == to_wallet_id {
+            return Err(LedgerError::InvalidInput("cannot transfer to the same wallet".into()));
+        }
+        self.rt.block_on(async {
+            let id = Uuid::new_v4().to_string();
+            let date = created_at.unwrap_or_else(|| Utc::now().to_rfc3339());
+
+            sqlx::query(
+                "INSERT INTO transfers (id, from_wallet_id, to_wallet_id, amount, note, created_at) VALUES (?,?,?,?,?,?)"
+            )
+            .bind(&id).bind(&from_wallet_id).bind(&to_wallet_id).bind(amount).bind(&note).bind(&date)
+            .execute(&self.pool).await?;
+
+            // A transfer only moves balance; it must never touch income or expense totals.
+            sqlx::query("UPDATE wallets SET balance = balance - ? WHERE id = ?")
+                .bind(amount).bind(&from_wallet_id).execute(&self.pool).await?;
+            sqlx::query("UPDATE wallets SET balance = balance + ? WHERE id = ?")
+                .bind(amount).bind(&to_wallet_id).execute(&self.pool).await?;
+
+            let row = sqlx::query_as::<_, TransferRow>(
+                "SELECT id, from_wallet_id, to_wallet_id, amount, note, created_at FROM transfers WHERE id=?"
+            )
+            .bind(&id).fetch_one(&self.pool).await?;
+            Ok(row_to_transfer(row))
+        })
+    }
+
+    pub fn delete_transfer(&self, id: String) -> Result<(), LedgerError> {
+        self.rt.block_on(async {
+            let row = sqlx::query_as::<_, TransferRow>(
+                "SELECT id, from_wallet_id, to_wallet_id, amount, note, created_at FROM transfers WHERE id=?"
+            )
+            .bind(&id).fetch_optional(&self.pool).await?
+            .ok_or(LedgerError::NotFound)?;
+
+            // Put the money back before dropping the record, or the balances drift.
+            sqlx::query("UPDATE wallets SET balance = balance + ? WHERE id = ?")
+                .bind(row.amount).bind(&row.from_wallet_id).execute(&self.pool).await?;
+            sqlx::query("UPDATE wallets SET balance = balance - ? WHERE id = ?")
+                .bind(row.amount).bind(&row.to_wallet_id).execute(&self.pool).await?;
+
+            sqlx::query("DELETE FROM transfers WHERE id=?").bind(&id).execute(&self.pool).await?;
             Ok(())
         })
     }
@@ -458,46 +542,61 @@ impl LedgerDb {
         })
     }
 
+    pub fn count_transactions_for_category(&self, id: String) -> Result<u32, LedgerError> {
+        self.rt.block_on(async {
+            let (n,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM transactions WHERE category_id=?")
+                .bind(&id).fetch_one(&self.pool).await?;
+            Ok(n as u32)
+        })
+    }
+
     // ── Budgets ──────────────────────────────────────────────────────────────
 
     pub fn list_budgets(&self) -> Result<Vec<Budget>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, BudgetRow>(
-                "SELECT id, category_id, limit_amount, period, alert_threshold, created_at FROM budgets ORDER BY created_at ASC"
+                "SELECT id, category_id, wallet_id, limit_amount, period, alert_threshold, carry_over, created_at FROM budgets ORDER BY created_at ASC"
             )
             .fetch_all(&self.pool).await?;
             Ok(rows.into_iter().map(row_to_budget).collect())
         })
     }
 
-    pub fn create_budget(&self, category_id: String, limit_amount: f64, period: String, alert_threshold: f64) -> Result<Budget, LedgerError> {
+    pub fn create_budget(&self, category_id: Option<String>, wallet_id: Option<String>, limit_amount: f64, period: String, alert_threshold: f64, carry_over: bool) -> Result<Budget, LedgerError> {
         if limit_amount <= 0.0 { return Err(LedgerError::InvalidInput("limit must be positive".into())); }
+        // A budget scoped to neither a category nor a wallet would silently apply to everything.
+        if category_id.is_none() && wallet_id.is_none() {
+            return Err(LedgerError::InvalidInput("a budget needs a category or a wallet".into()));
+        }
         self.rt.block_on(async {
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
             sqlx::query(
-                "INSERT INTO budgets (id, category_id, limit_amount, period, alert_threshold, created_at) VALUES (?,?,?,?,?,?)"
+                "INSERT INTO budgets (id, category_id, wallet_id, limit_amount, period, alert_threshold, carry_over, created_at) VALUES (?,?,?,?,?,?,?,?)"
             )
-            .bind(&id).bind(&category_id).bind(limit_amount).bind(&period).bind(alert_threshold).bind(&now)
+            .bind(&id).bind(&category_id).bind(&wallet_id).bind(limit_amount).bind(&period).bind(alert_threshold).bind(carry_over).bind(&now)
             .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, BudgetRow>(
-                "SELECT id, category_id, limit_amount, period, alert_threshold, created_at FROM budgets WHERE id=?"
+                "SELECT id, category_id, wallet_id, limit_amount, period, alert_threshold, carry_over, created_at FROM budgets WHERE id=?"
             )
             .bind(&id).fetch_one(&self.pool).await?;
             Ok(row_to_budget(row))
         })
     }
 
-    pub fn update_budget(&self, id: String, limit_amount: f64, period: String, alert_threshold: f64) -> Result<Budget, LedgerError> {
+    pub fn update_budget(&self, id: String, category_id: Option<String>, wallet_id: Option<String>, limit_amount: f64, period: String, alert_threshold: f64, carry_over: bool) -> Result<Budget, LedgerError> {
         if limit_amount <= 0.0 { return Err(LedgerError::InvalidInput("limit must be positive".into())); }
+        if category_id.is_none() && wallet_id.is_none() {
+            return Err(LedgerError::InvalidInput("a budget needs a category or a wallet".into()));
+        }
         self.rt.block_on(async {
-            sqlx::query("UPDATE budgets SET limit_amount=?, period=?, alert_threshold=? WHERE id=?")
-                .bind(limit_amount).bind(&period).bind(alert_threshold).bind(&id)
+            sqlx::query("UPDATE budgets SET category_id=?, wallet_id=?, limit_amount=?, period=?, alert_threshold=?, carry_over=? WHERE id=?")
+                .bind(&category_id).bind(&wallet_id).bind(limit_amount).bind(&period).bind(alert_threshold).bind(carry_over).bind(&id)
                 .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, BudgetRow>(
-                "SELECT id, category_id, limit_amount, period, alert_threshold, created_at FROM budgets WHERE id=?"
+                "SELECT id, category_id, wallet_id, limit_amount, period, alert_threshold, carry_over, created_at FROM budgets WHERE id=?"
             )
             .bind(&id).fetch_optional(&self.pool).await?
             .ok_or(LedgerError::NotFound)?;
@@ -818,7 +917,11 @@ fn row_to_transaction(r: TransactionRow) -> Transaction {
 }
 
 fn row_to_wallet(r: WalletRow) -> Wallet {
-    Wallet { id: r.id, name: r.name, description: r.description, balance: r.balance, created_at: r.created_at }
+    Wallet { id: r.id, name: r.name, description: r.description, currency: r.currency, balance: r.balance, created_at: r.created_at }
+}
+
+fn row_to_transfer(r: TransferRow) -> Transfer {
+    Transfer { id: r.id, from_wallet_id: r.from_wallet_id, to_wallet_id: r.to_wallet_id, amount: r.amount, note: r.note, created_at: r.created_at }
 }
 
 fn row_to_goal(r: SavingsGoalRow) -> SavingsGoal {
@@ -830,7 +933,7 @@ fn row_to_category(r: CategoryRow) -> Category {
 }
 
 fn row_to_budget(r: BudgetRow) -> Budget {
-    Budget { id: r.id, category_id: r.category_id, limit_amount: r.limit_amount, period: r.period, alert_threshold: r.alert_threshold, created_at: r.created_at }
+    Budget { id: r.id, category_id: r.category_id, wallet_id: r.wallet_id, limit_amount: r.limit_amount, period: r.period, alert_threshold: r.alert_threshold, carry_over: r.carry_over, created_at: r.created_at }
 }
 
 fn row_to_debt(r: DebtRow) -> Debt {
