@@ -140,7 +140,8 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 
 ### Wallet Operations
 - [x] **Transfer between wallets — data layer** — `transfers` table with its own CRUD; moves balance between both wallets and never touches income or expense totals (folding it into `transactions` would make every report count it twice)
-- [ ] **Transfer between wallets — UI** — no screen creates one yet, so the table only fills from a future import. Needs an entry point in WalletsListScreen or AddTransactionScreen
+- [x] **Transfer between wallets — UI** — `AddTransferScreen` + `TransferViewModel`, reached from the swap icon in the WalletsList top bar. From/to pickers, amount, note, and an after-the-move balance preview so an overdrawing transfer is visible before saving; refuses the same wallet on both sides
+- [ ] **Transfers are not listed anywhere** — you can create one but not see or delete it afterwards. `listTransfers` and `deleteTransfer` exist; WalletDetailsScreen is the natural home
 - [ ] **Wallet-only budgets have no UI** — `budgets.category_id` is nullable and `wallet_id` exists, but `AddEditBudgetScreen` only creates category budgets and `CategoryPace` drops budgets without a category
 - [ ] **`budgets.carry_over` is stored but not acted on** — and it must first be reconciled with the shipped `allowance_rollover` preference, which redistributes the *daily* figure inside a period. Enabling both without a decision would count unspent money twice
 - [ ] **Quick cash in/out** — fast cash transaction from home screen or wallet screen without filling full form; just amount + income/expense toggle
@@ -185,7 +186,9 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 
 ## Minor / Polish
 
-- [ ] **Warn before deleting a category or wallet that has data** — `countTransactionsForCategory` and `countTransactionsForWallet` now exist on the bridge; the UI still does not call them. Deleting a wallet **deletes every transaction in it** without saying so
+- [x] **Wallet balance drifted on edit and delete** — `wallets.balance` is a stored running total, but `delete_transaction` never removed the deleted amount and `update_transaction` kept the old one after an edit. Both now reverse the previous effect before applying the new
+- [x] **Money mutations are atomic** — insert-plus-balance and a transfer's two balance updates now run inside a single DB transaction; previously any of them could half-apply. `create_transfer` also verifies both wallets exist, since nothing enforces the foreign keys at runtime
+- [x] **Warn before deleting a category or wallet that has data** — both dialogs now count the affected rows in the database first and say the real number, instead of a generic warning. The wallet dialog states how many transactions will be permanently deleted; the category dialog says how many keep their label but lose the link, and that the budget goes with it
 - [ ] **Stale `armeabi-v7a` native library** — `app/src/main/jniLibs/armeabi-v7a/libuniffi_ledger.so` is from April and predates the `category_id` schema. Harmless today because `abiFilters` is `arm64-v8a` + `x86_64`, but it would ship a broken build if that ABI is ever re-enabled. Either rebuild it or delete the folder
 - [x] **`recurring_transactions.category`** — had the same rename problem; now carries `category_id` and resolves through it
 - [x] **Dead `ON DELETE CASCADE`s** — SQLite ignores foreign keys without `PRAGMA foreign_keys=ON`, which this pool never sets, so all three declared cascades did nothing. Deleting a wallet left its transactions and recurring rows behind; deleting a transaction or tag left link rows. Each `delete_*` now cleans up explicitly and `clean_orphans` sweeps existing strays

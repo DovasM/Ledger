@@ -190,18 +190,23 @@ impl LedgerDb {
             let date = created_at.unwrap_or_else(|| Utc::now().to_rfc3339());
             let sign: f64 = if is_income { amount } else { -amount };
 
+            // Resolved before the transaction opens: a stray category left behind by a failed
+            // insert is harmless, a half-applied balance is not.
             let category_id = resolve_category_id(&self.pool, &category, is_income).await?;
 
+            // The row and the balance must land together or neither does.
+            let mut tx = self.pool.begin().await?;
             sqlx::query(
                 "INSERT INTO transactions (id, wallet_id, title, category_id, category, amount, is_income, note, created_at) VALUES (?,?,?,?,?,?,?,?,?)"
             )
             .bind(&id).bind(&wallet_id).bind(&title).bind(&category_id).bind(&category)
             .bind(amount).bind(is_income).bind(&note).bind(&date)
-            .execute(&self.pool).await?;
+            .execute(&mut *tx).await?;
 
             sqlx::query("UPDATE wallets SET balance = balance + ? WHERE id = ?")
                 .bind(sign).bind(&wallet_id)
-                .execute(&self.pool).await?;
+                .execute(&mut *tx).await?;
+            tx.commit().await?;
 
             let row = sqlx::query_as::<_, TransactionRow>(&format!("{TX_SELECT} WHERE t.id = ?"))
                 .bind(&id).fetch_one(&self.pool).await?;
@@ -213,9 +218,28 @@ impl LedgerDb {
         self.rt.block_on(async {
             let category_id = resolve_category_id(&self.pool, &category, is_income).await?;
 
+            // Editing an amount or flipping income/expense used to leave the wallet balance on the
+            // old figure. Reverse the previous effect, then apply the new one.
+            let previous: Option<(String, f64, bool)> = sqlx::query_as(
+                "SELECT wallet_id, amount, is_income FROM transactions WHERE id=?"
+            ).bind(&id).fetch_optional(&self.pool).await?;
+            let (prev_wallet, prev_amount, prev_is_income) = previous.ok_or(LedgerError::NotFound)?;
+
+            let mut tx = self.pool.begin().await?;
+            sqlx::query("UPDATE wallets SET balance = balance - ? WHERE id = ?")
+                .bind(if prev_is_income { prev_amount } else { -prev_amount })
+                .bind(&prev_wallet)
+                .execute(&mut *tx).await?;
+
             sqlx::query("UPDATE transactions SET title=?, category_id=?, category=?, amount=?, is_income=?, note=?, created_at=COALESCE(?,created_at) WHERE id=?")
                 .bind(&title).bind(&category_id).bind(&category).bind(amount).bind(is_income).bind(&note).bind(&created_at).bind(&id)
-                .execute(&self.pool).await?;
+                .execute(&mut *tx).await?;
+
+            sqlx::query("UPDATE wallets SET balance = balance + ? WHERE id = ?")
+                .bind(if is_income { amount } else { -amount })
+                .bind(&prev_wallet)
+                .execute(&mut *tx).await?;
+            tx.commit().await?;
 
             let row = sqlx::query_as::<_, TransactionRow>(&format!("{TX_SELECT} WHERE t.id = ?"))
                 .bind(&id).fetch_optional(&self.pool).await?
@@ -226,11 +250,24 @@ impl LedgerDb {
 
     pub fn delete_transaction(&self, id: String) -> Result<(), LedgerError> {
         self.rt.block_on(async {
+            // Deleting used to leave the wallet balance carrying the removed amount forever.
+            let row: Option<(String, f64, bool)> = sqlx::query_as(
+                "SELECT wallet_id, amount, is_income FROM transactions WHERE id=?"
+            ).bind(&id).fetch_optional(&self.pool).await?;
+            let Some((wallet_id, amount, is_income)) = row else { return Ok(()) };
+
+            let mut tx = self.pool.begin().await?;
             // transaction_tags declares ON DELETE CASCADE, but SQLite ignores it without
             // PRAGMA foreign_keys=ON. Clear the links here so they cannot pile up.
             sqlx::query("DELETE FROM transaction_tags WHERE transaction_id=?")
-                .bind(&id).execute(&self.pool).await?;
-            sqlx::query("DELETE FROM transactions WHERE id=?").bind(&id).execute(&self.pool).await?;
+                .bind(&id).execute(&mut *tx).await?;
+            sqlx::query("DELETE FROM transactions WHERE id=?")
+                .bind(&id).execute(&mut *tx).await?;
+            sqlx::query("UPDATE wallets SET balance = balance - ? WHERE id = ?")
+                .bind(if is_income { amount } else { -amount })
+                .bind(&wallet_id)
+                .execute(&mut *tx).await?;
+            tx.commit().await?;
             Ok(())
         })
     }
@@ -286,16 +323,20 @@ impl LedgerDb {
             // The ON DELETE CASCADE on transactions.wallet_id never fires (no PRAGMA
             // foreign_keys), so deleting a wallet used to leave its transactions behind —
             // counted by every report while belonging to an account that no longer exists.
+            let mut tx = self.pool.begin().await?;
             sqlx::query(
                 "DELETE FROM transaction_tags WHERE transaction_id IN (SELECT id FROM transactions WHERE wallet_id=?)"
-            ).bind(&id).execute(&self.pool).await?;
+            ).bind(&id).execute(&mut *tx).await?;
             sqlx::query("DELETE FROM transactions WHERE wallet_id=?")
-                .bind(&id).execute(&self.pool).await?;
+                .bind(&id).execute(&mut *tx).await?;
             sqlx::query("DELETE FROM recurring_transactions WHERE wallet_id=?")
-                .bind(&id).execute(&self.pool).await?;
+                .bind(&id).execute(&mut *tx).await?;
+            // Transfers on the other side must go too, and reversing their balance would be
+            // meaningless once one end no longer exists.
             sqlx::query("DELETE FROM transfers WHERE from_wallet_id=? OR to_wallet_id=?")
-                .bind(&id).bind(&id).execute(&self.pool).await?;
-            sqlx::query("DELETE FROM wallets WHERE id=?").bind(&id).execute(&self.pool).await?;
+                .bind(&id).bind(&id).execute(&mut *tx).await?;
+            sqlx::query("DELETE FROM wallets WHERE id=?").bind(&id).execute(&mut *tx).await?;
+            tx.commit().await?;
             Ok(())
         })
     }
@@ -331,17 +372,27 @@ impl LedgerDb {
             let id = Uuid::new_v4().to_string();
             let date = created_at.unwrap_or_else(|| Utc::now().to_rfc3339());
 
+            // Both wallets must exist, or the transfer would move money to or from nowhere —
+            // nothing enforces the foreign keys at runtime.
+            let (known,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM wallets WHERE id IN (?, ?)")
+                .bind(&from_wallet_id).bind(&to_wallet_id)
+                .fetch_one(&self.pool).await?;
+            if known < 2 { return Err(LedgerError::NotFound); }
+
+            // Two balance updates and an insert: all three land together or none do.
+            let mut tx = self.pool.begin().await?;
             sqlx::query(
                 "INSERT INTO transfers (id, from_wallet_id, to_wallet_id, amount, note, created_at) VALUES (?,?,?,?,?,?)"
             )
             .bind(&id).bind(&from_wallet_id).bind(&to_wallet_id).bind(amount).bind(&note).bind(&date)
-            .execute(&self.pool).await?;
+            .execute(&mut *tx).await?;
 
             // A transfer only moves balance; it must never touch income or expense totals.
             sqlx::query("UPDATE wallets SET balance = balance - ? WHERE id = ?")
-                .bind(amount).bind(&from_wallet_id).execute(&self.pool).await?;
+                .bind(amount).bind(&from_wallet_id).execute(&mut *tx).await?;
             sqlx::query("UPDATE wallets SET balance = balance + ? WHERE id = ?")
-                .bind(amount).bind(&to_wallet_id).execute(&self.pool).await?;
+                .bind(amount).bind(&to_wallet_id).execute(&mut *tx).await?;
+            tx.commit().await?;
 
             let row = sqlx::query_as::<_, TransferRow>(
                 "SELECT id, from_wallet_id, to_wallet_id, amount, note, created_at FROM transfers WHERE id=?"
@@ -360,12 +411,14 @@ impl LedgerDb {
             .ok_or(LedgerError::NotFound)?;
 
             // Put the money back before dropping the record, or the balances drift.
+            let mut tx = self.pool.begin().await?;
             sqlx::query("UPDATE wallets SET balance = balance + ? WHERE id = ?")
-                .bind(row.amount).bind(&row.from_wallet_id).execute(&self.pool).await?;
+                .bind(row.amount).bind(&row.from_wallet_id).execute(&mut *tx).await?;
             sqlx::query("UPDATE wallets SET balance = balance - ? WHERE id = ?")
-                .bind(row.amount).bind(&row.to_wallet_id).execute(&self.pool).await?;
+                .bind(row.amount).bind(&row.to_wallet_id).execute(&mut *tx).await?;
 
-            sqlx::query("DELETE FROM transfers WHERE id=?").bind(&id).execute(&self.pool).await?;
+            sqlx::query("DELETE FROM transfers WHERE id=?").bind(&id).execute(&mut *tx).await?;
+            tx.commit().await?;
             Ok(())
         })
     }

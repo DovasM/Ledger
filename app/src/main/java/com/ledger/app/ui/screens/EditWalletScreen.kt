@@ -34,11 +34,28 @@ fun EditWalletScreen(
 
     val isNameValid = name.isNotBlank()
 
+    // The count comes from the database rather than the loaded page, so it is the real number of
+    // rows that deletion will destroy.
+    var deleteCount by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(showDeleteDialog) {
+        if (showDeleteDialog) deleteCount = viewModel.countTransactions(walletId)
+    }
+
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Delete Wallet") },
-            text = { Text("All transactions in this wallet will be deleted.", style = MaterialTheme.typography.bodyMedium) },
+            text = {
+                Text(
+                    when (val n = deleteCount) {
+                        null -> "Checking what this will remove…"
+                        0    -> "This wallet has no transactions."
+                        1    -> "1 transaction in this wallet will be permanently deleted."
+                        else -> "$n transactions in this wallet will be permanently deleted."
+                    },
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
             confirmButton = {
                 TextButton(onClick = {
                     viewModel.deleteWallet(walletId) { navController.popBackStack() }

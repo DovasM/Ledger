@@ -10,6 +10,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import uniffi.ledger.Category
 import javax.inject.Inject
 
@@ -82,6 +83,11 @@ class CategoryViewModel @Inject constructor(
                 _state.value = _state.value.copy(error = e.message)
             }
         }
+    }
+
+    // Deleting a category detaches its transactions and drops its budget; say how many first.
+    suspend fun countTransactions(categoryId: String): Int = withContext(Dispatchers.IO) {
+        runCatching { bridge.countTransactionsForCategory(categoryId).toInt() }.getOrDefault(0)
     }
 
     fun deleteCategory(id: String, onSuccess: () -> Unit = {}) {

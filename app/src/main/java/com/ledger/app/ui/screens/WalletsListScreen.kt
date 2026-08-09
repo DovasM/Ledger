@@ -42,6 +42,11 @@ fun WalletsListScreen(
         topBar = {
             TopAppBar(
                 title = { Text("Wallets", style = MaterialTheme.typography.headlineSmall) },
+                actions = {
+                    IconButton(onClick = { navController.navigate(Screen.AddTransfer.route) }) {
+                        Icon(Icons.Filled.SwapHoriz, contentDescription = "Transfer between wallets")
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = SurfaceContainerLow)
             )
         },
