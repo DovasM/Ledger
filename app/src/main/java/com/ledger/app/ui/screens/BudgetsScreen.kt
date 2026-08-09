@@ -100,12 +100,13 @@ fun BudgetsScreen(
         BudgetRow(pace, budget, categoryState.categories.find { it.id == budget.categoryId })
     }
 
-    // Periods can be mixed, so a raw sum of limits would be meaningless — compare monthly equivalents.
-    val totalLimit = stats.monthlyBudgetEquivalent
-    val totalSpent = rows.sumOf { it.pace.monthSpent }
+    // The overall budget is the only real total. Falling back to the sum of category limits is a
+    // last resort and is labelled as such — that sum was never a figure the user chose.
+    val overall = stats.overall
+    val totalLimit = overall?.effectiveLimit ?: stats.monthlyBudgetEquivalent
+    val totalSpent = overall?.periodSpent ?: rows.sumOf { it.pace.monthSpent }
     val overCount  = rows.count { it.isOver }
-    // Any non-monthly budget means the headline total is a converted figure, not what the user typed.
-    val scaledTotal = rows.any { it.pace.period != BudgetPeriod.MONTHLY }
+    val scaledTotal = overall == null && rows.any { it.pace.period != BudgetPeriod.MONTHLY }
 
     Scaffold(
         topBar = {
@@ -141,7 +142,11 @@ fun BudgetsScreen(
                 LedgerFloatingCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         Text(
-                            if (scaledTotal) "MONTHLY EQUIVALENT" else "MONTHLY OVERVIEW",
+                            when {
+                                overall != null -> "OVERALL BUDGET · ${overall.period.label.uppercase()}"
+                                scaledTotal     -> "SUM OF CATEGORY LIMITS · MONTHLY EQUIVALENT"
+                                else            -> "SUM OF CATEGORY LIMITS"
+                            },
                             style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
                         )
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
@@ -160,11 +165,16 @@ fun BudgetsScreen(
                                     style = MaterialTheme.typography.titleLarge, color = OnSurface, fontWeight = FontWeight.Bold)
                             }
                         }
-                        // Weekly and yearly limits are scaled to a month here purely so they can be
-                        // added up; each card below still shows its own period's real numbers.
                         Text(
-                            "${money(stats.dailyAllowance)}/day across all budgets" +
-                                if (scaledTotal) " · weekly/yearly limits scaled to a month" else "",
+                            when {
+                                overall != null && overall.carried != 0.0 ->
+                                    "${money(stats.dailyAllowance)}/day · ${if (overall.carried > 0) "+" else ""}${money(overall.carried)} carried from last ${overall.period.label.lowercase().removeSuffix("ly")}"
+                                overall != null -> "${money(stats.dailyAllowance)}/day"
+                                // No overall budget means no daily allowance at all — say so
+                                // rather than quietly showing nothing.
+                                else -> "No overall budget, so there is no daily allowance" +
+                                    if (scaledTotal) " · weekly and yearly limits scaled to a month" else ""
+                            },
                             style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
                         )
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -204,6 +214,50 @@ fun BudgetsScreen(
                                 )
                             }
                         }
+                    }
+                }
+            }
+
+            // Without a row of its own the overall budget is invisible here, even though it is the
+            // one driving the daily allowance on the widget.
+            overall?.let { o ->
+                val budget = budgetState.budgets.find { it.id == o.budgetId }
+                val over = o.periodRemaining < 0
+                LedgerCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { budget?.let { navController.navigate(Screen.EditBudget.createRoute(it.id)) } }
+                ) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Box(
+                                modifier = Modifier.size(40.dp).clip(CircleShape).background(Primary.copy(alpha = 0.12f)),
+                                contentAlignment = Alignment.Center
+                            ) { Icon(Icons.Filled.AllInclusive, null, tint = Primary, modifier = Modifier.size(20.dp)) }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Everything", style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    o.period.label + if (budget?.carryOver == true) " · carries over" else "",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (over) Tertiary else Primary
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text("${money(o.periodSpent)} / ${money(o.effectiveLimit)}",
+                                    style = MaterialTheme.typography.labelMedium, color = OnSurface, fontWeight = FontWeight.SemiBold)
+                                Text(
+                                    if (over) "${money(-o.periodRemaining)} over" else "${money(o.periodRemaining)} left",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = if (over) Tertiary else OnSurfaceVariant
+                                )
+                            }
+                        }
+                        LinearProgressIndicator(
+                            progress = {
+                                if (o.effectiveLimit > 0) (o.periodSpent / o.effectiveLimit).toFloat().coerceIn(0f, 1f) else 0f
+                            },
+                            modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
+                            color = if (over) Tertiary else Primary, trackColor = SurfaceContainerHighest
+                        )
                     }
                 }
             }

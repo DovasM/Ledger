@@ -46,6 +46,16 @@ enum class BudgetPeriod(val label: String) {
         YEARLY  -> today.lengthOfYear()
     }
 
+    // The period immediately before the current one — where carry-over takes its residual from.
+    fun previousRange(today: LocalDate): Pair<LocalDate, LocalDate> {
+        val start = start(today)
+        return when (this) {
+            WEEKLY  -> start.minusWeeks(1) to start.minusDays(1)
+            MONTHLY -> start.minusMonths(1) to start.minusDays(1)
+            YEARLY  -> start.minusYears(1) to start.minusDays(1)
+        }
+    }
+
     // Only for comparing budgets of different periods side by side.
     fun monthlyEquivalent(limit: Double, today: LocalDate): Double = when (this) {
         WEEKLY  -> limit * today.lengthOfMonth() / 7.0
@@ -68,6 +78,26 @@ data class AllowanceSettings(
                      else BudgetPeriod.MONTHLY
         )
     }
+}
+
+// A budget scoped to neither a category nor a wallet: the cap on everything you spend, optionally
+// narrowed to one wallet. This is what drives the daily allowance. Category budgets are no longer
+// summed into a total — that produced a number nobody chose (two budgets of 2000 and 30 implied a
+// "monthly budget" of 8990), and it made every unbudgeted purchase invisible to the allowance.
+data class OverallPace(
+    val budgetId: String,
+    val walletId: String?,
+    val period: BudgetPeriod,
+    val baseLimit: Double,
+    val carried: Double,
+    val periodSpent: Double,
+    val staticDaily: Double,
+    val todayDaily: Double,
+    val spentToday: Double
+) {
+    // carry-over folds the previous period's residual into this period's ceiling.
+    val effectiveLimit: Double get() = baseLimit + carried
+    val periodRemaining: Double get() = effectiveLimit - periodSpent
 }
 
 data class CategoryPace(
@@ -93,8 +123,8 @@ data class CategoryPace(
 
 data class StreakStats(
     val today: LocalDate,
-    // Budgeted categories only. Spending outside them was never part of any limit, so charging it
-    // against the allowance made the figure go negative without breaking an actual budget.
+    // Everything the overall budget covers — all expenses, narrowed to its wallet if it has one.
+    // Empty when there is no overall budget, in which case there is no allowance to judge against.
     val dailyExpenses: Map<String, Double>,
     val dailyExpensesAll: Map<String, Double>,
     val daysWithTx: Set<String>,
@@ -102,6 +132,7 @@ data class StreakStats(
     val todayAllowance: Double,
     val monthlyBudgetEquivalent: Double,
     val unbudgetedToday: Double,
+    val overall: OverallPace?,
     val categoryPaces: List<CategoryPace>,
     val allowance: AllowanceSettings,
     val currentStreak: Int,
@@ -109,7 +140,7 @@ data class StreakStats(
 ) {
     // What earlier days in the window handed to today: positive if you underspent, negative if you
     // overspent. Zero when rollover is off.
-    val carriedIntoToday: Double get() = categoryPaces.sumOf { it.carried }
+    val carriedIntoToday: Double get() = overall?.carried ?: 0.0
 
     val daysWithData: Int get() = daysWithTx.size
     val hasBudgets: Boolean get() = dailyAllowance > 0
@@ -204,19 +235,69 @@ fun computeStreakStats(
         )
     }
 
-    val budgetedNames = paces.map { it.name.lowercase() }.toSet()
-    val budgetedExpenses = expenses.filter { it.category.lowercase() in budgetedNames }
+    // The overall budget — no category, optionally one wallet. Only the first is honoured; a second
+    // would just be two competing definitions of the same total.
+    val overallBudget = budgets.firstOrNull { it.categoryId == null }
 
     fun byDay(list: List<Transaction>) = list
         .groupBy { it.createdAt.take(10) }
         .mapValues { (_, txs) -> txs.sumOf { it.amount } }
 
-    val dailyExpenses = byDay(budgetedExpenses)
     val dailyExpensesAll = byDay(expenses)
     val daysWithTx = transactions.map { it.createdAt.take(10) }.toSet()
 
-    val dailyAllowance = paces.sumOf { it.staticDaily }
-    val todayAllowance = paces.sumOf { it.todayDaily }
+    // An overall budget covers *everything*, which is the whole point of it: no purchase falls
+    // outside the limit the way it did when the total was a sum of category budgets.
+    val coveredExpenses = overallBudget?.let { b ->
+        expenses.filter { b.walletId == null || it.walletId == b.walletId }
+    } ?: emptyList()
+    val dailyExpenses = byDay(coveredExpenses)
+
+    val overall = overallBudget?.let { budget ->
+        val period = BudgetPeriod.from(budget.period)
+        val start = period.start(today)
+
+        fun spentBetween(from: LocalDate, to: LocalDate, excludeToday: Boolean = false) =
+            coveredExpenses.filter { tx ->
+                val d = dateOf(tx) ?: return@filter false
+                !d.isBefore(from) && !d.isAfter(to) &&
+                    !(excludeToday && tx.createdAt.take(10) == todayKey)
+            }.sumOf { it.amount }
+
+        // Carry-over and the daily rollover compose rather than conflict: carry-over moves the
+        // *previous period's* residual into this period's ceiling, while rollover redistributes
+        // this period's ceiling across its remaining days. Only one period back, deliberately —
+        // chaining further would walk unbounded history for a number nobody could trace.
+        val carried = if (budget.carryOver) {
+            val (prevStart, prevEnd) = period.previousRange(today)
+            budget.limitAmount - spentBetween(prevStart, prevEnd)
+        } else 0.0
+
+        val effectiveLimit = budget.limitAmount + carried
+        val staticDaily = (effectiveLimit / period.lengthInDays(today)).coerceAtLeast(0.0)
+        val windowBudget = staticDaily * daysInWindow
+        val spentInWindowBeforeToday = spentBetween(windowStart, today, excludeToday = true)
+        val dynamicDaily = (windowBudget - spentInWindowBeforeToday).coerceAtLeast(0.0) / daysLeftInWindow
+
+        OverallPace(
+            budgetId = budget.id,
+            walletId = budget.walletId,
+            period = period,
+            baseLimit = budget.limitAmount,
+            carried = carried,
+            periodSpent = spentBetween(start, today),
+            staticDaily = staticDaily,
+            todayDaily = if (allowance.rollover) dynamicDaily else min(staticDaily, dynamicDaily),
+            spentToday = dailyExpenses[todayKey] ?: 0.0
+        )
+    }
+
+    // Only the overall budget produces an allowance. Category budgets are limits on their own
+    // domain, not slices of a whole, so adding them up never described anything the user chose.
+    val dailyAllowance = overall?.staticDaily ?: 0.0
+    val todayAllowance = overall?.todayDaily ?: 0.0
+    // With an overall budget nothing is unbudgeted by definition; the figure only means something
+    // for a wallet-scoped one, where spending from other wallets sits outside the cap.
     val unbudgetedToday = (dailyExpensesAll[todayKey] ?: 0.0) - (dailyExpenses[todayKey] ?: 0.0)
 
     fun good(date: LocalDate): Boolean {
@@ -254,6 +335,7 @@ fun computeStreakStats(
         todayAllowance = todayAllowance,
         monthlyBudgetEquivalent = paces.sumOf { it.monthlyEquivalent },
         unbudgetedToday = unbudgetedToday,
+        overall = overall,
         categoryPaces = paces,
         allowance = allowance,
         currentStreak = current,
