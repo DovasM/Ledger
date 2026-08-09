@@ -20,6 +20,7 @@ pub struct WalletRow {
     pub description: String,
     pub currency: String,
     pub balance: f64,
+    pub off_budget: bool,
     pub created_at: String,
 }
 

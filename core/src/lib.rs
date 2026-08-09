@@ -56,6 +56,7 @@ pub struct Wallet {
     pub description: String,
     pub currency: String,
     pub balance: f64,
+    pub off_budget: bool,
     pub created_at: String,
 }
 
@@ -277,40 +278,40 @@ impl LedgerDb {
     pub fn list_wallets(&self) -> Result<Vec<Wallet>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, WalletRow>(
-                "SELECT id, name, description, currency, balance, created_at FROM wallets ORDER BY created_at ASC"
+                "SELECT id, name, description, currency, balance, off_budget, created_at FROM wallets ORDER BY created_at ASC"
             )
             .fetch_all(&self.pool).await?;
             Ok(rows.into_iter().map(row_to_wallet).collect())
         })
     }
 
-    pub fn create_wallet(&self, name: String, description: String, currency: String, initial_balance: f64) -> Result<Wallet, LedgerError> {
+    pub fn create_wallet(&self, name: String, description: String, currency: String, initial_balance: f64, off_budget: bool) -> Result<Wallet, LedgerError> {
         if name.is_empty() { return Err(LedgerError::InvalidInput("name is required".into())); }
         self.rt.block_on(async {
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
             sqlx::query(
-                "INSERT INTO wallets (id, name, description, currency, balance, created_at) VALUES (?,?,?,?,?,?)"
+                "INSERT INTO wallets (id, name, description, currency, balance, off_budget, created_at) VALUES (?,?,?,?,?,?,?)"
             )
-            .bind(&id).bind(&name).bind(&description).bind(&currency).bind(initial_balance).bind(&now)
+            .bind(&id).bind(&name).bind(&description).bind(&currency).bind(initial_balance).bind(off_budget).bind(&now)
             .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, WalletRow>(
-                "SELECT id, name, description, currency, balance, created_at FROM wallets WHERE id=?"
+                "SELECT id, name, description, currency, balance, off_budget, created_at FROM wallets WHERE id=?"
             )
             .bind(&id).fetch_one(&self.pool).await?;
             Ok(row_to_wallet(row))
         })
     }
 
-    pub fn update_wallet(&self, id: String, name: String, description: String, currency: String) -> Result<Wallet, LedgerError> {
+    pub fn update_wallet(&self, id: String, name: String, description: String, currency: String, off_budget: bool) -> Result<Wallet, LedgerError> {
         self.rt.block_on(async {
             sqlx::query("UPDATE wallets SET name=?, description=?, currency=? WHERE id=?")
                 .bind(&name).bind(&description).bind(&currency).bind(&id)
                 .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, WalletRow>(
-                "SELECT id, name, description, currency, balance, created_at FROM wallets WHERE id=?"
+                "SELECT id, name, description, currency, balance, off_budget, created_at FROM wallets WHERE id=?"
             )
             .bind(&id).fetch_optional(&self.pool).await?
             .ok_or(LedgerError::NotFound)?;
@@ -979,7 +980,7 @@ fn row_to_transaction(r: TransactionRow) -> Transaction {
 }
 
 fn row_to_wallet(r: WalletRow) -> Wallet {
-    Wallet { id: r.id, name: r.name, description: r.description, currency: r.currency, balance: r.balance, created_at: r.created_at }
+    Wallet { id: r.id, name: r.name, description: r.description, currency: r.currency, balance: r.balance, off_budget: r.off_budget, created_at: r.created_at }
 }
 
 fn row_to_transfer(r: TransferRow) -> Transfer {

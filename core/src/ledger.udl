@@ -38,6 +38,9 @@ dictionary Wallet {
     string description;
     string currency;
     f64 balance;
+    // Off-budget accounts (a work account, an investment account) still count toward net worth but
+    // are excluded from budgets, the daily allowance and the streak.
+    boolean off_budget;
     string created_at;
 };
 
@@ -161,10 +164,10 @@ interface LedgerDb {
     sequence<Wallet> list_wallets();
 
     [Throws=LedgerError]
-    Wallet create_wallet(string name, string description, string currency, f64 initial_balance);
+    Wallet create_wallet(string name, string description, string currency, f64 initial_balance, boolean off_budget);
 
     [Throws=LedgerError]
-    Wallet update_wallet(string id, string name, string description, string currency);
+    Wallet update_wallet(string id, string name, string description, string currency, boolean off_budget);
 
     [Throws=LedgerError]
     void delete_wallet(string id);

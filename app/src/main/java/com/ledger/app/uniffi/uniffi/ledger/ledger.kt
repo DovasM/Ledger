@@ -873,7 +873,7 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_transfer(`ptr`: Pointer,`fromWalletId`: RustBuffer.ByValue,`toWalletId`: RustBuffer.ByValue,`amount`: Double,`note`: RustBuffer.ByValue,`createdAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_wallet(`ptr`: Pointer,`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`currency`: RustBuffer.ByValue,`initialBalance`: Double,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_wallet(`ptr`: Pointer,`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`currency`: RustBuffer.ByValue,`initialBalance`: Double,`offBudget`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_budget(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -937,7 +937,7 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_transaction(`ptr`: Pointer,`id`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`amount`: Double,`isIncome`: Byte,`note`: RustBuffer.ByValue,`createdAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_wallet(`ptr`: Pointer,`id`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`currency`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_wallet(`ptr`: Pointer,`id`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`currency`: RustBuffer.ByValue,`offBudget`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_clone_llamaengine(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
@@ -1241,7 +1241,7 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_transfer() != 29400.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_wallet() != 26667.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_wallet() != 41520.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_budget() != 15213.toShort()) {
@@ -1337,7 +1337,7 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_transaction() != 51482.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_wallet() != 52291.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_wallet() != 64667.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_llamaengine_count_tokens() != 2007.toShort()) {
@@ -1790,7 +1790,7 @@ public interface LedgerDbInterface {
     
     fun `createTransfer`(`fromWalletId`: kotlin.String, `toWalletId`: kotlin.String, `amount`: kotlin.Double, `note`: kotlin.String?, `createdAt`: kotlin.String?): Transfer
     
-    fun `createWallet`(`name`: kotlin.String, `description`: kotlin.String, `currency`: kotlin.String, `initialBalance`: kotlin.Double): Wallet
+    fun `createWallet`(`name`: kotlin.String, `description`: kotlin.String, `currency`: kotlin.String, `initialBalance`: kotlin.Double, `offBudget`: kotlin.Boolean): Wallet
     
     fun `deleteBudget`(`id`: kotlin.String)
     
@@ -1854,7 +1854,7 @@ public interface LedgerDbInterface {
     
     fun `updateTransaction`(`id`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `isIncome`: kotlin.Boolean, `note`: kotlin.String?, `createdAt`: kotlin.String?): Transaction
     
-    fun `updateWallet`(`id`: kotlin.String, `name`: kotlin.String, `description`: kotlin.String, `currency`: kotlin.String): Wallet
+    fun `updateWallet`(`id`: kotlin.String, `name`: kotlin.String, `description`: kotlin.String, `currency`: kotlin.String, `offBudget`: kotlin.Boolean): Wallet
     
     companion object
 }
@@ -2109,12 +2109,12 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     
 
     
-    @Throws(LedgerException::class)override fun `createWallet`(`name`: kotlin.String, `description`: kotlin.String, `currency`: kotlin.String, `initialBalance`: kotlin.Double): Wallet {
+    @Throws(LedgerException::class)override fun `createWallet`(`name`: kotlin.String, `description`: kotlin.String, `currency`: kotlin.String, `initialBalance`: kotlin.Double, `offBudget`: kotlin.Boolean): Wallet {
             return FfiConverterTypeWallet.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
     UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_create_wallet(
-        it, FfiConverterString.lower(`name`),FfiConverterString.lower(`description`),FfiConverterString.lower(`currency`),FfiConverterDouble.lower(`initialBalance`),_status)
+        it, FfiConverterString.lower(`name`),FfiConverterString.lower(`description`),FfiConverterString.lower(`currency`),FfiConverterDouble.lower(`initialBalance`),FfiConverterBoolean.lower(`offBudget`),_status)
 }
     }
     )
@@ -2514,12 +2514,12 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     
 
     
-    @Throws(LedgerException::class)override fun `updateWallet`(`id`: kotlin.String, `name`: kotlin.String, `description`: kotlin.String, `currency`: kotlin.String): Wallet {
+    @Throws(LedgerException::class)override fun `updateWallet`(`id`: kotlin.String, `name`: kotlin.String, `description`: kotlin.String, `currency`: kotlin.String, `offBudget`: kotlin.Boolean): Wallet {
             return FfiConverterTypeWallet.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
     UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_update_wallet(
-        it, FfiConverterString.lower(`id`),FfiConverterString.lower(`name`),FfiConverterString.lower(`description`),FfiConverterString.lower(`currency`),_status)
+        it, FfiConverterString.lower(`id`),FfiConverterString.lower(`name`),FfiConverterString.lower(`description`),FfiConverterString.lower(`currency`),FfiConverterBoolean.lower(`offBudget`),_status)
 }
     }
     )
@@ -3375,6 +3375,7 @@ data class Wallet (
     var `description`: kotlin.String, 
     var `currency`: kotlin.String, 
     var `balance`: kotlin.Double, 
+    var `offBudget`: kotlin.Boolean, 
     var `createdAt`: kotlin.String
 ) {
     
@@ -3392,6 +3393,7 @@ public object FfiConverterTypeWallet: FfiConverterRustBuffer<Wallet> {
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterDouble.read(buf),
+            FfiConverterBoolean.read(buf),
             FfiConverterString.read(buf),
         )
     }
@@ -3402,6 +3404,7 @@ public object FfiConverterTypeWallet: FfiConverterRustBuffer<Wallet> {
             FfiConverterString.allocationSize(value.`description`) +
             FfiConverterString.allocationSize(value.`currency`) +
             FfiConverterDouble.allocationSize(value.`balance`) +
+            FfiConverterBoolean.allocationSize(value.`offBudget`) +
             FfiConverterString.allocationSize(value.`createdAt`)
     )
 
@@ -3411,6 +3414,7 @@ public object FfiConverterTypeWallet: FfiConverterRustBuffer<Wallet> {
             FfiConverterString.write(value.`description`, buf)
             FfiConverterString.write(value.`currency`, buf)
             FfiConverterDouble.write(value.`balance`, buf)
+            FfiConverterBoolean.write(value.`offBudget`, buf)
             FfiConverterString.write(value.`createdAt`, buf)
     }
 }

@@ -32,6 +32,7 @@ import com.ledger.app.ui.viewmodel.CategoryViewModel
 import com.ledger.app.ui.viewmodel.GoalViewModel
 import com.ledger.app.ui.viewmodel.SettingsViewModel
 import com.ledger.app.ui.viewmodel.TransactionViewModel
+import com.ledger.app.ui.viewmodel.WalletViewModel
 import java.time.DayOfWeek
 import java.time.LocalDate
 
@@ -43,12 +44,14 @@ fun SpendingStreaksScreen(
     budgetViewModel: BudgetViewModel = hiltViewModel(),
     categoryViewModel: CategoryViewModel = hiltViewModel(),
     goalViewModel: GoalViewModel = hiltViewModel(),
-    settingsViewModel: SettingsViewModel = hiltViewModel()
+    settingsViewModel: SettingsViewModel = hiltViewModel(),
+    walletViewModel: WalletViewModel = hiltViewModel()
 ) {
     val txState     by txViewModel.state.collectAsStateWithLifecycle()
     val budgetState by budgetViewModel.state.collectAsStateWithLifecycle()
     val catState    by categoryViewModel.state.collectAsStateWithLifecycle()
     val goalState   by goalViewModel.state.collectAsStateWithLifecycle()
+    val walletState by walletViewModel.state.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) {
         txViewModel.loadAll()
@@ -67,7 +70,8 @@ fun SpendingStreaksScreen(
     val stats = remember(txState.transactions, budgetState.budgets, catState.categories, today, rollover, window) {
         computeStreakStats(
             txState.transactions, budgetState.budgets, catState.categories, today,
-            AllowanceSettings.of(rollover, window)
+            AllowanceSettings.of(rollover, window),
+            offBudgetWalletIds = walletState.wallets.filter { it.offBudget }.map { it.id }.toSet()
         )
     }
     val dailyAllowance = stats.dailyAllowance
