@@ -262,6 +262,27 @@ fun BudgetsScreen(
                 }
             }
 
+            // Legacy data can hold several overall budgets, of which only the newest is used. Show
+            // the others plainly rather than leaving them to sit there doing nothing.
+            val ignoredOverall = budgetState.budgets.filter { it.categoryId == null && it.id != overall?.budgetId }
+            ignoredOverall.forEach { b ->
+                LedgerCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    onClick = { navController.navigate(Screen.EditBudget.createRoute(b.id)) }
+                ) {
+                    Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.ErrorOutline, null, tint = Tertiary, modifier = Modifier.size(20.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Unused overall budget · ${money(b.limitAmount)}", style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "Only one overall budget applies, and the newest wins. Delete this one.",
+                                style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
             Text("Category Budgets", style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.SemiBold)
 
             if (budgetState.isLoading) {

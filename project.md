@@ -630,7 +630,16 @@ balance. `StreakStats.overall` (an `OverallPace`) carries the figure.
 *previous period's* residual into this period's ceiling; `allowance_rollover` redistributes this
 period's ceiling across its remaining days. Spend 800 of an August 1000 with both on, and September's
 ceiling is 1200, which September's rollover then spreads over September. Carry-over reaches back
-exactly **one period** — chaining further would walk unbounded history for a number nobody could
+exactly **one period**, and only if the budget already existed for it — without that guard a fresh
+200/month budget inherited the previous month's 2644 of spending and opened at minus 2244, reported
+as "2692 over" on the day it was created.
+
+**There can be only one overall budget.** "At most X in total" is a single number; a second is a
+contradiction, and it used to be accepted and then silently ignored. `create_budget` now refuses it.
+Legacy data may still hold several — the **newest** counts as the current intent, and
+`BudgetsScreen` lists the others as unused so none sits there doing nothing invisibly.
+
+Chaining carry-over further back would walk unbounded history for a number nobody could
 trace — and it is symmetric, so an overspent period reduces the next.
 
 Unique indexes now cover `categories(name, is_expense)` and `budgets(category_id, wallet_id,

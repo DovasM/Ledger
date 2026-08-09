@@ -621,6 +621,19 @@ impl LedgerDb {
         // state "at most X a month in total"; summing whatever category budgets happen to exist
         // produces an arbitrary number rather than an intention.
         self.rt.block_on(async {
+            // "At most X in total" can only be one number. A second one is not a second budget,
+            // it is a contradiction — and it used to be accepted and then silently ignored.
+            if category_id.is_none() && wallet_id.is_none() {
+                let (existing,): (i64,) = sqlx::query_as(
+                    "SELECT COUNT(*) FROM budgets WHERE category_id IS NULL AND wallet_id IS NULL"
+                ).fetch_one(&self.pool).await?;
+                if existing > 0 {
+                    return Err(LedgerError::InvalidInput(
+                        "an overall budget already exists — edit it instead".into()
+                    ));
+                }
+            }
+
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
             sqlx::query(

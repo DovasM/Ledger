@@ -144,6 +144,21 @@ fun AddEditBudgetScreen(
                 }
             }
 
+            // Rust rejects a second overall budget; without this the refusal was invisible and the
+            // screen just appeared to do nothing.
+            budgetState.error?.let { message ->
+                LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Filled.ErrorOutline, null, tint = Tertiary, modifier = Modifier.size(20.dp))
+                        Text(message, style = MaterialTheme.typography.bodySmall, color = Tertiary)
+                    }
+                }
+            }
+
             // An overall budget (no category) is the only way to say "at most X in total" — the
             // daily allowance comes from it. Category budgets pace one domain and are never summed
             // into a total, because that produced a number nobody chose.
