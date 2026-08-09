@@ -88,7 +88,10 @@ fun EditWalletScreen(
                 onClick = {
                     showErrors = true
                     if (isNameValid) {
-                        viewModel.updateWallet(walletId, name, description) { navController.popBackStack() }
+                        // Editing name or description must not silently clear the wallet's currency.
+                        viewModel.updateWallet(walletId, name, description, wallet?.currency ?: "") {
+                            navController.popBackStack()
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().height(52.dp),

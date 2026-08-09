@@ -270,7 +270,7 @@ private fun OverviewTab(
                         val spent = spentByCategory[cat?.name ?: ""] ?: 0.0
                         val over = spent - b.limitAmount
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(cat?.name ?: b.categoryId, style = MaterialTheme.typography.bodySmall, color = OnSurface)
+                            Text(cat?.name ?: "Budget", style = MaterialTheme.typography.bodySmall, color = OnSurface)
                             Text(
                                 "${"$%,.2f".format(over)} over",
                                 style = MaterialTheme.typography.bodySmall, color = Tertiary, fontWeight = FontWeight.SemiBold

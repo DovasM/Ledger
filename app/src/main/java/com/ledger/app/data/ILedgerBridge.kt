@@ -13,9 +13,15 @@ interface ILedgerBridge {
 
     // ── Wallets ───────────────────────────────────────────────────────────────
     fun listWallets(): List<Wallet>
-    fun createWallet(name: String, description: String, initialBalance: Double): Wallet
-    fun updateWallet(id: String, name: String, description: String): Wallet
+    fun createWallet(name: String, description: String, currency: String, initialBalance: Double): Wallet
+    fun updateWallet(id: String, name: String, description: String, currency: String): Wallet
     fun deleteWallet(id: String)
+    fun countTransactionsForWallet(id: String): UInt
+
+    // ── Transfers ─────────────────────────────────────────────────────────────
+    fun listTransfers(limit: UInt = 500u, offset: UInt = 0u): List<Transfer>
+    fun createTransfer(fromWalletId: String, toWalletId: String, amount: Double, note: String?, createdAt: String? = null): Transfer
+    fun deleteTransfer(id: String)
 
     // ── Savings Goals ─────────────────────────────────────────────────────────
     fun listGoals(): List<SavingsGoal>
@@ -39,11 +45,12 @@ interface ILedgerBridge {
     fun createCategory(name: String, iconName: String, colorHex: String, isExpense: Boolean): Category
     fun updateCategory(id: String, name: String, iconName: String, colorHex: String, isExpense: Boolean): Category
     fun deleteCategory(id: String)
+    fun countTransactionsForCategory(id: String): UInt
 
     // ── Budgets ───────────────────────────────────────────────────────────────
     fun listBudgets(): List<Budget>
-    fun createBudget(categoryId: String, limitAmount: Double, period: String, alertThreshold: Double): Budget
-    fun updateBudget(id: String, limitAmount: Double, period: String, alertThreshold: Double): Budget
+    fun createBudget(categoryId: String?, walletId: String?, limitAmount: Double, period: String, alertThreshold: Double, carryOver: Boolean = false): Budget
+    fun updateBudget(id: String, categoryId: String?, walletId: String?, limitAmount: Double, period: String, alertThreshold: Double, carryOver: Boolean = false): Budget
     fun deleteBudget(id: String)
 
     // ── Debts ─────────────────────────────────────────────────────────────────

@@ -201,11 +201,26 @@ cp target/x86_64-linux-android/release/libuniffi_ledger.so    ../app/src/main/jn
 **Critical:** After changing `ledger.udl` or any Rust public API, regenerate the Kotlin bindings:
 
 ```bash
-cargo run --bin uniffi-bindgen generate src/ledger.udl \
-  --language kotlin --out-dir ../app/src/main/java/
+cd core
+CARGO_TARGET_DIR=C:/lt-host cargo run --release --bin uniffi-bindgen -- \
+  generate src/ledger.udl --language kotlin \
+  --out-dir ../app/src/main/java/com/ledger/app/uniffi/
 ```
 
-The UniFFI checksum baked into the `.so` must match the generated Kotlin file. Stale bindings cause a crash (`UnsatisfiedLinkError: uniffi_..._checksum_...`) on startup.
+Note the `--` before `generate`, the out-dir (the generated file lives at
+`com/ledger/app/uniffi/uniffi/ledger/ledger.kt`, **not** at the repo-root path an older version of
+this file claimed), and a **separate `CARGO_TARGET_DIR`** so the host build does not fight the
+Android one over the same lock.
+
+This only works because `build.rs` now skips the llama.cpp build for non-Android targets. It used
+to build it for whatever target cargo was pointed at, so this command tried to compile llama.cpp
+with MSVC and died — which made regenerating the bindings look impossible on Windows.
+
+The UniFFI checksum baked into the `.so` must match the generated Kotlin file. Stale bindings cause
+a crash (`UnsatisfiedLinkError: uniffi_..._checksum_...`) on startup. **Changing the UDL means
+rebuilding the `.so` too** — regenerating only one half is what produces that crash.
+
+`ktlint` is not installed, so the generator warns it could not auto-format. Harmless.
 
 ---
 
@@ -537,6 +552,58 @@ Rewritten from a fictional on/off list (Android widgets are placed from the laun
 app settings) into: a real `hide amounts` preference, live previews driven by the same snapshot the
 widgets render, and per-widget `AppWidgetManager.requestPinAppWidget` buttons (API 26+, exactly our
 minSdk). Launchers may refuse the pin request, so the long-press instruction stays on screen.
+
+## Schema migrations
+
+`core/src/db/mod.rs` owns a `schema_version` table and numbered migrations (`m1_baseline_tables`,
+`m2_category_links`, `m3_indexes`, `m4_transfers_currency_budgets`). Add the next one as `mN_…`
+plus an `if applied < N` arm.
+
+**Every migration must be idempotent, without exception.** Databases predating the version table
+bootstrap at 0 and re-run everything, and that property is what let the table be introduced
+mid-life at all. In practice: `CREATE … IF NOT EXISTS`, `UPDATE … WHERE <not already done>`, and
+for `ALTER TABLE … ADD COLUMN` (which has no `IF NOT EXISTS` in SQLite) swallow the error.
+
+**Do not edit a migration that has shipped.** `m1` still creates the *old* `budgets` shape; `m4`
+reshapes it. That is deliberate — a fresh database replays history and lands in the same state as
+an upgraded one, which is the only way the two stay comparable.
+
+**Relaxing `NOT NULL` needs a table rebuild.** SQLite cannot `ALTER` it away.
+`rebuild_budgets_if_needed` creates the new table, copies, drops, renames — guarded by
+`PRAGMA table_info`, which is what makes it idempotent. Verified to preserve rows.
+
+## Transfers
+
+A transfer is neither income nor expense. Folded into `transactions` it would show as an expense in
+one wallet and income in the other, and **every report would count it twice**. It gets its own
+table, which also matches Money Manager's backup shape so imports map one-to-one.
+
+`create_transfer` moves balance between both wallets and `delete_transfer` puts it back; neither
+touches income or expense totals. Deleting a wallet deletes transfers on either side of it.
+
+## Wallet currency
+
+`wallets.currency` exists as of `m4`. Before that the Money Manager import passed the account's
+currency code as the wallet **description**, so every imported wallet was described as "EUR"; the
+migration moves any three-uppercase-letter description into the new column. New wallets take the
+base currency preference. Conversion between currencies is not implemented — the column records
+what a wallet holds, nothing more.
+
+## Budgets
+
+`category_id` is nullable and `wallet_id` was added, so a budget can cap a category, a wallet, or a
+category within a wallet; `create_budget` rejects one scoped to neither. `carry_over` is stored but
+**not yet acted on** — and note it is a different concept from the shipped `allowance_rollover`
+preference, which redistributes the *daily* figure inside a period without changing the budget.
+Deciding whether they compose is still open.
+
+Unique indexes now cover `categories(name, is_expense)` and `budgets(category_id, wallet_id,
+period)`. The latter matters because `CategoryPace` **sums** every budget for a category, so
+duplicates silently inflated the limit. NULLs compare distinct in SQLite, so several wallet-only
+budgets can still share a period.
+
+`CategoryPace` and `BudgetsScreen` currently drop budgets with no category, so wallet-only budgets
+exist in the data layer but have no UI yet.
 
 ## How transactions link to categories
 

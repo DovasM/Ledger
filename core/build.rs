@@ -18,6 +18,16 @@ fn main() {
     }
 
     let target = env::var("TARGET").unwrap_or_default();
+
+    // The AI engine only ships on Android, but this used to build llama.cpp for whatever target
+    // cargo was pointed at. That made `cargo run --bin uniffi-bindgen` — a host build that needs
+    // nothing but the UDL parser — try to compile llama.cpp with MSVC and fail, which is why
+    // regenerating the Kotlin bindings appeared impossible on this machine.
+    if !target.contains("android") {
+        println!("cargo:warning=non-Android target ({target}) — skipping llama.cpp build");
+        return;
+    }
+
     let ndk = env::var("ANDROID_NDK_HOME")
         .unwrap_or_else(|_| "C:/Users/dedek/AppData/Local/Android/Sdk/ndk/30.0.14904198".into());
 

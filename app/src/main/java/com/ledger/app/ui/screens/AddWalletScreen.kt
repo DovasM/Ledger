@@ -22,17 +22,24 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.viewmodel.SettingsViewModel
 import com.ledger.app.ui.viewmodel.WalletViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddWalletScreen(
     navController: NavController,
-    viewModel: WalletViewModel = hiltViewModel()
+    viewModel: WalletViewModel = hiltViewModel(),
+    settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
+    // New wallets take the base currency; per-wallet currencies are editable once multi-currency
+    // conversion exists.
+    val baseCurrency by settingsViewModel.currencyCode.collectAsStateWithLifecycle()
+
     var name by remember { mutableStateOf("") }
     var balance by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -137,7 +144,7 @@ fun AddWalletScreen(
                 onClick = {
                     showErrors = true
                     if (isNameValid && isBalanceValid) {
-                        viewModel.createWallet(name, description.ifBlank { selectedType }, balance.toDouble()) {
+                        viewModel.createWallet(name, description.ifBlank { selectedType }, baseCurrency, balance.toDouble()) {
                             navController.popBackStack()
                         }
                     }
