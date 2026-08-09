@@ -54,10 +54,12 @@ fun AddEditBudgetScreen(
             else 0
         )
     }
+    var isOverall by remember(existingBudget) { mutableStateOf(isEdit && existingBudget?.categoryId == null) }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
     var amount by remember(existingBudget) { mutableStateOf(existingBudget?.limitAmount?.toString() ?: "") }
     var selectedPeriod by remember(existingBudget) { mutableStateOf(existingBudget?.period?.replaceFirstChar { it.uppercase() } ?: "Monthly") }
-    var rollover by remember { mutableStateOf(false) }
+    // Was a dead toggle: the switch existed but nothing stored it. Now wired to Budget.carryOver.
+    var rollover by remember(existingBudget) { mutableStateOf(existingBudget?.carryOver ?: false) }
     var alertAt by remember(existingBudget) {
         mutableStateOf(
             existingBudget?.alertThreshold?.toInt()?.toString() ?: "80"
@@ -128,7 +130,10 @@ fun AddEditBudgetScreen(
                         Icon(icon, null, tint = Color.White, modifier = Modifier.size(26.dp))
                     }
                     Column(modifier = Modifier.weight(1f)) {
-                        Text(selectedCategory?.name ?: "Select category", style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.SemiBold)
+                        Text(
+                            if (isOverall) "Everything" else selectedCategory?.name ?: "Select category",
+                            style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.SemiBold
+                        )
                         Text(selectedPeriod, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                     }
                     Text(
@@ -139,8 +144,36 @@ fun AddEditBudgetScreen(
                 }
             }
 
-            // Category — only for new budgets
+            // An overall budget (no category) is the only way to say "at most X in total" — the
+            // daily allowance comes from it. Category budgets pace one domain and are never summed
+            // into a total, because that produced a number nobody chose.
             if (!isEdit) {
+                LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Text("Scope", style = MaterialTheme.typography.titleSmall, color = OnSurfaceVariant, fontWeight = FontWeight.SemiBold)
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            SegmentedButton(
+                                selected = isOverall,
+                                onClick = { isOverall = true },
+                                shape = SegmentedButtonDefaults.itemShape(index = 0, count = 2)
+                            ) { Text("Overall") }
+                            SegmentedButton(
+                                selected = !isOverall,
+                                onClick = { isOverall = false },
+                                shape = SegmentedButtonDefaults.itemShape(index = 1, count = 2)
+                            ) { Text("Category") }
+                        }
+                        Text(
+                            if (isOverall) "Caps everything you spend, and drives the daily allowance shown on the widget."
+                            else "Caps one category. Shown as pacing, but it does not set the daily allowance.",
+                            style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                        )
+                    }
+                }
+            }
+
+            // Category — only for new category-scoped budgets
+            if (!isEdit && !isOverall) {
                 LedgerCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                         Text("Category", style = MaterialTheme.typography.titleSmall, color = OnSurfaceVariant, fontWeight = FontWeight.SemiBold)
@@ -256,9 +289,9 @@ fun AddEditBudgetScreen(
             Button(
                 onClick = {
                     showErrors = true
-                    val categoryId = selectedCategory?.id
+                    val categoryId = if (isOverall) null else selectedCategory?.id
                     val limitAmount = amount.toDoubleOrNull()
-                    val canSave = isAmountValid && limitAmount != null && (isEdit || categoryId != null)
+                    val canSave = isAmountValid && limitAmount != null && (isEdit || isOverall || categoryId != null)
                     if (canSave) {
                         val period = selectedPeriod.lowercase()
                         val threshold = alertAt.toDoubleOrNull()?.coerceIn(1.0, 100.0) ?: 80.0
@@ -271,10 +304,12 @@ fun AddEditBudgetScreen(
                                 existingBudget?.categoryId,
                                 existingBudget?.walletId,
                                 limitAmount!!, period, threshold,
-                                existingBudget?.carryOver ?: false
+                                rollover
                             ) { navController.popBackStack() }
-                        } else if (categoryId != null) {
-                            budgetViewModel.createBudget(categoryId, null, limitAmount!!, period, threshold) { navController.popBackStack() }
+                        } else {
+                            budgetViewModel.createBudget(categoryId, null, limitAmount!!, period, threshold, rollover) {
+                                navController.popBackStack()
+                            }
                         }
                     }
                 },

@@ -611,19 +611,38 @@ what a wallet holds, nothing more.
 
 ## Budgets
 
-`category_id` is nullable and `wallet_id` was added, so a budget can cap a category, a wallet, or a
-category within a wallet; `create_budget` rejects one scoped to neither. `carry_over` is stored but
-**not yet acted on** — and note it is a different concept from the shipped `allowance_rollover`
-preference, which redistributes the *daily* figure inside a period without changing the budget.
-Deciding whether they compose is still open.
+Three scopes, decided by which ids are set:
+
+| `category_id` | `wallet_id` | Meaning |
+|---|---|---|
+| null | null | **Overall** — caps everything you spend. Drives the daily allowance |
+| null | set | Overall, narrowed to one wallet |
+| set | — | A category limit. Paces that category; never sets the allowance |
+
+**Only the overall budget produces the daily allowance.** Category budgets used to be *summed* into
+a total, which invented a figure nobody chose — two budgets of 2000/week and 30/week implied a
+"monthly budget" of 8990 — and it left every purchase outside those categories invisible to the
+allowance. They are limits on their own domain, not slices of a whole, so they are no longer added
+up. With no overall budget there is simply no allowance, and the widget falls back to showing
+balance. `StreakStats.overall` (an `OverallPace`) carries the figure.
+
+**`carry_over` and `allowance_rollover` compose; they do not double-count.** `carry_over` moves the
+*previous period's* residual into this period's ceiling; `allowance_rollover` redistributes this
+period's ceiling across its remaining days. Spend 800 of an August 1000 with both on, and September's
+ceiling is 1200, which September's rollover then spreads over September. Carry-over reaches back
+exactly **one period** — chaining further would walk unbounded history for a number nobody could
+trace — and it is symmetric, so an overspent period reduces the next.
 
 Unique indexes now cover `categories(name, is_expense)` and `budgets(category_id, wallet_id,
 period)`. The latter matters because `CategoryPace` **sums** every budget for a category, so
 duplicates silently inflated the limit. NULLs compare distinct in SQLite, so several wallet-only
 budgets can still share a period.
 
-`CategoryPace` and `BudgetsScreen` currently drop budgets with no category, so wallet-only budgets
-exist in the data layer but have no UI yet.
+`BudgetsScreen` renders the overall budget as its own "Everything" row and leads the overview card
+with it; when there is none it says there is no daily allowance rather than presenting the sum of
+category limits as if it were a total. A **wallet-scoped** overall budget
+(`category_id = null, wallet_id = X`) is supported by the data layer but the scope selector only
+offers Overall or Category.
 
 ## How transactions link to categories
 

@@ -617,10 +617,9 @@ impl LedgerDb {
 
     pub fn create_budget(&self, category_id: Option<String>, wallet_id: Option<String>, limit_amount: f64, period: String, alert_threshold: f64, carry_over: bool) -> Result<Budget, LedgerError> {
         if limit_amount <= 0.0 { return Err(LedgerError::InvalidInput("limit must be positive".into())); }
-        // A budget scoped to neither a category nor a wallet would silently apply to everything.
-        if category_id.is_none() && wallet_id.is_none() {
-            return Err(LedgerError::InvalidInput("a budget needs a category or a wallet".into()));
-        }
+        // Both null is the *overall* budget — a cap on everything you spend. It is the only way to
+        // state "at most X a month in total"; summing whatever category budgets happen to exist
+        // produces an arbitrary number rather than an intention.
         self.rt.block_on(async {
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
@@ -640,9 +639,6 @@ impl LedgerDb {
 
     pub fn update_budget(&self, id: String, category_id: Option<String>, wallet_id: Option<String>, limit_amount: f64, period: String, alert_threshold: f64, carry_over: bool) -> Result<Budget, LedgerError> {
         if limit_amount <= 0.0 { return Err(LedgerError::InvalidInput("limit must be positive".into())); }
-        if category_id.is_none() && wallet_id.is_none() {
-            return Err(LedgerError::InvalidInput("a budget needs a category or a wallet".into()));
-        }
         self.rt.block_on(async {
             sqlx::query("UPDATE budgets SET category_id=?, wallet_id=?, limit_amount=?, period=?, alert_threshold=?, carry_over=? WHERE id=?")
                 .bind(&category_id).bind(&wallet_id).bind(limit_amount).bind(&period).bind(alert_threshold).bind(carry_over).bind(&id)
