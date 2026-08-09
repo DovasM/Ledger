@@ -601,6 +601,21 @@ icon in the WalletsList top bar. It shows both balances *after* the move so an o
 is visible before saving, and refuses the same wallet on both sides. Transfers are not listed
 anywhere yet — created but not viewable or deletable from the UI.
 
+## Off-budget wallets
+
+`wallets.off_budget` keeps an account out of budgets, the daily allowance and the streak, while it
+still counts toward net worth. It exists because an overall budget covers *everything* by
+definition, so a work or investment account's activity would otherwise eat the personal budget.
+
+**The flag lives on the wallet, not on the budget.** "This account should not count" is a property
+of the account: a work account stays out however many budgets exist, and a new personal wallet joins
+automatically. Scoping per budget would need a join table and re-editing every budget whenever an
+account is added — and `budgets.wallet_id` (which narrows one budget to one wallet) cannot express
+"my personal spending lives across three wallets".
+
+`computeStreakStats` takes `offBudgetWalletIds` and filters expenses and streak days by it; callers
+pass `wallets.filter { it.offBudget }`. Reports and statistics screens do **not** filter yet.
+
 ## Wallet currency
 
 `wallets.currency` exists as of `m4`. Before that the Money Manager import passed the account's

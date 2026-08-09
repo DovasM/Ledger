@@ -20,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -40,6 +41,7 @@ fun AddWalletScreen(
     // conversion exists.
     val baseCurrency by settingsViewModel.currencyCode.collectAsStateWithLifecycle()
 
+    var offBudget by remember { mutableStateOf(false) }
     var name by remember { mutableStateOf("") }
     var balance by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
@@ -139,12 +141,14 @@ fun AddWalletScreen(
             LedgerTextField(value = description, onValueChange = { description = it },
                 label = "Description (optional)", modifier = Modifier.fillMaxWidth())
 
+            OffBudgetToggle(checked = offBudget, onCheckedChange = { offBudget = it })
+
             Spacer(Modifier.height(8.dp))
             Button(
                 onClick = {
                     showErrors = true
                     if (isNameValid && isBalanceValid) {
-                        viewModel.createWallet(name, description.ifBlank { selectedType }, baseCurrency, balance.toDouble()) {
+                        viewModel.createWallet(name, description.ifBlank { selectedType }, baseCurrency, balance.toDouble(), offBudget) {
                             navController.popBackStack()
                         }
                     }
@@ -155,6 +159,33 @@ fun AddWalletScreen(
             ) {
                 Text("Create Wallet", style = MaterialTheme.typography.labelLarge)
             }
+        }
+    }
+}
+
+// "This account should not count toward my budget" is a property of the account, not of each
+// budget — a work account stays off-budget however many budgets exist, and a new personal wallet
+// joins them automatically. Shared by the add and edit screens.
+@Composable
+fun OffBudgetToggle(checked: Boolean, onCheckedChange: (Boolean) -> Unit) {
+    LedgerCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text("Off budget", style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
+                Text(
+                    "Keep this account out of budgets, the daily allowance and the streak — for a work or investment account whose activity should not eat your personal budget. It still counts toward net worth.",
+                    style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                )
+            }
+            Switch(
+                checked = checked,
+                onCheckedChange = onCheckedChange,
+                colors = SwitchDefaults.colors(checkedThumbColor = OnPrimary, checkedTrackColor = Primary)
+            )
         }
     }
 }

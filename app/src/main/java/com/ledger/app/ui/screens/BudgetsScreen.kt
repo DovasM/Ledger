@@ -34,6 +34,7 @@ import com.ledger.app.ui.viewmodel.BudgetViewModel
 import com.ledger.app.ui.viewmodel.CategoryViewModel
 import com.ledger.app.ui.viewmodel.SettingsViewModel
 import com.ledger.app.ui.viewmodel.TransactionViewModel
+import com.ledger.app.ui.viewmodel.WalletViewModel
 import uniffi.ledger.Budget
 import uniffi.ledger.Category
 import java.time.LocalDate
@@ -71,11 +72,13 @@ fun BudgetsScreen(
     budgetViewModel: BudgetViewModel = hiltViewModel(),
     categoryViewModel: CategoryViewModel = hiltViewModel(),
     transactionViewModel: TransactionViewModel = hiltViewModel(),
-    settingsViewModel: SettingsViewModel = hiltViewModel()
+    settingsViewModel: SettingsViewModel = hiltViewModel(),
+    walletViewModel: WalletViewModel = hiltViewModel()
 ) {
     val budgetState by budgetViewModel.state.collectAsStateWithLifecycle()
     val categoryState by categoryViewModel.state.collectAsStateWithLifecycle()
     val txState by transactionViewModel.state.collectAsStateWithLifecycle()
+    val walletState by walletViewModel.state.collectAsStateWithLifecycle()
     val currency by settingsViewModel.currencyCode.collectAsStateWithLifecycle()
     val numberFormat by settingsViewModel.numberFormatIndex.collectAsStateWithLifecycle()
     val rollover by settingsViewModel.allowanceRollover.collectAsStateWithLifecycle()
@@ -92,7 +95,8 @@ fun BudgetsScreen(
     val stats = remember(txState.transactions, budgetState.budgets, categoryState.categories, today, rollover, window) {
         computeStreakStats(
             txState.transactions, budgetState.budgets, categoryState.categories, today,
-            AllowanceSettings.of(rollover, window)
+            AllowanceSettings.of(rollover, window),
+            offBudgetWalletIds = walletState.wallets.filter { it.offBudget }.map { it.id }.toSet()
         )
     }
     val rows = stats.categoryPaces.mapNotNull { pace ->

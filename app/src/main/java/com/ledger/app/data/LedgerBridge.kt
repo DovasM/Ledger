@@ -38,11 +38,11 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
 
     override fun listWallets() = db.listWallets()
 
-    override fun createWallet(name: String, description: String, currency: String, initialBalance: Double) =
-        db.createWallet(name, description, currency, initialBalance)
+    override fun createWallet(name: String, description: String, currency: String, initialBalance: Double, offBudget: Boolean) =
+        db.createWallet(name, description, currency, initialBalance, offBudget)
 
-    override fun updateWallet(id: String, name: String, description: String, currency: String) =
-        db.updateWallet(id, name, description, currency)
+    override fun updateWallet(id: String, name: String, description: String, currency: String, offBudget: Boolean) =
+        db.updateWallet(id, name, description, currency, offBudget)
 
     override fun deleteWallet(id: String) = db.deleteWallet(id)
 

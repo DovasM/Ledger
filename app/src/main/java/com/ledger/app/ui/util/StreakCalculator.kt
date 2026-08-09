@@ -180,10 +180,15 @@ fun computeStreakStats(
     budgets: List<Budget>,
     categories: List<Category>,
     today: LocalDate = LocalDate.now(),
-    allowance: AllowanceSettings = AllowanceSettings()
+    allowance: AllowanceSettings = AllowanceSettings(),
+    // Wallets flagged off-budget — a work or investment account — are excluded from every figure
+    // here. Without this a work account's activity eats the personal budget, which is the whole
+    // reason the flag exists.
+    offBudgetWalletIds: Set<String> = emptySet()
 ): StreakStats {
     val nameById = categories.associateBy({ it.id }, { it.name })
-    val expenses = transactions.filter { !it.isIncome }
+    val expenses = transactions
+        .filter { !it.isIncome && it.walletId !in offBudgetWalletIds }
     val monthPrefix = "%04d-%02d".format(today.year, today.monthValue)
     val todayKey = today.toString()
 
@@ -245,7 +250,9 @@ fun computeStreakStats(
         .mapValues { (_, txs) -> txs.sumOf { it.amount } }
 
     val dailyExpensesAll = byDay(expenses)
-    val daysWithTx = transactions.map { it.createdAt.take(10) }.toSet()
+    val daysWithTx = transactions
+        .filter { it.walletId !in offBudgetWalletIds }
+        .map { it.createdAt.take(10) }.toSet()
 
     // An overall budget covers *everything*, which is the whole point of it: no purchase falls
     // outside the limit the way it did when the total was a sum of category budgets.

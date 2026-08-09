@@ -13,8 +13,8 @@ interface ILedgerBridge {
 
     // ── Wallets ───────────────────────────────────────────────────────────────
     fun listWallets(): List<Wallet>
-    fun createWallet(name: String, description: String, currency: String, initialBalance: Double): Wallet
-    fun updateWallet(id: String, name: String, description: String, currency: String): Wallet
+    fun createWallet(name: String, description: String, currency: String, initialBalance: Double, offBudget: Boolean = false): Wallet
+    fun updateWallet(id: String, name: String, description: String, currency: String, offBudget: Boolean = false): Wallet
     fun deleteWallet(id: String)
     fun countTransactionsForWallet(id: String): UInt
 

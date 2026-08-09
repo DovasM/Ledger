@@ -53,7 +53,8 @@ class WidgetUpdater @Inject constructor(
 
         val stats = computeStreakStats(
             transactions, budgets, categories, today,
-            AllowanceSettings.of(prefs.allowanceRollover.first(), prefs.allowanceWindow.first())
+            AllowanceSettings.of(prefs.allowanceRollover.first(), prefs.allowanceWindow.first()),
+            offBudgetWalletIds = wallets.filter { it.offBudget }.map { it.id }.toSet()
         )
 
         val monthPrefix = "%04d-%02d".format(today.year, today.monthValue)

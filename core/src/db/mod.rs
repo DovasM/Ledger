@@ -49,7 +49,22 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         m4_transfers_currency_budgets(pool).await?;
         record_version(pool, 4).await?;
     }
+    if applied < 5 {
+        m5_off_budget_wallets(pool).await?;
+        record_version(pool, 5).await?;
+    }
 
+    Ok(())
+}
+
+// "This account should not count toward my budget" is a property of the account, not of each
+// budget — a work account stays off-budget no matter how many budgets exist, and a new personal
+// wallet joins automatically. A per-budget wallet list would need a join table and re-editing every
+// budget whenever an account is added.
+async fn m5_off_budget_wallets(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    let _ = sqlx::query("ALTER TABLE wallets ADD COLUMN off_budget INTEGER NOT NULL DEFAULT 0")
+        .execute(pool)
+        .await;
     Ok(())
 }
 

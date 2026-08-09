@@ -29,6 +29,7 @@ fun EditWalletScreen(
 
     var name by remember(wallet) { mutableStateOf(wallet?.name ?: "") }
     var description by remember(wallet) { mutableStateOf(wallet?.description ?: "") }
+    var offBudget by remember(wallet) { mutableStateOf(wallet?.offBudget ?: false) }
     var showDeleteDialog by remember { mutableStateOf(false) }
     var showErrors by remember { mutableStateOf(false) }
 
@@ -100,13 +101,14 @@ fun EditWalletScreen(
                 supportingText = if (showErrors && !isNameValid) "Wallet name is required" else null)
             LedgerTextField(value = description, onValueChange = { description = it },
                 label = "Description", modifier = Modifier.fillMaxWidth())
+            OffBudgetToggle(checked = offBudget, onCheckedChange = { offBudget = it })
             Spacer(Modifier.height(8.dp))
             Button(
                 onClick = {
                     showErrors = true
                     if (isNameValid) {
                         // Editing name or description must not silently clear the wallet's currency.
-                        viewModel.updateWallet(walletId, name, description, wallet?.currency ?: "") {
+                        viewModel.updateWallet(walletId, name, description, wallet?.currency ?: "", offBudget) {
                             navController.popBackStack()
                         }
                     }
