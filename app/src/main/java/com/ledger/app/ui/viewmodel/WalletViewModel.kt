@@ -9,6 +9,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import uniffi.ledger.Wallet
 import javax.inject.Inject
 
@@ -38,6 +39,12 @@ class WalletViewModel @Inject constructor(
                 _state.value = _state.value.copy(isLoading = false, error = e.message)
             }
         }
+    }
+
+    // Deleting a wallet deletes every transaction in it, so the confirmation needs a real number
+    // rather than a vague warning.
+    suspend fun countTransactions(walletId: String): Int = withContext(Dispatchers.IO) {
+        runCatching { bridge.countTransactionsForWallet(walletId).toInt() }.getOrDefault(0)
     }
 
     fun createWallet(name: String, description: String, currency: String, initialBalance: Double, onSuccess: () -> Unit = {}) {

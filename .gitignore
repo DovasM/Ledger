@@ -80,3 +80,6 @@ test/
 
 # Kotlin 2.x build session data
 .kotlin/
+
+# Local tool config — may contain API keys
+.codex/

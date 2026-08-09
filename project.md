@@ -92,7 +92,7 @@ Ledger/
 │       │   └── SeedDataUtil.kt            # Dev seed data
 │       ├── ui/
 │       │   ├── navigation/NavGraph.kt     # All routes + NavHost
-│       │   ├── viewmodel/                 # 13 ViewModels
+│       │   ├── viewmodel/                 # 15 ViewModels
 │       │   ├── screens/                   # 60+ Composable screens
 │       │   ├── components/                # Shared components
 │       │   ├── theme/                     # Color, Type, Theme
@@ -553,6 +553,21 @@ app settings) into: a real `hide amounts` preference, live previews driven by th
 widgets render, and per-widget `AppWidgetManager.requestPinAppWidget` buttons (API 26+, exactly our
 minSdk). Launchers may refuse the pin request, so the long-press instruction stays on screen.
 
+## Wallet balances
+
+`wallets.balance` is a **stored running total**, not a sum computed on read. Anything that changes a
+transaction or a transfer must therefore move the balance too, and two paths did not:
+`delete_transaction` left the removed amount in the balance forever, and `update_transaction` kept
+the old figure after an edit. Both now reverse the previous effect before applying the new one.
+
+**Every money mutation runs inside a `pool.begin()` transaction.** An insert plus a balance update,
+or a transfer's two balance updates, must land together or not at all — a half-applied write is
+silent corruption in a finance app. `resolve_category_id` is deliberately called *before* the
+transaction opens: a stray category left by a failed insert is harmless, an unbalanced wallet is not.
+
+`create_transfer` also checks both wallets exist first, because nothing enforces the foreign keys at
+runtime (see the cascade note below).
+
 ## Schema migrations
 
 `core/src/db/mod.rs` owns a `schema_version` table and numbered migrations (`m1_baseline_tables`,
@@ -580,6 +595,11 @@ table, which also matches Money Manager's backup shape so imports map one-to-one
 
 `create_transfer` moves balance between both wallets and `delete_transfer` puts it back; neither
 touches income or expense totals. Deleting a wallet deletes transfers on either side of it.
+
+`AddTransferScreen` (+ `TransferViewModel`, route `Screen.AddTransfer`) is reached from the swap
+icon in the WalletsList top bar. It shows both balances *after* the move so an overdrawing transfer
+is visible before saving, and refuses the same wallet on both sides. Transfers are not listed
+anywhere yet — created but not viewable or deletable from the UI.
 
 ## Wallet currency
 

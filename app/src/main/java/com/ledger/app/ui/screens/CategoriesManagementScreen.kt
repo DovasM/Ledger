@@ -83,7 +83,7 @@ fun CategoriesManagementScreen(
                     LedgerCard(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(8.dp)) {
                             expenseCategories.forEachIndexed { idx, cat ->
-                                CategoryRow(cat, navController, onDelete = { viewModel.deleteCategory(cat.id) })
+                                CategoryRow(cat, navController, countTransactions = viewModel::countTransactions, onDelete = { viewModel.deleteCategory(cat.id) })
                                 if (idx < expenseCategories.lastIndex) {
                                     HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = OutlineVariant.copy(alpha = 0.15f))
                                 }
@@ -97,7 +97,7 @@ fun CategoriesManagementScreen(
                     LedgerCard(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(8.dp)) {
                             incomeCategories.forEachIndexed { idx, cat ->
-                                CategoryRow(cat, navController, onDelete = { viewModel.deleteCategory(cat.id) })
+                                CategoryRow(cat, navController, countTransactions = viewModel::countTransactions, onDelete = { viewModel.deleteCategory(cat.id) })
                                 if (idx < incomeCategories.lastIndex) {
                                     HorizontalDivider(modifier = Modifier.padding(horizontal = 8.dp), color = OutlineVariant.copy(alpha = 0.15f))
                                 }
@@ -129,14 +129,32 @@ fun CategoriesManagementScreen(
 }
 
 @Composable
-private fun CategoryRow(cat: Category, navController: NavController, onDelete: () -> Unit) {
+private fun CategoryRow(
+    cat: Category,
+    navController: NavController,
+    countTransactions: suspend (String) -> Int,
+    onDelete: () -> Unit
+) {
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var deleteCount by remember { mutableStateOf<Int?>(null) }
+    LaunchedEffect(showDeleteDialog) {
+        if (showDeleteDialog) deleteCount = countTransactions(cat.id)
+    }
 
     if (showDeleteDialog) {
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("Delete Category") },
-            text = { Text("Delete \"${cat.name}\"? Existing transactions will keep their category label.", style = MaterialTheme.typography.bodyMedium) },
+            text = {
+                Text(
+                    when (val n = deleteCount) {
+                        null -> "Checking what uses \"${cat.name}\"…"
+                        0    -> "Delete \"${cat.name}\"? Nothing is filed under it."
+                        else -> "$n transaction${if (n == 1) "" else "s"} filed under \"${cat.name}\" will keep the label but lose the link, and any budget for it is removed."
+                    },
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
             confirmButton = {
                 TextButton(onClick = { onDelete(); showDeleteDialog = false }) {
                     Text("Delete", color = Tertiary)
