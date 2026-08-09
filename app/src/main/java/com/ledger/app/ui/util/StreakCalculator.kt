@@ -235,9 +235,10 @@ fun computeStreakStats(
         )
     }
 
-    // The overall budget — no category, optionally one wallet. Only the first is honoured; a second
-    // would just be two competing definitions of the same total.
-    val overallBudget = budgets.firstOrNull { it.categoryId == null }
+    // "At most X in total" can only be one number, so a second overall budget is a contradiction.
+    // create_budget now refuses one, but legacy data can still hold several — take the most recent
+    // as the current intent. BudgetsScreen lists the rest so none is silently ignored.
+    val overallBudget = budgets.filter { it.categoryId == null }.maxByOrNull { it.createdAt }
 
     fun byDay(list: List<Transaction>) = list
         .groupBy { it.createdAt.take(10) }
@@ -268,9 +269,16 @@ fun computeStreakStats(
         // *previous period's* residual into this period's ceiling, while rollover redistributes
         // this period's ceiling across its remaining days. Only one period back, deliberately —
         // chaining further would walk unbounded history for a number nobody could trace.
+        //
+        // The previous period only counts if the budget already existed for it. Without this, a
+        // budget created today inherits a "deficit" measured against a limit that was never in
+        // force: a fresh 200/month budget picked up last month's 2644 of spending and opened at
+        // minus 2244.
+        val createdOn = runCatching { LocalDate.parse(budget.createdAt.take(10)) }.getOrNull()
         val carried = if (budget.carryOver) {
             val (prevStart, prevEnd) = period.previousRange(today)
-            budget.limitAmount - spentBetween(prevStart, prevEnd)
+            if (createdOn != null && createdOn.isAfter(prevStart)) 0.0
+            else budget.limitAmount - spentBetween(prevStart, prevEnd)
         } else 0.0
 
         val effectiveLimit = budget.limitAmount + carried
