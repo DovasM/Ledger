@@ -11,7 +11,71 @@ pub async fn open_pool(db_path: &str) -> Result<SqlitePool, sqlx::Error> {
     Ok(pool)
 }
 
+// Schema changes are numbered and recorded, rather than the previous mix of
+// CREATE TABLE IF NOT EXISTS and ALTER statements whose errors were swallowed. That worked while
+// there were two of them; it cannot be reasoned about once there are ten.
+//
+// Databases that predate this table bootstrap at version 0 and re-run m1 and m2, so **every
+// migration must stay idempotent** — no exceptions, even for future ones. It costs little and it
+// is the property that makes a mid-life migration table safe to introduce at all.
 async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        "CREATE TABLE IF NOT EXISTS schema_version (
+            version    INTEGER PRIMARY KEY,
+            applied_at TEXT NOT NULL
+        )",
+    )
+    .execute(pool)
+    .await?;
+
+    let (applied,): (i64,) =
+        sqlx::query_as("SELECT COALESCE(MAX(version), 0) FROM schema_version")
+            .fetch_one(pool)
+            .await?;
+
+    if applied < 1 {
+        m1_baseline_tables(pool).await?;
+        record_version(pool, 1).await?;
+    }
+    if applied < 2 {
+        m2_category_links(pool).await?;
+        record_version(pool, 2).await?;
+    }
+    if applied < 3 {
+        m3_indexes(pool).await?;
+        record_version(pool, 3).await?;
+    }
+
+    Ok(())
+}
+
+async fn record_version(pool: &SqlitePool, version: i64) -> Result<(), sqlx::Error> {
+    sqlx::query("INSERT OR REPLACE INTO schema_version (version, applied_at) VALUES (?, ?)")
+        .bind(version)
+        .bind(chrono::Utc::now().to_rfc3339())
+        .execute(pool)
+        .await?;
+    Ok(())
+}
+
+// Nothing here is indexed by default beyond the primary keys, so every category breakdown and
+// wallet filter was a full table scan.
+async fn m3_indexes(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    for stmt in [
+        "CREATE INDEX IF NOT EXISTS idx_tx_wallet    ON transactions(wallet_id)",
+        "CREATE INDEX IF NOT EXISTS idx_tx_category  ON transactions(category_id)",
+        "CREATE INDEX IF NOT EXISTS idx_tx_created   ON transactions(created_at)",
+        "CREATE INDEX IF NOT EXISTS idx_rec_wallet   ON recurring_transactions(wallet_id)",
+        "CREATE INDEX IF NOT EXISTS idx_rec_category ON recurring_transactions(category_id)",
+        "CREATE INDEX IF NOT EXISTS idx_budget_cat   ON budgets(category_id)",
+        "CREATE INDEX IF NOT EXISTS idx_taglink_tag  ON transaction_tags(tag_id)",
+    ] {
+        sqlx::query(stmt).execute(pool).await?;
+    }
+    Ok(())
+}
+
+async fn m1_baseline_tables(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     sqlx::query(
         r#"
         CREATE TABLE IF NOT EXISTS wallets (
@@ -113,7 +177,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     )
     .execute(pool)
     .await?;
+    Ok(())
+}
 
+async fn m2_category_links(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     migrate_transaction_categories(pool).await?;
     clean_orphans(pool).await?;
     Ok(())
