@@ -306,8 +306,8 @@ impl LedgerDb {
 
     pub fn update_wallet(&self, id: String, name: String, description: String, currency: String, off_budget: bool) -> Result<Wallet, LedgerError> {
         self.rt.block_on(async {
-            sqlx::query("UPDATE wallets SET name=?, description=?, currency=? WHERE id=?")
-                .bind(&name).bind(&description).bind(&currency).bind(&id)
+            sqlx::query("UPDATE wallets SET name=?, description=?, currency=?, off_budget=? WHERE id=?")
+                .bind(&name).bind(&description).bind(&currency).bind(off_budget).bind(&id)
                 .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, WalletRow>(
