@@ -10,10 +10,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import uniffi.ledger.Debt
+import uniffi.ledger.DebtPayment
 import javax.inject.Inject
 
 data class DebtUiState(
     val debts: List<Debt> = emptyList(),
+    // Keyed by debt id and loaded when a debt's history is opened, not for every debt up front.
+    val payments: Map<String, List<DebtPayment>> = emptyMap(),
     val isLoading: Boolean = false,
     val error: String? = null
 )
@@ -78,6 +81,43 @@ class DebtViewModel @Inject constructor(
                 bridge.deleteDebt(id)
                 load()
                 launch(Dispatchers.Main) { onSuccess() }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message)
+            }
+        }
+    }
+
+    fun loadPayments(debtId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val rows = bridge.listDebtPayments(debtId)
+                _state.value = _state.value.copy(payments = _state.value.payments + (debtId to rows))
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message)
+            }
+        }
+    }
+
+    /** Recording a payment is how the remaining amount goes down; it is no longer typed over. */
+    fun addPayment(debtId: String, amount: Double, note: String? = null, occurredAt: String? = null, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                bridge.addDebtPayment(debtId, amount, note, occurredAt)
+                load()
+                loadPayments(debtId)
+                launch(Dispatchers.Main) { onSuccess() }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message)
+            }
+        }
+    }
+
+    fun deletePayment(id: String, debtId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                bridge.deleteDebtPayment(id)
+                load()
+                loadPayments(debtId)
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message)
             }

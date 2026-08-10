@@ -73,12 +73,16 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
             val savedAmount = existing?.currentAmount ?: 0.0
             db.deleteGoal(id)
             val newGoal = db.createGoal(name, targetAmount, deadline)
-            if (savedAmount > 0.0) db.addContribution(newGoal.id, savedAmount)
+            if (savedAmount > 0.0) db.addContribution(newGoal.id, savedAmount, null, null)
             newGoal
         }
 
-    override fun addContribution(goalId: String, amount: Double) =
-        db.addContribution(goalId, amount)
+    override fun addContribution(goalId: String, amount: Double, note: String?, occurredAt: String?) =
+        db.addContribution(goalId, amount, note, occurredAt)
+
+    override fun listGoalContributions(goalId: String) = db.listGoalContributions(goalId)
+
+    override fun deleteContribution(id: String) = db.deleteContribution(id)
 
     override fun deleteGoal(id: String) = db.deleteGoal(id)
 
@@ -174,6 +178,13 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
         db.updateDebt(id, name, debtType, totalAmount, remainingAmount, apr, monthlyPayment)
 
     override fun deleteDebt(id: String) = db.deleteDebt(id)
+
+    override fun listDebtPayments(debtId: String) = db.listDebtPayments(debtId)
+
+    override fun addDebtPayment(debtId: String, amount: Double, note: String?, occurredAt: String?) =
+        db.addDebtPayment(debtId, amount, note, occurredAt)
+
+    override fun deleteDebtPayment(id: String) = db.deleteDebtPayment(id)
 
     // ── Tags ──────────────────────────────────────────────────────────────────
 

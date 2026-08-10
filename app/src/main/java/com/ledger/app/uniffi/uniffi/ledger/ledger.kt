@@ -824,6 +824,16 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
+
+
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -847,7 +857,9 @@ internal interface UniffiLib : Library {
     ): Pointer
     fun uniffi_uniffi_ledger_fn_free_ledgerdb(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
-    fun uniffi_uniffi_ledger_fn_method_ledgerdb_add_contribution(`ptr`: Pointer,`goalId`: RustBuffer.ByValue,`amount`: Double,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_add_contribution(`ptr`: Pointer,`goalId`: RustBuffer.ByValue,`amount`: Double,`note`: RustBuffer.ByValue,`occurredAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_add_debt_payment(`ptr`: Pointer,`debtId`: RustBuffer.ByValue,`amount`: Double,`note`: RustBuffer.ByValue,`occurredAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_add_tag_to_transaction(`ptr`: Pointer,`transactionId`: RustBuffer.ByValue,`tagId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -879,8 +891,12 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_category(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_contribution(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_debt(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_debt_payment(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_goal(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_price_alert(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -903,7 +919,11 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_categories(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_debt_payments(`ptr`: Pointer,`debtId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_debts(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_goal_contributions(`ptr`: Pointer,`goalId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_goals(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -1077,6 +1097,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_add_contribution(
     ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_add_debt_payment(
+    ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_add_tag_to_transaction(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_count_transactions_for_category(
@@ -1107,7 +1129,11 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_category(
     ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_contribution(
+    ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_debt(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_debt_payment(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_goal(
     ): Short
@@ -1131,7 +1157,11 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_categories(
     ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_debt_payments(
+    ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_debts(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_goal_contributions(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_goals(
     ): Short
@@ -1202,7 +1232,10 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_uniffi_ledger_checksum_func_open_database() != 59108.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_add_contribution() != 25308.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_add_contribution() != 32013.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_add_debt_payment() != 25674.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_add_tag_to_transaction() != 47708.toShort()) {
@@ -1250,7 +1283,13 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_category() != 40842.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_contribution() != 20580.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_debt() != 22250.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_debt_payment() != 26203.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_goal() != 54324.toShort()) {
@@ -1286,7 +1325,13 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_categories() != 45469.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_debt_payments() != 25078.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_debts() != 65210.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_goal_contributions() != 33125.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_goals() != 24107.toShort()) {
@@ -1764,7 +1809,9 @@ private class JavaLangRefCleanable(
 }
 public interface LedgerDbInterface {
     
-    fun `addContribution`(`goalId`: kotlin.String, `amount`: kotlin.Double): SavingsGoal
+    fun `addContribution`(`goalId`: kotlin.String, `amount`: kotlin.Double, `note`: kotlin.String?, `occurredAt`: kotlin.String?): SavingsGoal
+    
+    fun `addDebtPayment`(`debtId`: kotlin.String, `amount`: kotlin.Double, `note`: kotlin.String?, `occurredAt`: kotlin.String?): Debt
     
     fun `addTagToTransaction`(`transactionId`: kotlin.String, `tagId`: kotlin.String)
     
@@ -1796,7 +1843,11 @@ public interface LedgerDbInterface {
     
     fun `deleteCategory`(`id`: kotlin.String)
     
+    fun `deleteContribution`(`id`: kotlin.String): SavingsGoal
+    
     fun `deleteDebt`(`id`: kotlin.String)
+    
+    fun `deleteDebtPayment`(`id`: kotlin.String): Debt
     
     fun `deleteGoal`(`id`: kotlin.String)
     
@@ -1820,7 +1871,11 @@ public interface LedgerDbInterface {
     
     fun `listCategories`(): List<Category>
     
+    fun `listDebtPayments`(`debtId`: kotlin.String): List<DebtPayment>
+    
     fun `listDebts`(): List<Debt>
+    
+    fun `listGoalContributions`(`goalId`: kotlin.String): List<GoalContribution>
     
     fun `listGoals`(): List<SavingsGoal>
     
@@ -1941,12 +1996,25 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     }
 
     
-    @Throws(LedgerException::class)override fun `addContribution`(`goalId`: kotlin.String, `amount`: kotlin.Double): SavingsGoal {
+    @Throws(LedgerException::class)override fun `addContribution`(`goalId`: kotlin.String, `amount`: kotlin.Double, `note`: kotlin.String?, `occurredAt`: kotlin.String?): SavingsGoal {
             return FfiConverterTypeSavingsGoal.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
     UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_add_contribution(
-        it, FfiConverterString.lower(`goalId`),FfiConverterDouble.lower(`amount`),_status)
+        it, FfiConverterString.lower(`goalId`),FfiConverterDouble.lower(`amount`),FfiConverterOptionalString.lower(`note`),FfiConverterOptionalString.lower(`occurredAt`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `addDebtPayment`(`debtId`: kotlin.String, `amount`: kotlin.Double, `note`: kotlin.String?, `occurredAt`: kotlin.String?): Debt {
+            return FfiConverterTypeDebt.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_add_debt_payment(
+        it, FfiConverterString.lower(`debtId`),FfiConverterDouble.lower(`amount`),FfiConverterOptionalString.lower(`note`),FfiConverterOptionalString.lower(`occurredAt`),_status)
 }
     }
     )
@@ -2146,6 +2214,19 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     
 
     
+    @Throws(LedgerException::class)override fun `deleteContribution`(`id`: kotlin.String): SavingsGoal {
+            return FfiConverterTypeSavingsGoal.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_contribution(
+        it, FfiConverterString.lower(`id`),_status)
+}
+    }
+    )
+    }
+    
+
+    
     @Throws(LedgerException::class)override fun `deleteDebt`(`id`: kotlin.String)
         = 
     callWithPointer {
@@ -2155,6 +2236,19 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
 }
     }
     
+    
+
+    
+    @Throws(LedgerException::class)override fun `deleteDebtPayment`(`id`: kotlin.String): Debt {
+            return FfiConverterTypeDebt.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_debt_payment(
+        it, FfiConverterString.lower(`id`),_status)
+}
+    }
+    )
+    }
     
 
     
@@ -2294,12 +2388,38 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     
 
     
+    @Throws(LedgerException::class)override fun `listDebtPayments`(`debtId`: kotlin.String): List<DebtPayment> {
+            return FfiConverterSequenceTypeDebtPayment.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_debt_payments(
+        it, FfiConverterString.lower(`debtId`),_status)
+}
+    }
+    )
+    }
+    
+
+    
     @Throws(LedgerException::class)override fun `listDebts`(): List<Debt> {
             return FfiConverterSequenceTypeDebt.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
     UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_debts(
         it, _status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `listGoalContributions`(`goalId`: kotlin.String): List<GoalContribution> {
+            return FfiConverterSequenceTypeGoalContribution.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_goal_contributions(
+        it, FfiConverterString.lower(`goalId`),_status)
 }
     }
     )
@@ -3029,6 +3149,102 @@ public object FfiConverterTypeDebt: FfiConverterRustBuffer<Debt> {
 
 
 
+data class DebtPayment (
+    var `id`: kotlin.String, 
+    var `debtId`: kotlin.String, 
+    var `amount`: kotlin.Double, 
+    var `note`: kotlin.String?, 
+    var `kind`: kotlin.String, 
+    var `occurredAt`: kotlin.String
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeDebtPayment: FfiConverterRustBuffer<DebtPayment> {
+    override fun read(buf: ByteBuffer): DebtPayment {
+        return DebtPayment(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterDouble.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: DebtPayment) = (
+            FfiConverterString.allocationSize(value.`id`) +
+            FfiConverterString.allocationSize(value.`debtId`) +
+            FfiConverterDouble.allocationSize(value.`amount`) +
+            FfiConverterOptionalString.allocationSize(value.`note`) +
+            FfiConverterString.allocationSize(value.`kind`) +
+            FfiConverterString.allocationSize(value.`occurredAt`)
+    )
+
+    override fun write(value: DebtPayment, buf: ByteBuffer) {
+            FfiConverterString.write(value.`id`, buf)
+            FfiConverterString.write(value.`debtId`, buf)
+            FfiConverterDouble.write(value.`amount`, buf)
+            FfiConverterOptionalString.write(value.`note`, buf)
+            FfiConverterString.write(value.`kind`, buf)
+            FfiConverterString.write(value.`occurredAt`, buf)
+    }
+}
+
+
+
+data class GoalContribution (
+    var `id`: kotlin.String, 
+    var `goalId`: kotlin.String, 
+    var `amount`: kotlin.Double, 
+    var `note`: kotlin.String?, 
+    var `kind`: kotlin.String, 
+    var `occurredAt`: kotlin.String
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeGoalContribution: FfiConverterRustBuffer<GoalContribution> {
+    override fun read(buf: ByteBuffer): GoalContribution {
+        return GoalContribution(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterDouble.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: GoalContribution) = (
+            FfiConverterString.allocationSize(value.`id`) +
+            FfiConverterString.allocationSize(value.`goalId`) +
+            FfiConverterDouble.allocationSize(value.`amount`) +
+            FfiConverterOptionalString.allocationSize(value.`note`) +
+            FfiConverterString.allocationSize(value.`kind`) +
+            FfiConverterString.allocationSize(value.`occurredAt`)
+    )
+
+    override fun write(value: GoalContribution, buf: ByteBuffer) {
+            FfiConverterString.write(value.`id`, buf)
+            FfiConverterString.write(value.`goalId`, buf)
+            FfiConverterDouble.write(value.`amount`, buf)
+            FfiConverterOptionalString.write(value.`note`, buf)
+            FfiConverterString.write(value.`kind`, buf)
+            FfiConverterString.write(value.`occurredAt`, buf)
+    }
+}
+
+
+
 data class MonthSummary (
     var `totalIncome`: kotlin.Double, 
     var `totalExpenses`: kotlin.Double, 
@@ -3643,6 +3859,62 @@ public object FfiConverterSequenceTypeDebt: FfiConverterRustBuffer<List<Debt>> {
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeDebt.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeDebtPayment: FfiConverterRustBuffer<List<DebtPayment>> {
+    override fun read(buf: ByteBuffer): List<DebtPayment> {
+        val len = buf.getInt()
+        return List<DebtPayment>(len) {
+            FfiConverterTypeDebtPayment.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<DebtPayment>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeDebtPayment.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<DebtPayment>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeDebtPayment.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeGoalContribution: FfiConverterRustBuffer<List<GoalContribution>> {
+    override fun read(buf: ByteBuffer): List<GoalContribution> {
+        val len = buf.getInt()
+        return List<GoalContribution>(len) {
+            FfiConverterTypeGoalContribution.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<GoalContribution>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeGoalContribution.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<GoalContribution>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeGoalContribution.write(it, buf)
         }
     }
 }

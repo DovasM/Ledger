@@ -31,6 +31,7 @@ import com.ledger.app.ui.components.*
 import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.viewmodel.GoalViewModel
+import uniffi.ledger.GoalContribution
 import uniffi.ledger.SavingsGoal
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -49,9 +50,13 @@ fun GoalDetailsScreen(
     var showPhotoFullscreen by remember { mutableStateOf(false) }
 
     var selectedTab by remember { mutableStateOf(0) }
-    val tabs = listOf("Overview", "Milestones")
+    val tabs = listOf("Overview", "History", "Milestones")
     var showContribDialog by remember { mutableStateOf(false) }
     var contribAmount by remember { mutableStateOf("") }
+    var contribNote by remember { mutableStateOf("") }
+    val contributions = state.contributions[goalId].orEmpty()
+
+    LaunchedEffect(goalId) { viewModel.loadContributions(goalId) }
 
     val goalColor = goal?.let { g ->
         val goalColorList = listOf(
@@ -77,28 +82,37 @@ fun GoalDetailsScreen(
             onDismissRequest = { showContribDialog = false },
             title = { Text("Add Contribution") },
             text = {
-                LedgerTextField(
-                    value = contribAmount,
-                    onValueChange = { v -> if (v.all { it.isDigit() || it == '.' }) contribAmount = v },
-                    label = "Amount",
-                    leadingIcon = { Icon(Icons.Filled.AttachMoney, null, tint = OnSurfaceVariant) },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LedgerTextField(
+                        value = contribAmount,
+                        onValueChange = { v -> if (v.all { it.isDigit() || it == '.' }) contribAmount = v },
+                        label = "Amount",
+                        leadingIcon = { Icon(Icons.Filled.AttachMoney, null, tint = OnSurfaceVariant) },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    LedgerTextField(
+                        value = contribNote,
+                        onValueChange = { contribNote = it },
+                        label = "Note (optional)",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
             },
             confirmButton = {
                 TextButton(onClick = {
                     val amount = contribAmount.toDoubleOrNull()
                     if (amount != null && amount > 0) {
-                        viewModel.addContribution(goalId, amount) {
+                        viewModel.addContribution(goalId, amount, contribNote.ifBlank { null }) {
                             showContribDialog = false
                             contribAmount = ""
+                            contribNote = ""
                         }
                     }
                 }) { Text("Add", color = Primary) }
             },
             dismissButton = {
-                TextButton(onClick = { showContribDialog = false; contribAmount = "" }) {
+                TextButton(onClick = { showContribDialog = false; contribAmount = ""; contribNote = "" }) {
                     Text("Cancel", color = OnSurfaceVariant)
                 }
             }
@@ -237,7 +251,13 @@ fun GoalDetailsScreen(
 
                 when (selectedTab) {
                     0 -> GoalOverviewTab(goal, goalColor, onAddContribution = { showContribDialog = true })
-                    1 -> GoalMilestonesTab(goal, goalColor)
+                    1 -> GoalHistoryTab(
+                        contributions = contributions,
+                        goalColor = goalColor,
+                        onDelete = { viewModel.deleteContribution(it, goalId) },
+                        onAddContribution = { showContribDialog = true }
+                    )
+                    2 -> GoalMilestonesTab(goal, goalColor)
                 }
             }
         }
@@ -266,6 +286,108 @@ private fun GoalOverviewTab(
                     "Status",
                     if (goal.currentAmount >= goal.targetAmount) "Completed ✓" else "In progress"
                 )
+            }
+        }
+
+        Button(
+            onClick = onAddContribution,
+            modifier = Modifier.fillMaxWidth().height(52.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = goalColor),
+            shape = RoundedCornerShape(6.dp)
+        ) {
+            Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+            Spacer(Modifier.width(8.dp))
+            Text("Add Contribution", style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+/**
+ * The contributions themselves, which used to exist only as a number that got bigger. Each row can
+ * be removed, so a mistyped amount is fixable without typing over the total.
+ */
+@Composable
+private fun GoalHistoryTab(
+    contributions: List<GoalContribution>,
+    goalColor: Color,
+    onDelete: (String) -> Unit,
+    onAddContribution: () -> Unit
+) {
+    var pendingDelete by remember { mutableStateOf<GoalContribution?>(null) }
+
+    pendingDelete?.let { c ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Remove contribution?") },
+            text = { Text("$${"%.2f".format(c.amount)} will come back off this goal.") },
+            confirmButton = {
+                TextButton(onClick = { onDelete(c.id); pendingDelete = null }) { Text("Remove", color = Error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("Cancel", color = OnSurfaceVariant) }
+            }
+        )
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        if (contributions.isEmpty()) {
+            LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(Icons.Filled.Savings, null, tint = OnSurfaceVariant, modifier = Modifier.size(32.dp))
+                    Text("Nothing put in yet", style = MaterialTheme.typography.titleSmall, color = OnSurface)
+                    Text(
+                        "Every contribution shows up here with its date.",
+                        style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                    )
+                }
+            }
+        } else {
+            Text(
+                "${contributions.size} ${if (contributions.size == 1) "entry" else "entries"}",
+                style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant
+            )
+            contributions.forEach { c ->
+                LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(14.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier.size(38.dp).clip(CircleShape).background(goalColor.copy(alpha = 0.12f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                if (c.kind == "opening") Icons.Filled.History else Icons.Filled.ArrowUpward,
+                                null, tint = goalColor, modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "$${"%.2f".format(c.amount)}",
+                                style = MaterialTheme.typography.titleSmall,
+                                color = OnSurface, fontWeight = FontWeight.Medium
+                            )
+                            Text(
+                                c.note ?: c.occurredAt.take(10),
+                                style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                            )
+                            if (c.note != null) {
+                                Text(
+                                    c.occurredAt.take(10),
+                                    style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                                )
+                            }
+                        }
+                        IconButton(onClick = { pendingDelete = c }) {
+                            Icon(Icons.Filled.Delete, "Remove", tint = OnSurfaceVariant, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
             }
         }
 

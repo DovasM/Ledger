@@ -245,6 +245,10 @@ Two things make this possible and must not be undone:
   `build.rs` only compiles llama.cpp for Android, so on the host those symbols do not exist and the
   test binary fails to link with eight `LNK2019`s.
 
+`tests/migration.rs` is the exception to that shape: it hand-builds a database in the *old* schema
+and then opens it through `open_database`, because the risky half of a migration is the data already
+on people's phones. It is what caught m7 failing on any device that had a savings goal.
+
 **Every test in there is a bug that actually shipped**, and that is the bar for adding one: write
 the test when a real defect is found, and confirm it fails against the unfixed code before
 committing the fix. A test that has never been seen to fail proves nothing. Reproduce first, then
@@ -600,7 +604,8 @@ runtime (see the cascade note below).
 
 `core/src/db/mod.rs` owns a `schema_version` table and numbered migrations (`m1_baseline_tables`,
 `m2_category_links`, `m3_indexes`, `m4_transfers_currency_budgets`, `m5_off_budget_wallets`,
-`m6_transaction_occurred_at`). Add the next one as `mN_…` plus an `if applied < N` arm.
+`m6_transaction_occurred_at`, `m7_goal_and_debt_history`). Add the next one as `mN_…` plus an
+`if applied < N` arm.
 
 **Every migration must be idempotent, without exception.** Databases predating the version table
 bootstrap at 0 and re-run everything, and that property is what let the table be introduced
@@ -611,9 +616,29 @@ for `ALTER TABLE … ADD COLUMN` (which has no `IF NOT EXISTS` in SQLite) swallo
 reshapes it. That is deliberate — a fresh database replays history and lands in the same state as
 an upgraded one, which is the only way the two stay comparable.
 
-**Relaxing `NOT NULL` needs a table rebuild.** SQLite cannot `ALTER` it away.
-`rebuild_budgets_if_needed` creates the new table, copies, drops, renames — guarded by
-`PRAGMA table_info`, which is what makes it idempotent. Verified to preserve rows.
+**Relaxing `NOT NULL` or dropping a column needs a table rebuild.** SQLite cannot `ALTER` either
+away. `rebuild_budgets_if_needed` and the generic `rebuild_table` create the new table, copy, drop,
+rename — guarded by `PRAGMA table_info`, which is what makes them idempotent. Two things about
+`rebuild_table` are load-bearing and were both learned by breaking them:
+
+- **All the statements go in one `sqlx::query` string.** Split across separate `execute` calls they
+  are handed to different pool connections, and the rename then runs against a connection whose
+  cached schema still lists the dropped table: *"there is already another table or index with this
+  name"*.
+- **Foreign keys are switched off across the rebuild**, which is SQLite's own prescribed procedure.
+  Rows seeded into `goal_contributions` reference `savings_goals`, so dropping it with enforcement
+  on fails with *"FOREIGN KEY constraint failed"* — and a migration that fails is an app that cannot
+  open its database at all. The pragma is a no-op inside a transaction, which is why these
+  statements are not wrapped in one.
+
+**Foreign keys ARE enforced.** An older comment in `db/mod.rs` claimed the opposite — that the pool
+never sets `PRAGMA foreign_keys=ON` and every `ON DELETE CASCADE` was therefore inert. That was
+wrong: sqlx's `SqliteConnectOptions` turns it on by default, and `DROP TABLE` with child rows
+present fails with SQLITE_CONSTRAINT_FOREIGNKEY (787), a check that only runs under the pragma. The
+explicit cleanup in each `delete_*` matters more rather than less because of it: only
+`transactions.wallet_id` and the two `transaction_tags` columns declare `ON DELETE CASCADE`, so
+without the explicit deletes, removing a goal, debt, wallet or category would be a hard runtime
+failure on every table that does not.
 
 ## Transfers
 
@@ -762,14 +787,35 @@ Defined in `core/src/ledger.udl` and mirrored as Kotlin data classes in `ledger.
 | `Transaction` | id, wallet_id, title, category, amount, is_income, note, **occurred_at** |
 | `Wallet` | id, name, description, currency, balance, off_budget, created_at |
 | `Transfer` | id, from_wallet_id, to_wallet_id, amount, note, created_at |
-| `SavingsGoal` | id, name, current_amount, target_amount, deadline, created_at |
+| `SavingsGoal` | id, name, **current_amount (derived)**, target_amount, deadline, created_at |
+| `GoalContribution` | id, goal_id, amount, note, kind, occurred_at |
+| `DebtPayment` | id, debt_id, amount, note, kind, occurred_at |
 | `Category` | id, name, icon_name, color_hex, is_expense, created_at |
 | `Budget` | id, category_id?, wallet_id?, limit_amount, period, alert_threshold, carry_over, created_at |
-| `Debt` | id, name, debt_type, total_amount, remaining_amount, apr, monthly_payment, created_at |
+| `Debt` | id, name, debt_type, total_amount, **remaining_amount (derived)**, apr, monthly_payment, created_at |
 | `RecurringTransaction` | id, title, amount, category, wallet_id, is_income, frequency, next_date, created_at |
 | `Tag` | id, name, created_at |
 | `PriceAlert` | id, symbol, asset_name, target_price, direction, active, created_at |
 | `MonthSummary` | total_income, total_expenses, net_savings, transaction_count |
+
+### Derived totals: goal balance and debt remaining
+
+`SavingsGoal.current_amount` and `Debt.remaining_amount` are **not columns**. `m7` dropped them and
+they are now summed on every read — `GOAL_SELECT` sums `goal_contributions`, `DEBT_SELECT` subtracts
+`SUM(debt_payments.amount)` from `total_amount`. At these row counts the cost is nothing, and it
+removes the second source of truth that let `wallets.balance` drift twice.
+
+The DTOs did not change shape, so no UI had to move: the fields are still there, they are just
+computed. What changed is that the money now has a history — a goal knows that 50 went in last
+Tuesday, and a mistyped contribution can be deleted instead of typed over.
+
+`kind` distinguishes the three ways a row appears: `contribution`/`payment` for something the user
+did, `opening` for the single row `m7` wrote to carry the balance that existed before the history
+did, and `adjustment` for when the remaining amount is typed over directly in the debt edit screen —
+`update_debt` writes the difference so the user gets the number they asked for and the history still
+adds up to it.
+
+Both `delete_goal` and `delete_debt` remove the history explicitly, inside a transaction.
 
 ### `occurred_at` vs `created_at`
 

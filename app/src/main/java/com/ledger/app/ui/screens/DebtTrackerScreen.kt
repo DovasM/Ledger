@@ -1,6 +1,7 @@
 package com.ledger.app.ui.screens
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -12,6 +13,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -22,6 +24,7 @@ import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.viewmodel.DebtViewModel
 import uniffi.ledger.Debt
+import uniffi.ledger.DebtPayment
 
 private val debtColors = listOf(
     Color(0xFF1565C0), Color(0xFF6A1B9A), Color(0xFFE65100),
@@ -45,6 +48,52 @@ fun DebtTrackerScreen(
     val totalDebt    = debts.sumOf { it.remainingAmount }
     val totalMonthly = debts.sumOf { it.monthlyPayment }
     var strategy by remember { mutableStateOf(0) } // 0=Avalanche, 1=Snowball
+    var payFor by remember { mutableStateOf<Debt?>(null) }
+    var payAmount by remember { mutableStateOf("") }
+    var payNote by remember { mutableStateOf("") }
+
+    payFor?.let { debt ->
+        AlertDialog(
+            onDismissRequest = { payFor = null; payAmount = ""; payNote = "" },
+            title = { Text("Record payment") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        "${"$%,.2f".format(debt.remainingAmount)} left on ${debt.name}.",
+                        style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                    )
+                    LedgerTextField(
+                        value = payAmount,
+                        onValueChange = { v -> if (v.all { it.isDigit() || it == '.' }) payAmount = v },
+                        label = "Amount",
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    LedgerTextField(
+                        value = payNote,
+                        onValueChange = { payNote = it },
+                        label = "Note (optional)",
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    val amount = payAmount.toDoubleOrNull()
+                    if (amount != null && amount > 0) {
+                        viewModel.addPayment(debt.id, amount, payNote.ifBlank { null }) {
+                            payFor = null; payAmount = ""; payNote = ""
+                        }
+                    }
+                }) { Text("Record", color = Primary) }
+            },
+            dismissButton = {
+                TextButton(onClick = { payFor = null; payAmount = ""; payNote = "" }) {
+                    Text("Cancel", color = OnSurfaceVariant)
+                }
+            }
+        )
+    }
 
     val sorted = when (strategy) {
         0    -> debts.sortedByDescending { it.apr }
@@ -131,7 +180,14 @@ fun DebtTrackerScreen(
                 }
             } else {
                 sorted.forEach { debt ->
-                    DebtCard(debt, onClick = { navController.navigate(Screen.EditDebt.createRoute(debt.id)) })
+                    DebtCard(
+                        debt = debt,
+                        payments = state.payments[debt.id].orEmpty(),
+                        onClick = { navController.navigate(Screen.EditDebt.createRoute(debt.id)) },
+                        onLoadPayments = { viewModel.loadPayments(debt.id) },
+                        onRecordPayment = { payFor = debt },
+                        onDeletePayment = { viewModel.deletePayment(it, debt.id) }
+                    )
                 }
             }
         }
@@ -139,33 +195,118 @@ fun DebtTrackerScreen(
 }
 
 @Composable
-private fun DebtCard(debt: Debt, onClick: () -> Unit) {
+private fun DebtCard(
+    debt: Debt,
+    payments: List<DebtPayment>,
+    onClick: () -> Unit,
+    onLoadPayments: () -> Unit,
+    onRecordPayment: () -> Unit,
+    onDeletePayment: (String) -> Unit
+) {
     val color = debtColor(debt)
     val pct = if (debt.totalAmount > 0) ((debt.totalAmount - debt.remainingAmount) / debt.totalAmount).toFloat().coerceIn(0f, 1f) else 0f
     val monthsLeft = if (debt.monthlyPayment > 0) (debt.remainingAmount / debt.monthlyPayment).toInt() else 0
+    var showHistory by remember { mutableStateOf(false) }
+    var pendingDelete by remember { mutableStateOf<DebtPayment?>(null) }
+
+    pendingDelete?.let { p ->
+        AlertDialog(
+            onDismissRequest = { pendingDelete = null },
+            title = { Text("Remove payment?") },
+            text = { Text("${"$%,.2f".format(p.amount)} will go back onto what you owe.") },
+            confirmButton = {
+                TextButton(onClick = { onDeletePayment(p.id); pendingDelete = null }) { Text("Remove", color = Error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingDelete = null }) { Text("Cancel", color = OnSurfaceVariant) }
+            }
+        )
+    }
 
     LedgerCard(modifier = Modifier.fillMaxWidth()) {
-        Surface(onClick = onClick, color = Color.Transparent) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(debt.name, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
-                        Text(debt.debtType, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+        Column {
+            Surface(onClick = onClick, color = Color.Transparent) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(debt.name, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
+                            Text(debt.debtType, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text("${"$%,.2f".format(debt.remainingAmount)}", style = MaterialTheme.typography.titleMedium, color = color, fontWeight = FontWeight.Bold)
+                            Text("of ${"$%,.2f".format(debt.totalAmount)}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                        }
                     }
-                    Column(horizontalAlignment = Alignment.End) {
-                        Text("${"$%,.2f".format(debt.remainingAmount)}", style = MaterialTheme.typography.titleMedium, color = color, fontWeight = FontWeight.Bold)
-                        Text("of ${"$%,.2f".format(debt.totalAmount)}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                    LinearProgressIndicator(
+                        progress = { pct },
+                        modifier = Modifier.fillMaxWidth().height(6.dp),
+                        color = color, trackColor = color.copy(alpha = 0.15f)
+                    )
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                        Text("${"%.1f".format(pct * 100)}% paid off", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                        Text("${debt.apr}% APR · ${"$%,.0f".format(debt.monthlyPayment)}/mo · ~$monthsLeft months left",
+                            style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     }
                 }
-                LinearProgressIndicator(
-                    progress = { pct },
-                    modifier = Modifier.fillMaxWidth().height(6.dp),
-                    color = color, trackColor = color.copy(alpha = 0.15f)
-                )
-                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("${"%.1f".format(pct * 100)}% paid off", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                    Text("${debt.apr}% APR · ${"$%,.0f".format(debt.monthlyPayment)}/mo · ~$monthsLeft months left",
-                        style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, bottom = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = onRecordPayment,
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.buttonColors(containerColor = color),
+                    shape = RoundedCornerShape(6.dp)
+                ) { Text("Record payment", style = MaterialTheme.typography.labelMedium) }
+                OutlinedButton(
+                    onClick = {
+                        showHistory = !showHistory
+                        if (showHistory) onLoadPayments()
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(if (showHistory) "Hide history" else "History", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant)
+                }
+            }
+
+            if (showHistory) {
+                HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
+                if (payments.isEmpty()) {
+                    Text(
+                        "No payments recorded yet.",
+                        modifier = Modifier.padding(16.dp),
+                        style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                    )
+                } else {
+                    payments.forEach { p ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    "${"$%,.2f".format(p.amount)}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = if (p.amount < 0) Error else OnSurface,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    listOfNotNull(
+                                        p.occurredAt.take(10),
+                                        p.note,
+                                        if (p.kind != "payment") p.kind else null
+                                    ).joinToString(" · "),
+                                    style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                                )
+                            }
+                            IconButton(onClick = { pendingDelete = p }) {
+                                Icon(Icons.Filled.Delete, "Remove", tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))
+                            }
+                        }
+                    }
                 }
             }
         }
