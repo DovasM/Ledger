@@ -5,7 +5,9 @@ edition = "2021"
 
 [lib]
 name = "uniffi_ledger"
-crate-type = ["cdylib", "staticlib"]
+# rlib is here so integration tests under tests/ can link the crate as a Rust library; the
+# Android build still consumes the cdylib/staticlib exactly as before.
+crate-type = ["cdylib", "staticlib", "rlib"]
 
 [dependencies]
 # Database

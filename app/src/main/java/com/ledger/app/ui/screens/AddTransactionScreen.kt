@@ -62,6 +62,9 @@ fun AddTransactionScreen(
     var isExpense by remember { mutableStateOf(true) }
     var showCalc by remember { mutableStateOf(false) }
     var showErrors by remember { mutableStateOf(false) }
+    // The save is asynchronous and the screen only closes in its callback, so without this a second
+    // tap in that window writes the transaction twice. It has already happened on a real device.
+    var submitting by remember { mutableStateOf(false) }
     var selectedDate by remember { mutableStateOf(LocalDate.now()) }
     var showDatePicker by remember { mutableStateOf(false) }
 
@@ -434,11 +437,13 @@ fun AddTransactionScreen(
             Spacer(Modifier.height(8.dp))
             Button(
                 onClick = {
+                    if (submitting) return@Button
                     showErrors = true
                     val walletId = walletState.wallets.getOrNull(selectedWalletIndex)?.id
                     val iso = selectedDate.atStartOfDay().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
                     if (splitMode) {
                         if (walletId != null && splitItems.isNotEmpty()) {
+                            submitting = true
                             transactionViewModel.createSplitTransactions(
                                 walletId = walletId,
                                 items = splitItems,
@@ -449,6 +454,7 @@ fun AddTransactionScreen(
                             ) { navController.popBackStack() }
                         }
                     } else if (isFormValid && walletId != null) {
+                        submitting = true
                         transactionViewModel.createTransaction(
                             walletId = walletId,
                             title = title.ifBlank { selectedCategory },
@@ -461,6 +467,7 @@ fun AddTransactionScreen(
                         ) { navController.popBackStack() }
                     }
                 },
+                enabled = !submitting,
                 modifier = Modifier.fillMaxWidth().height(52.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = accentColor),
                 shape = RoundedCornerShape(6.dp)

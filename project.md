@@ -222,6 +222,34 @@ rebuilding the `.so` too** — regenerating only one half is what produces that 
 
 `ktlint` is not installed, so the generator warns it could not auto-format. Harmless.
 
+## Tests
+
+The database layer has a regression suite under `core/tests/`. It runs on the host in ~2 seconds
+and needs no device:
+
+```bash
+cd core
+CARGO_TARGET_DIR=C:/lt-host cargo test --tests
+```
+
+`common::TestDb` opens a real SQLite **file** in the temp directory through the same
+`open_database` the app calls, so every test replays the full migration chain from empty — a broken
+migration fails the suite. A file rather than `:memory:` on purpose: the pool opens several
+connections and an in-memory database is per-connection, so half the migrations would land
+somewhere the next query cannot see. Each `TestDb` deletes its file on drop.
+
+Two things make this possible and must not be undone:
+- **`crate-type` includes `rlib`.** With only `cdylib`/`staticlib` an integration test cannot link
+  the crate, which is why there were no tests for so long.
+- **`llama.rs` stubs its C FFI off Android** (`#[cfg(not(target_os = "android"))] mod host_stubs`).
+  `build.rs` only compiles llama.cpp for Android, so on the host those symbols do not exist and the
+  test binary fails to link with eight `LNK2019`s.
+
+**Every test in there is a bug that actually shipped**, and that is the bar for adding one: write
+the test when a real defect is found, and confirm it fails against the unfixed code before
+committing the fix. A test that has never been seen to fail proves nothing. Reproduce first, then
+fix, then re-run.
+
 ---
 
 ## Adding a New Screen — Standard Pattern
@@ -761,6 +789,15 @@ transaction without silently moving its date to today.
 Other entities keep a plain `created_at` and it means what it says — notably `budget.created_at`,
 which the carry-over guard in `StreakCalculator` uses to refuse to roll a budget over into months
 that predate it.
+
+**Never order transactions by `occurred_at` alone.** It is a date, so everything entered on the same
+day ties, and SQLite is free to return ties in any order — a just-saved transaction landed somewhere
+arbitrary among the day's other rows, which on a busy day means below the fold and reads as "the app
+didn't save it". `TX_ORDER` is the single ordering both list queries use:
+`COALESCE(occurred_at, created_at) DESC, created_at DESC, id DESC`. The `created_at` tiebreak is a
+second reason the column earns its place in the table, and the total order is also what makes
+`LIMIT`/`OFFSET` paging safe — without it a row can appear on two pages or on none. Covered by
+`newest_transaction_is_first_among_the_same_day` and `paging_never_repeats_or_drops_a_row`.
 
 ---
 

@@ -163,7 +163,7 @@ impl LedgerDb {
     pub fn list_transactions(&self, wallet_id: String, limit: u32, offset: u32) -> Result<Vec<Transaction>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, TransactionRow>(
-                &format!("{TX_SELECT} WHERE t.wallet_id = ? ORDER BY COALESCE(t.occurred_at, t.created_at) DESC LIMIT ? OFFSET ?")
+                &format!("{TX_SELECT} WHERE t.wallet_id = ? {TX_ORDER} LIMIT ? OFFSET ?")
             )
             .bind(&wallet_id).bind(limit as i64).bind(offset as i64)
             .fetch_all(&self.pool).await?;
@@ -174,7 +174,7 @@ impl LedgerDb {
     pub fn list_all_transactions(&self, limit: u32, offset: u32) -> Result<Vec<Transaction>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, TransactionRow>(
-                &format!("{TX_SELECT} ORDER BY COALESCE(t.occurred_at, t.created_at) DESC LIMIT ? OFFSET ?")
+                &format!("{TX_SELECT} {TX_ORDER} LIMIT ? OFFSET ?")
             )
             .bind(limit as i64).bind(offset as i64)
             .fetch_all(&self.pool).await?;
@@ -929,6 +929,12 @@ const TX_SELECT: &str = "SELECT t.id, t.wallet_id, t.title, \
      t.amount, t.is_income, t.note, \
      COALESCE(t.occurred_at, t.created_at) AS occurred_at \
      FROM transactions t LEFT JOIN categories c ON c.id = t.category_id";
+
+// `occurred_at` is a date, so today's transactions all tie. `created_at` is a full timestamp and
+// unique per row, which makes it the tiebreak that puts a just-added transaction at the top of its
+// own day instead of somewhere arbitrary among the day's other rows — where it reads as "the app
+// didn't save it". Never order by `occurred_at` alone.
+const TX_ORDER: &str = "ORDER BY COALESCE(t.occurred_at, t.created_at) DESC, t.created_at DESC, t.id DESC";
 
 // Recurring transactions had the same name-only storage, so a rename skipped them too.
 const RECURRING_SELECT: &str = "SELECT r.id, r.title, r.amount, \
