@@ -9,6 +9,7 @@ struct LlamaSimpleCtxOpaque {
     _unused: [u8; 0],
 }
 
+#[cfg(target_os = "android")]
 extern "C" {
     fn llama_simple_create(
         model_path: *const c_char,
@@ -36,6 +37,32 @@ extern "C" {
     fn llama_simple_last_prefill_ms(ctx: *mut LlamaSimpleCtxOpaque) -> i64;
     fn llama_simple_last_decode_ms(ctx: *mut LlamaSimpleCtxOpaque) -> i64;
 }
+
+// `build.rs` only compiles llama.cpp for Android, so on a host build these symbols do not exist and
+// the crate cannot be linked — which is what made `cargo test` impossible and left the database
+// layer with no tests at all. The AI engine is unreachable off-device anyway; these stubs make the
+// rest of the crate testable and report a load failure if anything ever calls them.
+#[cfg(not(target_os = "android"))]
+#[allow(unused_variables)]
+mod host_stubs {
+    use super::*;
+
+    pub unsafe fn llama_simple_create(model_path: *const c_char, n_ctx: c_uint) -> *mut LlamaSimpleCtxOpaque {
+        std::ptr::null_mut()
+    }
+    pub unsafe fn llama_simple_destroy(ctx: *mut LlamaSimpleCtxOpaque) {}
+    pub unsafe fn llama_simple_generate(ctx: *mut LlamaSimpleCtxOpaque, prompt: *const c_char, n_predict: c_int, temperature: c_float) -> *mut c_char {
+        std::ptr::null_mut()
+    }
+    pub unsafe fn llama_simple_free_str(s: *mut c_char) {}
+    pub unsafe fn llama_simple_count_tokens(ctx: *mut LlamaSimpleCtxOpaque, prompt: *const c_char) -> c_int { -1 }
+    pub unsafe fn llama_simple_system_info() -> *const c_char { std::ptr::null() }
+    pub unsafe fn llama_simple_last_prefill_ms(ctx: *mut LlamaSimpleCtxOpaque) -> i64 { 0 }
+    pub unsafe fn llama_simple_last_decode_ms(ctx: *mut LlamaSimpleCtxOpaque) -> i64 { 0 }
+}
+
+#[cfg(not(target_os = "android"))]
+use host_stubs::*;
 
 // ── Safe Rust wrapper ─────────────────────────────────────────────────────────
 

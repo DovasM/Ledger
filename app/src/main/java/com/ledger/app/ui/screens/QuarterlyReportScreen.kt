@@ -70,7 +70,7 @@ fun QuarterlyReportScreen(
         quarterMonths.map { month ->
             val txs = reportTxs.filter {
                 runCatching {
-                    val d = LocalDate.parse(it.createdAt.take(10))
+                    val d = LocalDate.parse(it.occurredAt.take(10))
                     d.year == selectedYear && d.monthValue == month
                 }.getOrElse { false }
             }
@@ -85,7 +85,7 @@ fun QuarterlyReportScreen(
     val quarterTxs = remember(reportTxs, selectedYear, selectedQuarter) {
         reportTxs.filter {
             runCatching {
-                val d = LocalDate.parse(it.createdAt.take(10))
+                val d = LocalDate.parse(it.occurredAt.take(10))
                 d.year == selectedYear && d.monthValue in quarterMonths
             }.getOrElse { false }
         }

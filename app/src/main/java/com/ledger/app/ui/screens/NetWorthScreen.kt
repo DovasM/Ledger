@@ -61,7 +61,7 @@ fun NetWorthScreen(
             val d = today.minusMonths(monthsBack.toLong())
             txState.transactions.filter {
                 runCatching {
-                    val txDate = LocalDate.parse(it.createdAt.take(10))
+                    val txDate = LocalDate.parse(it.occurredAt.take(10))
                     txDate.year == d.year && txDate.monthValue == d.monthValue
                 }.getOrElse { false }
             }.sumOf { if (it.isIncome) it.amount else -it.amount }

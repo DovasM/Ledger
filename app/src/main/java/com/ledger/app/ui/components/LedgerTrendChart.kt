@@ -55,7 +55,7 @@ fun LedgerTrendChart(
         "6M"  -> today.minusDays(179)
         "1Y"  -> today.minusDays(364)
         else  -> transactions
-            .mapNotNull { runCatching { LocalDate.parse(it.createdAt.take(10)) }.getOrNull() }
+            .mapNotNull { runCatching { LocalDate.parse(it.occurredAt.take(10)) }.getOrNull() }
             .minOrNull() ?: today.minusDays(29)
     }
 
@@ -69,7 +69,7 @@ fun LedgerTrendChart(
 
     val netByDay = transactions
         .mapNotNull { tx ->
-            runCatching { LocalDate.parse(tx.createdAt.take(10)) }.getOrNull()
+            runCatching { LocalDate.parse(tx.occurredAt.take(10)) }.getOrNull()
                 ?.let { it.format(DateTimeFormatter.ISO_LOCAL_DATE) to tx }
         }
         .groupBy({ it.first }, { it.second })

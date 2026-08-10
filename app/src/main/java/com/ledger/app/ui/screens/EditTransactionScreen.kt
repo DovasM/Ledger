@@ -51,7 +51,7 @@ fun EditTransactionScreen(
     var isIncome by remember(tx) { mutableStateOf(tx?.isIncome ?: false) }
     var selectedDate by remember(tx) {
         mutableStateOf(
-            tx?.createdAt?.let { runCatching { LocalDate.parse(it.take(10)) }.getOrNull() } ?: LocalDate.now()
+            tx?.occurredAt?.let { runCatching { LocalDate.parse(it.take(10)) }.getOrNull() } ?: LocalDate.now()
         )
     }
     var showDatePicker by remember { mutableStateOf(false) }

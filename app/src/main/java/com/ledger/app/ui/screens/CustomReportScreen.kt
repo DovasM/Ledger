@@ -76,7 +76,7 @@ fun CustomReportScreen(
         if (!reportGenerated) return@remember null
         val filtered = reportTxs.filter { tx ->
             val inRange = runCatching {
-                val d = LocalDate.parse(tx.createdAt.take(10))
+                val d = LocalDate.parse(tx.occurredAt.take(10))
                 val ym = YearMonth.of(d.year, d.monthValue)
                 ym >= startYm && ym <= endYm
             }.getOrElse { false }
@@ -89,7 +89,7 @@ fun CustomReportScreen(
         val expenses = filtered.filter { !it.isIncome }.sumOf { it.amount }
 
         val byMonth = filtered
-            .groupBy { it.createdAt.take(7) } // "yyyy-MM"
+            .groupBy { it.occurredAt.take(7) } // "yyyy-MM"
             .mapValues { (_, txs) -> txs.sumOf { if (it.isIncome) it.amount else -it.amount } }
             .entries.sortedBy { it.key }
             .map { (key, net) ->
@@ -106,7 +106,7 @@ fun CustomReportScreen(
 
         val byWeek = filtered
             .groupBy {
-                val d = runCatching { LocalDate.parse(it.createdAt.take(10)) }.getOrNull() ?: return@groupBy "?"
+                val d = runCatching { LocalDate.parse(it.occurredAt.take(10)) }.getOrNull() ?: return@groupBy "?"
                 val weekStart = d.with(DayOfWeek.MONDAY)
                 weekStart.toString()
             }
@@ -119,7 +119,7 @@ fun CustomReportScreen(
             }
 
         val byDay = filtered
-            .groupBy { it.createdAt.take(10) }
+            .groupBy { it.occurredAt.take(10) }
             .mapValues { (_, txs) -> txs.sumOf { if (it.isIncome) it.amount else -it.amount } }
             .entries.sortedByDescending { it.value }
             .take(15)
@@ -365,7 +365,7 @@ fun CustomReportScreen(
                     val filteredTxs = remember(reportTxs, startYm, endYm, selectedCategories.toList(), includeExpenses, includeIncome) {
                         reportTxs.filter { tx ->
                             val inRange = runCatching {
-                                val d = LocalDate.parse(tx.createdAt.take(10))
+                                val d = LocalDate.parse(tx.occurredAt.take(10))
                                 val ym = YearMonth.of(d.year, d.monthValue)
                                 ym >= startYm && ym <= endYm
                             }.getOrElse { false }

@@ -53,7 +53,28 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         m5_off_budget_wallets(pool).await?;
         record_version(pool, 5).await?;
     }
+    if applied < 6 {
+        m6_transaction_occurred_at(pool).await?;
+        record_version(pool, 6).await?;
+    }
 
+    Ok(())
+}
+
+// created_at meant two things at once: the row's creation time *and* the date the transaction
+// happened — the import wrote the Money Manager date into it, and the date picker overwrote it.
+// occurred_at now carries the event date; created_at goes back to meaning what it says.
+async fn m6_transaction_occurred_at(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    let _ = sqlx::query("ALTER TABLE transactions ADD COLUMN occurred_at TEXT")
+        .execute(pool)
+        .await;
+    // Existing rows held the event date in created_at, so that is the honest source to seed from.
+    sqlx::query("UPDATE transactions SET occurred_at = created_at WHERE occurred_at IS NULL")
+        .execute(pool)
+        .await?;
+    sqlx::query("CREATE INDEX IF NOT EXISTS idx_tx_occurred ON transactions(occurred_at)")
+        .execute(pool)
+        .await?;
     Ok(())
 }
 

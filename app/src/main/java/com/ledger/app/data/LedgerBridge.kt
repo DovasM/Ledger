@@ -26,11 +26,11 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
     override fun listAllTransactions(limit: UInt, offset: UInt) =
         db.listAllTransactions(limit, offset)
 
-    override fun createTransaction(walletId: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, createdAt: String?) =
-        db.createTransaction(walletId, title, category, amount, isIncome, note, createdAt)
+    override fun createTransaction(walletId: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, occurredAt: String?) =
+        db.createTransaction(walletId, title, category, amount, isIncome, note, occurredAt)
 
-    override fun updateTransaction(id: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, createdAt: String?) =
-        db.updateTransaction(id, title, category, amount, isIncome, note, createdAt)
+    override fun updateTransaction(id: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, occurredAt: String?) =
+        db.updateTransaction(id, title, category, amount, isIncome, note, occurredAt)
 
     override fun deleteTransaction(id: String) = db.deleteTransaction(id)
 
@@ -113,7 +113,7 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
                     amount    = r.amount,
                     isIncome  = r.isIncome,
                     note      = "Auto-posted recurring",
-                    createdAt = nextDate.toString()
+                    occurredAt = nextDate.toString()
                 )
                 applied.add(r.title)
                 nextDate = advanceDate(nextDate, r.frequency)

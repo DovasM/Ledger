@@ -182,7 +182,7 @@ private fun TxDetailSheet(tx: Transaction, tags: List<Tag>, onDismiss: () -> Uni
         }
         HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            TxDetailRow(Icons.Filled.CalendarToday, "Date", tx.createdAt.take(10))
+            TxDetailRow(Icons.Filled.CalendarToday, "Date", tx.occurredAt.take(10))
             TxDetailRow(Icons.Filled.Category, "Category", tx.category.ifBlank { "—" })
             TxDetailRow(if (tx.isIncome) Icons.Filled.ArrowDownward else Icons.Filled.ArrowUpward,
                 "Type", if (tx.isIncome) "Income" else "Expense")

@@ -869,7 +869,7 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_tag(`ptr`: Pointer,`name`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_transaction(`ptr`: Pointer,`walletId`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`amount`: Double,`isIncome`: Byte,`note`: RustBuffer.ByValue,`createdAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_transaction(`ptr`: Pointer,`walletId`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`amount`: Double,`isIncome`: Byte,`note`: RustBuffer.ByValue,`occurredAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_create_transfer(`ptr`: Pointer,`fromWalletId`: RustBuffer.ByValue,`toWalletId`: RustBuffer.ByValue,`amount`: Double,`note`: RustBuffer.ByValue,`createdAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -935,7 +935,7 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_recurring(`ptr`: Pointer,`id`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`amount`: Double,`category`: RustBuffer.ByValue,`frequency`: RustBuffer.ByValue,`nextDate`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
-    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_transaction(`ptr`: Pointer,`id`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`amount`: Double,`isIncome`: Byte,`note`: RustBuffer.ByValue,`createdAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_transaction(`ptr`: Pointer,`id`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`amount`: Double,`isIncome`: Byte,`note`: RustBuffer.ByValue,`occurredAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_wallet(`ptr`: Pointer,`id`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`currency`: RustBuffer.ByValue,`offBudget`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -1235,7 +1235,7 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_tag() != 63035.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_transaction() != 20890.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_transaction() != 27318.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_create_transfer() != 29400.toShort()) {
@@ -1334,7 +1334,7 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_recurring() != 6109.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
-    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_transaction() != 51482.toShort()) {
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_transaction() != 27260.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_wallet() != 64667.toShort()) {
@@ -1786,7 +1786,7 @@ public interface LedgerDbInterface {
     
     fun `createTag`(`name`: kotlin.String): Tag
     
-    fun `createTransaction`(`walletId`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `isIncome`: kotlin.Boolean, `note`: kotlin.String?, `createdAt`: kotlin.String?): Transaction
+    fun `createTransaction`(`walletId`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `isIncome`: kotlin.Boolean, `note`: kotlin.String?, `occurredAt`: kotlin.String?): Transaction
     
     fun `createTransfer`(`fromWalletId`: kotlin.String, `toWalletId`: kotlin.String, `amount`: kotlin.Double, `note`: kotlin.String?, `createdAt`: kotlin.String?): Transfer
     
@@ -1852,7 +1852,7 @@ public interface LedgerDbInterface {
     
     fun `updateRecurring`(`id`: kotlin.String, `title`: kotlin.String, `amount`: kotlin.Double, `category`: kotlin.String, `frequency`: kotlin.String, `nextDate`: kotlin.String): RecurringTransaction
     
-    fun `updateTransaction`(`id`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `isIncome`: kotlin.Boolean, `note`: kotlin.String?, `createdAt`: kotlin.String?): Transaction
+    fun `updateTransaction`(`id`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `isIncome`: kotlin.Boolean, `note`: kotlin.String?, `occurredAt`: kotlin.String?): Transaction
     
     fun `updateWallet`(`id`: kotlin.String, `name`: kotlin.String, `description`: kotlin.String, `currency`: kotlin.String, `offBudget`: kotlin.Boolean): Wallet
     
@@ -2083,12 +2083,12 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     
 
     
-    @Throws(LedgerException::class)override fun `createTransaction`(`walletId`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `isIncome`: kotlin.Boolean, `note`: kotlin.String?, `createdAt`: kotlin.String?): Transaction {
+    @Throws(LedgerException::class)override fun `createTransaction`(`walletId`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `isIncome`: kotlin.Boolean, `note`: kotlin.String?, `occurredAt`: kotlin.String?): Transaction {
             return FfiConverterTypeTransaction.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
     UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_create_transaction(
-        it, FfiConverterString.lower(`walletId`),FfiConverterString.lower(`title`),FfiConverterString.lower(`category`),FfiConverterDouble.lower(`amount`),FfiConverterBoolean.lower(`isIncome`),FfiConverterOptionalString.lower(`note`),FfiConverterOptionalString.lower(`createdAt`),_status)
+        it, FfiConverterString.lower(`walletId`),FfiConverterString.lower(`title`),FfiConverterString.lower(`category`),FfiConverterDouble.lower(`amount`),FfiConverterBoolean.lower(`isIncome`),FfiConverterOptionalString.lower(`note`),FfiConverterOptionalString.lower(`occurredAt`),_status)
 }
     }
     )
@@ -2501,12 +2501,12 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     
 
     
-    @Throws(LedgerException::class)override fun `updateTransaction`(`id`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `isIncome`: kotlin.Boolean, `note`: kotlin.String?, `createdAt`: kotlin.String?): Transaction {
+    @Throws(LedgerException::class)override fun `updateTransaction`(`id`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amount`: kotlin.Double, `isIncome`: kotlin.Boolean, `note`: kotlin.String?, `occurredAt`: kotlin.String?): Transaction {
             return FfiConverterTypeTransaction.lift(
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
     UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_update_transaction(
-        it, FfiConverterString.lower(`id`),FfiConverterString.lower(`title`),FfiConverterString.lower(`category`),FfiConverterDouble.lower(`amount`),FfiConverterBoolean.lower(`isIncome`),FfiConverterOptionalString.lower(`note`),FfiConverterOptionalString.lower(`createdAt`),_status)
+        it, FfiConverterString.lower(`id`),FfiConverterString.lower(`title`),FfiConverterString.lower(`category`),FfiConverterDouble.lower(`amount`),FfiConverterBoolean.lower(`isIncome`),FfiConverterOptionalString.lower(`note`),FfiConverterOptionalString.lower(`occurredAt`),_status)
 }
     }
     )
@@ -3273,7 +3273,7 @@ data class Transaction (
     var `amount`: kotlin.Double, 
     var `isIncome`: kotlin.Boolean, 
     var `note`: kotlin.String?, 
-    var `createdAt`: kotlin.String
+    var `occurredAt`: kotlin.String
 ) {
     
     companion object
@@ -3304,7 +3304,7 @@ public object FfiConverterTypeTransaction: FfiConverterRustBuffer<Transaction> {
             FfiConverterDouble.allocationSize(value.`amount`) +
             FfiConverterBoolean.allocationSize(value.`isIncome`) +
             FfiConverterOptionalString.allocationSize(value.`note`) +
-            FfiConverterString.allocationSize(value.`createdAt`)
+            FfiConverterString.allocationSize(value.`occurredAt`)
     )
 
     override fun write(value: Transaction, buf: ByteBuffer) {
@@ -3315,7 +3315,7 @@ public object FfiConverterTypeTransaction: FfiConverterRustBuffer<Transaction> {
             FfiConverterDouble.write(value.`amount`, buf)
             FfiConverterBoolean.write(value.`isIncome`, buf)
             FfiConverterOptionalString.write(value.`note`, buf)
-            FfiConverterString.write(value.`createdAt`, buf)
+            FfiConverterString.write(value.`occurredAt`, buf)
     }
 }
 

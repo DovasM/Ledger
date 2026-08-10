@@ -91,7 +91,7 @@ fun SpendingStreaksScreen(
     val weekTxs = remember(txState.transactions, weekStart, today) {
         txState.transactions.filter {
             runCatching {
-                val d = LocalDate.parse(it.createdAt.take(10))
+                val d = LocalDate.parse(it.occurredAt.take(10))
                 !d.isBefore(weekStart) && !d.isAfter(today)
             }.getOrDefault(false)
         }
@@ -125,8 +125,8 @@ fun SpendingStreaksScreen(
         // Saver: any month in last 6 with savings rate ≥20%
         val isSaver = (0..5).any { off ->
             val m = today.minusMonths(off.toLong())
-            val inc = txState.transactions.filter { it.isIncome && inMonth(it.createdAt, m.year, m.monthValue) }.sumOf { it.amount }
-            val exp = txState.transactions.filter { !it.isIncome && inMonth(it.createdAt, m.year, m.monthValue) }.sumOf { it.amount }
+            val inc = txState.transactions.filter { it.isIncome && inMonth(it.occurredAt, m.year, m.monthValue) }.sumOf { it.amount }
+            val exp = txState.transactions.filter { !it.isIncome && inMonth(it.occurredAt, m.year, m.monthValue) }.sumOf { it.amount }
             inc > 0 && (inc - exp) / inc >= 0.20
         }
 
@@ -134,7 +134,7 @@ fun SpendingStreaksScreen(
         val isBudgetMaster = budgetState.budgets.isNotEmpty() && (0..5).any { off ->
             val m = today.minusMonths(off.toLong())
             val spentByCat = txState.transactions
-                .filter { !it.isIncome && inMonth(it.createdAt, m.year, m.monthValue) }
+                .filter { !it.isIncome && inMonth(it.occurredAt, m.year, m.monthValue) }
                 .groupBy { it.category }
                 .mapValues { (_, txs) -> txs.sumOf { it.amount } }
             budgetState.budgets.all { b ->

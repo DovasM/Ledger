@@ -7,8 +7,8 @@ interface ILedgerBridge {
     // ── Transactions ──────────────────────────────────────────────────────────
     fun listTransactions(walletId: String, limit: UInt = 50u, offset: UInt = 0u): List<Transaction>
     fun listAllTransactions(limit: UInt = 100u, offset: UInt = 0u): List<Transaction>
-    fun createTransaction(walletId: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, createdAt: String? = null): Transaction
-    fun updateTransaction(id: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, createdAt: String? = null): Transaction
+    fun createTransaction(walletId: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, occurredAt: String? = null): Transaction
+    fun updateTransaction(id: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, occurredAt: String? = null): Transaction
     fun deleteTransaction(id: String)
 
     // ── Wallets ───────────────────────────────────────────────────────────────

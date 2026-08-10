@@ -75,7 +75,7 @@ fun MonthlyStatisticsScreen(
 
     val availableYears = remember(reportTxs) {
         reportTxs
-            .mapNotNull { runCatching { LocalDate.parse(it.createdAt.take(10)).year }.getOrNull() }
+            .mapNotNull { runCatching { LocalDate.parse(it.occurredAt.take(10)).year }.getOrNull() }
             .distinct().sorted().ifEmpty { listOf(today.year) }
     }
 
@@ -93,32 +93,32 @@ fun MonthlyStatisticsScreen(
         val d = LocalDate.parse(s.take(10)); d.year == y && d.monthValue == m
     }.getOrDefault(false)
 
-    val selTxs   = reportTxs.filter { inMonth(it.createdAt, selectedYear, selectedMonth) }
+    val selTxs   = reportTxs.filter { inMonth(it.occurredAt, selectedYear, selectedMonth) }
     val prevDate = LocalDate.of(selectedYear, selectedMonth, 1).minusMonths(1)
-    val prevTxs  = reportTxs.filter { inMonth(it.createdAt, prevDate.year, prevDate.monthValue) }
+    val prevTxs  = reportTxs.filter { inMonth(it.occurredAt, prevDate.year, prevDate.monthValue) }
 
     val sixMonths: List<Triple<LocalDate, List<Transaction>, String>> = (5 downTo 0).map { off ->
         val d = LocalDate.of(selectedYear, selectedMonth, 1).minusMonths(off.toLong())
-        Triple(d, reportTxs.filter { inMonth(it.createdAt, d.year, d.monthValue) },
+        Triple(d, reportTxs.filter { inMonth(it.occurredAt, d.year, d.monthValue) },
             d.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()))
     }
 
     val allYearMonths: List<Triple<LocalDate, List<Transaction>, String>> = (1..12).map { m ->
         val d = LocalDate.of(selectedYear, m, 1)
-        Triple(d, reportTxs.filter { inMonth(it.createdAt, selectedYear, m) },
+        Triple(d, reportTxs.filter { inMonth(it.occurredAt, selectedYear, m) },
             d.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()))
     }
 
     val ytdTxs = reportTxs.filter {
         runCatching {
-            val d = LocalDate.parse(it.createdAt.take(10))
+            val d = LocalDate.parse(it.occurredAt.take(10))
             d.year == selectedYear && d.monthValue <= selectedMonth
         }.getOrDefault(false)
     }
 
     // Months in the selected year that have any transactions (for empty state nudge)
     val monthsWithData = (1..12).filter { m ->
-        reportTxs.any { inMonth(it.createdAt, selectedYear, m) }
+        reportTxs.any { inMonth(it.occurredAt, selectedYear, m) }
     }
 
     // ── Transaction detail sheet ──────────────────────────────────────────────
@@ -152,7 +152,7 @@ fun MonthlyStatisticsScreen(
                 }
                 HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    StatDetailRow(Icons.Filled.CalendarToday, "Date",     tx.createdAt.take(10))
+                    StatDetailRow(Icons.Filled.CalendarToday, "Date",     tx.occurredAt.take(10))
                     StatDetailRow(Icons.Filled.Category,      "Category", tx.category.ifBlank { "—" })
                     StatDetailRow(if (tx.isIncome) Icons.Filled.ArrowDownward else Icons.Filled.ArrowUpward,
                         "Type", if (tx.isIncome) "Income" else "Expense")
@@ -374,7 +374,7 @@ private fun StatsSummaryTab(
                 filteredExpenses.forEachIndexed { idx, tx ->
                     TransactionRow(
                         title    = tx.title,
-                        subtitle = "${tx.createdAt.take(10)} · ${tx.category}",
+                        subtitle = "${tx.occurredAt.take(10)} · ${tx.category}",
                         amount   = "-${"$%,.2f".format(tx.amount)}",
                         isIncome = false,
                         onClick  = { onTxClick(tx) }
@@ -401,7 +401,7 @@ private fun StatsSummaryTab(
                 filteredIncome.forEachIndexed { idx, tx ->
                     TransactionRow(
                         title    = tx.title,
-                        subtitle = "${tx.createdAt.take(10)} · ${tx.category}",
+                        subtitle = "${tx.occurredAt.take(10)} · ${tx.category}",
                         amount   = "+${"$%,.2f".format(tx.amount)}",
                         isIncome = true,
                         onClick  = { onTxClick(tx) }
@@ -612,7 +612,7 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
     val dowOrder = listOf(DayOfWeek.MONDAY, DayOfWeek.TUESDAY, DayOfWeek.WEDNESDAY,
         DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
     val byDow   = dowOrder.associateWith { dow ->
-        expenses.filter { runCatching { LocalDate.parse(it.createdAt.take(10)).dayOfWeek == dow }.getOrDefault(false) }
+        expenses.filter { runCatching { LocalDate.parse(it.occurredAt.take(10)).dayOfWeek == dow }.getOrDefault(false) }
             .sumOf { it.amount }.toFloat()
     }
     val maxDow  = byDow.values.maxOrNull()?.takeIf { it > 0f } ?: 1f
@@ -648,12 +648,12 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
 
     // ── Week of month ─────────────────────────────────────────────────────────
     val monthLength = expenses.firstOrNull()
-        ?.let { runCatching { LocalDate.parse(it.createdAt.take(10)) }.getOrNull()?.lengthOfMonth() } ?: 30
+        ?.let { runCatching { LocalDate.parse(it.occurredAt.take(10)) }.getOrNull()?.lengthOfMonth() } ?: 30
     val weekRanges    = listOf(1..7, 8..14, 15..21, 22..monthLength)
     val weekDayCounts = listOf(7, 7, 7, (monthLength - 21).coerceAtLeast(1))
     val weekLabels    = listOf("Week 1  (1–7)", "Week 2  (8–14)", "Week 3  (15–21)", "Week 4  (22+)")
     val byWeek = weekRanges.map { range ->
-        expenses.filter { runCatching { LocalDate.parse(it.createdAt.take(10)).dayOfMonth in range }.getOrDefault(false) }
+        expenses.filter { runCatching { LocalDate.parse(it.occurredAt.take(10)).dayOfMonth in range }.getOrDefault(false) }
             .sumOf { it.amount }.toFloat()
     }
     // Normalize by days per bucket so W4 (9-10 days) isn't unfairly inflated vs W1-W3 (7 days each)
@@ -726,7 +726,7 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
                 }
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Text(largest.title, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
-                    Text("${largest.createdAt.take(10)} · ${largest.category}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                    Text("${largest.occurredAt.take(10)} · ${largest.category}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                 }
                 Text("-${"$%,.2f".format(largest.amount)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
             }
@@ -1075,7 +1075,7 @@ private fun StatsComparisonTab(
     val ytdExpenses = ytdTxs.filter { !it.isIncome }.sumOf { it.amount }
     val ytdNet      = ytdIncome - ytdExpenses
     val monthsWithYtdData = (1..selectedMonth).count { m ->
-        ytdTxs.any { runCatching { LocalDate.parse(it.createdAt.take(10)).monthValue == m }.getOrDefault(false) }
+        ytdTxs.any { runCatching { LocalDate.parse(it.occurredAt.take(10)).monthValue == m }.getOrDefault(false) }
     }.coerceAtLeast(1)
     val avgMonthlySpend = ytdExpenses / monthsWithYtdData
 

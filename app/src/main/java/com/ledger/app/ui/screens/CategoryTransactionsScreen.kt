@@ -61,7 +61,7 @@ fun CategoryTransactionsScreen(
     val allTxs = remember(txState.transactions, categoryName) {
         txState.transactions
             .filter { it.category == categoryName }
-            .sortedByDescending { it.createdAt }
+            .sortedByDescending { it.occurredAt }
     }
 
     val totalSpent  = allTxs.filter { !it.isIncome }.sumOf { it.amount }
@@ -73,7 +73,7 @@ fun CategoryTransactionsScreen(
         allTxs
             .groupBy {
                 runCatching {
-                    val d = LocalDate.parse(it.createdAt.take(10))
+                    val d = LocalDate.parse(it.occurredAt.take(10))
                     YearMonth.of(d.year, d.monthValue)
                 }.getOrNull()
             }
@@ -186,7 +186,7 @@ fun CategoryTransactionsScreen(
                         LedgerCard(modifier = Modifier.fillMaxWidth()) {
                             Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
                                 txs.forEachIndexed { idx, tx ->
-                                    val txDate = runCatching { LocalDate.parse(tx.createdAt.take(10)).format(dayFmt) }.getOrElse { tx.createdAt.take(10) }
+                                    val txDate = runCatching { LocalDate.parse(tx.occurredAt.take(10)).format(dayFmt) }.getOrElse { tx.occurredAt.take(10) }
                                     Surface(
                                         onClick = { sheetTx = tx },
                                         color = Color.Transparent,
@@ -237,7 +237,7 @@ private fun CatTxDetailSheet(
 ) {
     var confirmDelete by remember { mutableStateOf(false) }
     val dateFmt = DateTimeFormatter.ofPattern("MMM d, yyyy")
-    val displayDate = runCatching { LocalDate.parse(tx.createdAt.take(10)).format(dateFmt) }.getOrElse { tx.createdAt.take(10) }
+    val displayDate = runCatching { LocalDate.parse(tx.occurredAt.take(10)).format(dateFmt) }.getOrElse { tx.occurredAt.take(10) }
 
     if (confirmDelete) {
         AlertDialog(

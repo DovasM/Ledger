@@ -85,7 +85,7 @@ fun ActivityScreen(
 
     val visibleTxs = state.transactions.filter {
         runCatching {
-            val d = java.time.LocalDate.parse(it.createdAt.take(10))
+            val d = java.time.LocalDate.parse(it.occurredAt.take(10))
             d >= fromDate && d <= toDate
         }.getOrElse { false }
     }
@@ -135,8 +135,8 @@ fun ActivityScreen(
         ) { DatePicker(state = pickerState) }
     }
 
-    // Group transactions by date (first 10 chars of createdAt ISO string)
-    val grouped = visibleTxs.groupBy { it.createdAt.take(10) }
+    // Group transactions by date (first 10 chars of occurredAt ISO string)
+    val grouped = visibleTxs.groupBy { it.occurredAt.take(10) }
         .entries.sortedByDescending { it.key }
 
     val totalIncome = visibleTxs.filter { it.isIncome }.sumOf { it.amount }
@@ -329,7 +329,7 @@ private fun ActivityTxSheet(tx: Transaction, tags: List<Tag>, onDismiss: () -> U
         }
         HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
         Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            ActivityDetailRow(Icons.Filled.CalendarToday, "Date", tx.createdAt.take(10))
+            ActivityDetailRow(Icons.Filled.CalendarToday, "Date", tx.occurredAt.take(10))
             ActivityDetailRow(Icons.Filled.Category, "Category", tx.category.ifBlank { "—" })
             ActivityDetailRow(
                 if (tx.isIncome) Icons.Filled.ArrowDownward else Icons.Filled.ArrowUpward,

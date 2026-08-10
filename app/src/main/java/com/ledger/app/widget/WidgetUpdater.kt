@@ -59,7 +59,7 @@ class WidgetUpdater @Inject constructor(
 
         val monthPrefix = "%04d-%02d".format(today.year, today.monthValue)
         val monthSpent = transactions
-            .filter { !it.isIncome && it.createdAt.startsWith(monthPrefix) }
+            .filter { !it.isIncome && it.occurredAt.startsWith(monthPrefix) }
             .sumOf { it.amount }
         val tightest = stats.tightestCategory
 
@@ -78,7 +78,7 @@ class WidgetUpdater @Inject constructor(
             pinned.map { shortcut(it) }
         } else {
             transactions
-                .filter { !it.isIncome && it.createdAt.take(10) >= since }
+                .filter { !it.isIncome && it.occurredAt.take(10) >= since }
                 .groupingBy { it.category }
                 .eachCount()
                 .entries

@@ -29,7 +29,10 @@ dictionary Transaction {
     f64 amount;
     boolean is_income;
     string? note;
-    string created_at;
+    // The date the transaction happened. The row's own creation time stays in the database as
+    // created_at but is not exposed — nothing needs it yet, and having both fields visible is what
+    // let the two meanings blur in the first place.
+    string occurred_at;
 };
 
 dictionary Wallet {
@@ -151,10 +154,10 @@ interface LedgerDb {
     sequence<Transaction> list_all_transactions(u32 limit, u32 offset);
 
     [Throws=LedgerError]
-    Transaction create_transaction(string wallet_id, string title, string category, f64 amount, boolean is_income, string? note, string? created_at);
+    Transaction create_transaction(string wallet_id, string title, string category, f64 amount, boolean is_income, string? note, string? occurred_at);
 
     [Throws=LedgerError]
-    Transaction update_transaction(string id, string title, string category, f64 amount, boolean is_income, string? note, string? created_at);
+    Transaction update_transaction(string id, string title, string category, f64 amount, boolean is_income, string? note, string? occurred_at);
 
     [Throws=LedgerError]
     void delete_transaction(string id);
