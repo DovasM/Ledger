@@ -33,6 +33,7 @@ fun SettingsScreen(
     vm: SettingsViewModel = hiltViewModel()
 ) {
     val currencyCode by vm.currencyCode.collectAsStateWithLifecycle()
+    val includeOffBudget by vm.reportsIncludeOffBudget.collectAsStateWithLifecycle()
     var showCurrencyPicker by remember { mutableStateOf(false) }
 
     if (showCurrencyPicker) {
@@ -134,6 +135,33 @@ fun SettingsScreen(
 
             // Reports & Insights
             SettingsSection(title = "Reports & Insights") {
+                // Off-budget accounts are already excluded from budgets and the allowance. Reports
+                // hide them too by default, since a work account's turnover swamps personal figures
+                // — but the full picture is one switch away.
+                Row(
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier.size(38.dp).clip(RoundedCornerShape(10.dp)).background(Color(0xFF6A1B9A).copy(alpha = 0.12f)),
+                        contentAlignment = Alignment.Center
+                    ) { Icon(Icons.Filled.VisibilityOff, null, tint = Color(0xFF6A1B9A), modifier = Modifier.size(20.dp)) }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text("Include off-budget accounts", style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium)
+                        Text(
+                            if (includeOffBudget) "Reports show every account"
+                            else "Reports leave out accounts marked off budget",
+                            style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = includeOffBudget,
+                        onCheckedChange = { vm.setReportsIncludeOffBudget(it) },
+                        colors = SwitchDefaults.colors(checkedThumbColor = OnPrimary, checkedTrackColor = Primary)
+                    )
+                }
+                SettingsDivider()
                 SettingsNavItem(Icons.Filled.BarChart, Color(0xFF00513F), "Custom Reports", "Generate and export spending reports") { navController.navigate(Screen.CustomReport.route) }
                 SettingsDivider()
                 SettingsNavItem(Icons.Filled.Insights, Color(0xFF1565C0), "Budget Insights", "View spending patterns and budget alerts") { navController.navigate(Screen.BudgetInsights.route) }

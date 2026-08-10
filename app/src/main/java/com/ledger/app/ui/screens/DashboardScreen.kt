@@ -28,6 +28,7 @@ import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.util.colorHexToColor
 import com.ledger.app.ui.util.iconNameToVector
+import com.ledger.app.ui.util.rememberReportTransactions
 import com.ledger.app.ui.viewmodel.*
 import uniffi.ledger.Transaction
 import java.time.LocalDate
@@ -46,6 +47,8 @@ fun DashboardScreen(
 ) {
     val aiEnabled by settingsViewModel.aiEnabled.collectAsStateWithLifecycle()
     val txState by txViewModel.state.collectAsStateWithLifecycle()
+    // Off-budget accounts are excluded here unless the user asked to see them.
+    val reportTxs = rememberReportTransactions(txState)
     val walletState by walletViewModel.state.collectAsStateWithLifecycle()
     val goalState by goalViewModel.state.collectAsStateWithLifecycle()
     val budgetState by budgetViewModel.state.collectAsStateWithLifecycle()
@@ -73,7 +76,7 @@ fun DashboardScreen(
     var chartPeriodStart by remember { mutableStateOf(today.withDayOfMonth(1)) }
 
     // Period-filtered income/expenses (synced with chart selection)
-    val periodTxs = txState.transactions.filter {
+    val periodTxs = reportTxs.filter {
         try { LocalDate.parse(it.createdAt.take(10)) >= chartPeriodStart } catch (e: Exception) { false }
     }
     val periodIncome = periodTxs.filter { it.isIncome }.sumOf { it.amount }
@@ -86,7 +89,7 @@ fun DashboardScreen(
     }
 
     // Current month transactions
-    val currentMonthTxs = txState.transactions.filter {
+    val currentMonthTxs = reportTxs.filter {
         try {
             val d = LocalDate.parse(it.createdAt.take(10))
             d.year == today.year && d.monthValue == today.monthValue
@@ -275,7 +278,7 @@ fun DashboardScreen(
                         }
                     }
                     LedgerTrendChart(
-                        transactions = txState.transactions,
+                        transactions = reportTxs,
                         currentBalance = totalBalance,
                         onPeriodChanged = { chartPeriodStart = it }
                     )
@@ -329,10 +332,10 @@ fun DashboardScreen(
             Text("Recent Transactions", style = MaterialTheme.typography.headlineSmall, color = OnSurface)
             LedgerCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp)) {
-                    if (txState.transactions.isEmpty()) {
+                    if (reportTxs.isEmpty()) {
                         Text("No transactions yet.", style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
                     } else {
-                        txState.transactions.take(5).forEach { tx ->
+                        reportTxs.take(5).forEach { tx ->
                             TransactionRow(
                                 title = tx.title,
                                 subtitle = "${tx.createdAt.take(10)} · ${tx.category}",

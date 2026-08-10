@@ -194,6 +194,15 @@ private fun WalletCard(wallet: Wallet, navController: NavController, onLongClick
             Spacer(Modifier.width(16.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(wallet.name, style = MaterialTheme.typography.titleMedium, color = OnSurface)
+                // Otherwise the only way to tell an account is excluded is to open it.
+                if (wallet.offBudget) {
+                    Text(
+                        "Off budget",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Tertiary,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
                 if (wallet.description.isNotBlank()) {
                     Text(wallet.description, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                 }

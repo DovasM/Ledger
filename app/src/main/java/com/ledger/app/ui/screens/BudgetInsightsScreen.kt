@@ -23,6 +23,7 @@ import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.rememberReportTransactions
 import com.ledger.app.ui.viewmodel.BudgetViewModel
 import com.ledger.app.ui.viewmodel.CategoryViewModel
 import com.ledger.app.ui.viewmodel.RecurringViewModel
@@ -44,6 +45,8 @@ fun BudgetInsightsScreen(
     recurringViewModel: RecurringViewModel = hiltViewModel()
 ) {
     val txState        by txViewModel.state.collectAsStateWithLifecycle()
+    // Off-budget accounts are excluded here unless the user asked to see them.
+    val reportTxs = rememberReportTransactions(txState)
     val budgetState    by budgetViewModel.state.collectAsStateWithLifecycle()
     val catState       by categoryViewModel.state.collectAsStateWithLifecycle()
     val recurringState by recurringViewModel.state.collectAsStateWithLifecycle()
@@ -60,8 +63,8 @@ fun BudgetInsightsScreen(
 
     // ── Core data ──────────────────────────────────────────────────────────────
 
-    val thisMonthTxs = remember(txState.transactions, thisYm) {
-        txState.transactions.filter {
+    val thisMonthTxs = remember(reportTxs, thisYm) {
+        reportTxs.filter {
             runCatching { LocalDate.parse(it.createdAt.take(10)).let { d ->
                 d.year == thisYm.year && d.monthValue == thisYm.monthValue
             }}.getOrElse { false }

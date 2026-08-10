@@ -614,7 +614,15 @@ account is added — and `budgets.wallet_id` (which narrows one budget to one wa
 "my personal spending lives across three wallets".
 
 `computeStreakStats` takes `offBudgetWalletIds` and filters expenses and streak days by it; callers
-pass `wallets.filter { it.offBudget }`. Reports and statistics screens do **not** filter yet.
+pass `wallets.filter { it.offBudget }`.
+
+**Analysis screens call `rememberReportTransactions(txState)`, never `txState.transactions`.** That
+helper applies the `reports_include_off_budget` preference (default off) in one place — eight
+screens each re-deriving the rule is how they drift apart. `TransactionUiState.transactions` stays
+complete on purpose: editing, search and the transaction list must be able to reach an off-budget
+row by id, so filtering at the source would have hidden rows from screens that must show them.
+
+The toggle lives in Settings → Reports & Insights, and `WalletsListScreen` marks excluded accounts.
 
 ## Wallet currency
 

@@ -42,6 +42,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.util.colorHexToColor
+import com.ledger.app.ui.util.rememberReportTransactions
 import com.ledger.app.ui.viewmodel.*
 import uniffi.ledger.Transaction
 import java.time.LocalDate
@@ -72,6 +73,8 @@ fun CashFlowForecastScreen(
     debtViewModel: DebtViewModel           = hiltViewModel()
 ) {
     val txState        by txViewModel.state.collectAsStateWithLifecycle()
+    // Off-budget accounts are excluded here unless the user asked to see them.
+    val reportTxs = rememberReportTransactions(txState)
     val walletState    by walletViewModel.state.collectAsStateWithLifecycle()
     val recurringState by recurringViewModel.state.collectAsStateWithLifecycle()
     val budgetState    by budgetViewModel.state.collectAsStateWithLifecycle()
@@ -96,7 +99,7 @@ fun CashFlowForecastScreen(
     }.getOrDefault(false)
 
     // ── This month ────────────────────────────────────────────────────────────
-    val thisMonthTxs      = txState.transactions.filter { inMonth(it.createdAt, today.year, today.monthValue) }
+    val thisMonthTxs      = reportTxs.filter { inMonth(it.createdAt, today.year, today.monthValue) }
     val thisMonthIncome   = thisMonthTxs.filter {  it.isIncome }.sumOf { it.amount }
     val thisMonthExpenses = thisMonthTxs.filter { !it.isIncome }.sumOf { it.amount }
     val thisMonthNet      = thisMonthIncome - thisMonthExpenses
@@ -122,7 +125,7 @@ fun CashFlowForecastScreen(
     val approxMonthlyRecurring = recurringState.recurring.filter { !it.isIncome }.sumOf { it.amount }
     fun variableExpensesForMonth(offset: Int): Double {
         val m = today.minusMonths(offset.toLong())
-        val total = txState.transactions
+        val total = reportTxs
             .filter { !it.isIncome && inMonth(it.createdAt, m.year, m.monthValue) }
             .sumOf { it.amount }
         return (total - approxMonthlyRecurring).coerceAtLeast(0.0)
@@ -157,7 +160,7 @@ fun CashFlowForecastScreen(
     // ── Monthly bars last 6 months ────────────────────────────────────────────
     val monthBars: List<CfMonthBar> = (5 downTo 0).map { offset ->
         val m = today.minusMonths(offset.toLong())
-        val txs = txState.transactions.filter { inMonth(it.createdAt, m.year, m.monthValue) }
+        val txs = reportTxs.filter { inMonth(it.createdAt, m.year, m.monthValue) }
         CfMonthBar(
             label    = m.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
             income   = txs.filter {  it.isIncome }.sumOf { it.amount }.toFloat(),
@@ -206,19 +209,19 @@ fun CashFlowForecastScreen(
     val predictedExp  = thisMonthExpenses + pendingRecurringExp + dailyBurnRate * remainingDays
 
     val prevM              = today.minusMonths(1)
-    val prevMonthExpenses  = txState.transactions.filter { inMonth(it.createdAt, prevM.year, prevM.monthValue) && !it.isIncome }.sumOf { it.amount }
+    val prevMonthExpenses  = reportTxs.filter { inMonth(it.createdAt, prevM.year, prevM.monthValue) && !it.isIncome }.sumOf { it.amount }
     val expenseMoM         = if (prevMonthExpenses > 0) ((thisMonthExpenses - prevMonthExpenses) / prevMonthExpenses * 100) else 0.0
 
     val avgMonthlyExpenses = (1..6).mapNotNull { off ->
         val m   = today.minusMonths(off.toLong())
-        val sum = txState.transactions.filter { inMonth(it.createdAt, m.year, m.monthValue) && !it.isIncome }.sumOf { it.amount }
+        val sum = reportTxs.filter { inMonth(it.createdAt, m.year, m.monthValue) && !it.isIncome }.sumOf { it.amount }
         sum.takeIf { it > 0 }
     }.let { if (it.isEmpty()) thisMonthExpenses else it.average() }
     val runway = if (avgMonthlyExpenses > 0) totalBalance / avgMonthlyExpenses else 0.0
 
     val incomeHistory: List<Float> = (5 downTo 0).map { off ->
         val m = today.minusMonths(off.toLong())
-        txState.transactions.filter { inMonth(it.createdAt, m.year, m.monthValue) && it.isIncome }.sumOf { it.amount }.toFloat()
+        reportTxs.filter { inMonth(it.createdAt, m.year, m.monthValue) && it.isIncome }.sumOf { it.amount }.toFloat()
     }
     val incomeMean   = incomeHistory.average().toFloat()
     val incomeStdDev = if (incomeMean > 0) sqrt(incomeHistory.map { (it - incomeMean).pow(2) }.average()).toFloat() else 0f
@@ -229,7 +232,7 @@ fun CashFlowForecastScreen(
     val last3AvgByCategory = mutableMapOf<String, Double>()
     for (off in 1..3) {
         val m = today.minusMonths(off.toLong())
-        txState.transactions.filter { inMonth(it.createdAt, m.year, m.monthValue) && !it.isIncome }
+        reportTxs.filter { inMonth(it.createdAt, m.year, m.monthValue) && !it.isIncome }
             .groupBy { it.category }
             .forEach { (cat, txs) ->
                 last3AvgByCategory[cat] = (last3AvgByCategory[cat] ?: 0.0) + txs.sumOf { it.amount } / 3.0
@@ -276,7 +279,7 @@ fun CashFlowForecastScreen(
             ) { tab ->
                 when (tab) {
                     0 -> OverviewTab(today, thisMonthIncome, thisMonthExpenses, thisMonthNet, projectedBalances, projectedDelta, scheduledEvents, payYourselfFirst, largestUpcoming, variableDailyBurn)
-                    1 -> CalendarTab(today, scheduledEvents, txState.transactions)
+                    1 -> CalendarTab(today, scheduledEvents, reportTxs)
                     2 -> AnalyticsTab(monthBars, catSlices, budgetRows, totalMonthlyDebt, debtRatio)
                     3 -> InsightsTab(savingsRate, dailyBurnRate, daysElapsed, expenseMoM, incomeHistory, incomeCoV, runway, breakEvenDay, today, predictedExp, thisMonthIncome, unusualSpending)
                     else -> {}

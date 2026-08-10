@@ -24,9 +24,17 @@ import javax.inject.Inject
 data class TransactionUiState(
     val transactions: List<Transaction> = emptyList(),
     val monthSummary: MonthSummary? = null,
+    val offBudgetWalletIds: Set<String> = emptySet(),
     val isLoading: Boolean = false,
     val error: String? = null
-)
+) {
+    // `transactions` stays complete on purpose — editing, search and the transaction list must be
+    // able to reach an off-budget row by id. Analysis screens ask for this instead, so excluding a
+    // work account cannot accidentally hide a transaction from the screens that must show it.
+    fun forReports(includeOffBudget: Boolean): List<Transaction> =
+        if (includeOffBudget || offBudgetWalletIds.isEmpty()) transactions
+        else transactions.filter { it.walletId !in offBudgetWalletIds }
+}
 
 @HiltViewModel
 class TransactionViewModel @Inject constructor(
@@ -59,7 +67,13 @@ class TransactionViewModel @Inject constructor(
                 val txns = bridge.listAllTransactions(limit, offset)
                 val now = java.time.LocalDate.now()
                 val summary = try { bridge.getMonthSummary(now.year, now.monthValue) } catch (e: Exception) { null }
-                _state.value = _state.value.copy(transactions = txns, monthSummary = summary, isLoading = false)
+                val offBudget = runCatching {
+                    bridge.listWallets().filter { it.offBudget }.map { it.id }.toSet()
+                }.getOrDefault(emptySet())
+                _state.value = _state.value.copy(
+                    transactions = txns, monthSummary = summary,
+                    offBudgetWalletIds = offBudget, isLoading = false
+                )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(isLoading = false, error = e.message)
             }
