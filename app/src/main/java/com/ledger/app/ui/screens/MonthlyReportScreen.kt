@@ -22,6 +22,7 @@ import com.ledger.app.ui.components.LedgerFloatingCard
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.util.buildMonthlyCsv
 import com.ledger.app.ui.util.shareCsv
+import com.ledger.app.ui.util.rememberReportTransactions
 import com.ledger.app.ui.viewmodel.TransactionViewModel
 import java.time.LocalDate
 import java.time.YearMonth
@@ -36,6 +37,8 @@ fun MonthlyReportScreen(
     txViewModel: TransactionViewModel = hiltViewModel()
 ) {
     val txState by txViewModel.state.collectAsStateWithLifecycle()
+    // Off-budget accounts are excluded here unless the user asked to see them.
+    val reportTxs = rememberReportTransactions(txState)
     val context = LocalContext.current
     val today   = LocalDate.now()
 
@@ -55,8 +58,8 @@ fun MonthlyReportScreen(
         }
     }
 
-    val monthTxs = remember(txState.transactions, selectedYear, selectedMonth) {
-        txState.transactions.filter {
+    val monthTxs = remember(reportTxs, selectedYear, selectedMonth) {
+        reportTxs.filter {
             runCatching {
                 val d = LocalDate.parse(it.createdAt.take(10))
                 d.year == selectedYear && d.monthValue == selectedMonth

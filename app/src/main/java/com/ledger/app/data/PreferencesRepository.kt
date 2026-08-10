@@ -52,6 +52,7 @@ class PreferencesRepository @Inject constructor(
         // Daily allowance
         val KEY_ALLOWANCE_ROLLOVER = booleanPreferencesKey("allowance_rollover")
         val KEY_ALLOWANCE_WINDOW   = stringPreferencesKey("allowance_window")
+        val KEY_REPORTS_OFF_BUDGET = booleanPreferencesKey("reports_include_off_budget")
         // AI
         val KEY_AI_ENABLED            = booleanPreferencesKey("ai_enabled")
         val KEY_AI_AUTO_LOAD          = booleanPreferencesKey("ai_auto_load")
@@ -92,6 +93,9 @@ class PreferencesRepository @Inject constructor(
     val allowanceRollover: Flow<Boolean> = ds.data.map { it[KEY_ALLOWANCE_ROLLOVER] ?: true }
     // "weekly" | "monthly" — when the carried balance resets.
     val allowanceWindow: Flow<String>    = ds.data.map { it[KEY_ALLOWANCE_WINDOW]   ?: "monthly" }
+    // Off-budget accounts are hidden from reports by default — the point of flagging one is to stop
+    // it distorting your figures. This toggle brings it back when you want the full picture.
+    val reportsIncludeOffBudget: Flow<Boolean> = ds.data.map { it[KEY_REPORTS_OFF_BUDGET] ?: false }
 
     // Defaults to true: AI features already shipped, so an update must not silently remove them.
     val aiEnabled: Flow<Boolean>          = ds.data.map { it[KEY_AI_ENABLED]            ?: true }
@@ -129,6 +133,7 @@ class PreferencesRepository @Inject constructor(
 
     suspend fun setAllowanceRollover(value: Boolean) = ds.edit { it[KEY_ALLOWANCE_ROLLOVER] = value }
     suspend fun setAllowanceWindow(value: String)    = ds.edit { it[KEY_ALLOWANCE_WINDOW]   = value }
+    suspend fun setReportsIncludeOffBudget(v: Boolean) = ds.edit { it[KEY_REPORTS_OFF_BUDGET] = v }
 
     suspend fun setAiEnabled(value: Boolean)          = ds.edit { it[KEY_AI_ENABLED]            = value }
     suspend fun setAiAutoLoad(value: Boolean)         = ds.edit { it[KEY_AI_AUTO_LOAD]          = value }

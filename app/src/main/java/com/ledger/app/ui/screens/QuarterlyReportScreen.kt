@@ -23,6 +23,7 @@ import com.ledger.app.ui.components.LedgerFloatingCard
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.util.buildQuarterlyCsv
 import com.ledger.app.ui.util.shareCsv
+import com.ledger.app.ui.util.rememberReportTransactions
 import com.ledger.app.ui.viewmodel.TransactionViewModel
 import java.time.LocalDate
 import java.time.YearMonth
@@ -34,6 +35,8 @@ fun QuarterlyReportScreen(
     txViewModel: TransactionViewModel = hiltViewModel()
 ) {
     val txState = txViewModel.state.collectAsStateWithLifecycle().value
+    // Off-budget accounts are excluded here unless the user asked to see them.
+    val reportTxs = rememberReportTransactions(txState)
     val context = LocalContext.current
     val today   = LocalDate.now()
 
@@ -63,9 +66,9 @@ fun QuarterlyReportScreen(
         val savingsRate: Double? get() = if (income > 0) net / income * 100 else null
     }
 
-    val monthStats = remember(txState.transactions, selectedYear, selectedQuarter) {
+    val monthStats = remember(reportTxs, selectedYear, selectedQuarter) {
         quarterMonths.map { month ->
-            val txs = txState.transactions.filter {
+            val txs = reportTxs.filter {
                 runCatching {
                     val d = LocalDate.parse(it.createdAt.take(10))
                     d.year == selectedYear && d.monthValue == month
@@ -79,8 +82,8 @@ fun QuarterlyReportScreen(
         }
     }
 
-    val quarterTxs = remember(txState.transactions, selectedYear, selectedQuarter) {
-        txState.transactions.filter {
+    val quarterTxs = remember(reportTxs, selectedYear, selectedQuarter) {
+        reportTxs.filter {
             runCatching {
                 val d = LocalDate.parse(it.createdAt.take(10))
                 d.year == selectedYear && d.monthValue in quarterMonths

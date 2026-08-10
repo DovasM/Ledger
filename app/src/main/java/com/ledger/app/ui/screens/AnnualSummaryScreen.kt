@@ -29,6 +29,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.util.colorHexToColor
+import com.ledger.app.ui.util.rememberReportTransactions
 import com.ledger.app.ui.viewmodel.CategoryViewModel
 import com.ledger.app.ui.viewmodel.TransactionViewModel
 import kotlin.math.roundToInt
@@ -45,6 +46,8 @@ fun AnnualSummaryScreen(
     catViewModel: CategoryViewModel    = hiltViewModel()
 ) {
     val txState  by txViewModel.state.collectAsStateWithLifecycle()
+    // Off-budget accounts are excluded here unless the user asked to see them.
+    val reportTxs = rememberReportTransactions(txState)
     val catState by catViewModel.state.collectAsStateWithLifecycle()
 
     val currentEntry by navController.currentBackStackEntryAsState()
@@ -55,8 +58,8 @@ fun AnnualSummaryScreen(
 
     val today = LocalDate.now()
 
-    val availableYears = remember(txState.transactions) {
-        txState.transactions
+    val availableYears = remember(reportTxs) {
+        reportTxs
             .mapNotNull { runCatching { LocalDate.parse(it.createdAt.take(10)).year }.getOrNull() }
             .distinct().sorted().ifEmpty { listOf(today.year) }
     }
@@ -70,7 +73,7 @@ fun AnnualSummaryScreen(
 
     // Per-month data for selected year
     val monthData = (1..12).map { m ->
-        val txs      = txState.transactions.filter { inMonth(it.createdAt, selectedYear, m) }
+        val txs      = reportTxs.filter { inMonth(it.createdAt, selectedYear, m) }
         val income   = txs.filter {  it.isIncome }.sumOf { it.amount }.toFloat()
         val expenses = txs.filter { !it.isIncome }.sumOf { it.amount }.toFloat()
         val rate     = if (income > 0f) ((income - expenses) / income * 100f).coerceIn(-100f, 100f) else 0f
@@ -91,7 +94,7 @@ fun AnnualSummaryScreen(
     val monthsTracked  = monthlyIncome.count { it > 0f }
 
     // Top categories YTD
-    val ytdExpenses = txState.transactions.filter {
+    val ytdExpenses = reportTxs.filter {
         runCatching { LocalDate.parse(it.createdAt.take(10)).year == selectedYear && !it.isIncome }.getOrDefault(false)
     }
     val topCategories = ytdExpenses

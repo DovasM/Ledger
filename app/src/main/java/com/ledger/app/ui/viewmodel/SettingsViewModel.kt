@@ -47,6 +47,7 @@ class SettingsViewModel @Inject constructor(
 
     val allowanceRollover = prefs.allowanceRollover.stateIn(viewModelScope, SharingStarted.Eagerly, true)
     val allowanceWindow   = prefs.allowanceWindow.stateIn(viewModelScope, SharingStarted.Eagerly, "monthly")
+    val reportsIncludeOffBudget = prefs.reportsIncludeOffBudget.stateIn(viewModelScope, SharingStarted.Eagerly, false)
 
     // Master AI switch — screens read this to hide AI-powered controls when it's off.
     val aiEnabled       = prefs.aiEnabled.stateIn(viewModelScope, SharingStarted.Eagerly, true)
@@ -64,6 +65,7 @@ class SettingsViewModel @Inject constructor(
 
     fun setAllowanceRollover(v: Boolean) = viewModelScope.launch { prefs.setAllowanceRollover(v); widgetUpdater.refresh() }
     fun setAllowanceWindow(v: String)    = viewModelScope.launch { prefs.setAllowanceWindow(v); widgetUpdater.refresh() }
+    fun setReportsIncludeOffBudget(v: Boolean) = viewModelScope.launch { prefs.setReportsIncludeOffBudget(v) }
 
     fun setNotifMaster(v: Boolean)     = viewModelScope.launch { prefs.setNotifMaster(v) }
     fun setNotifBudget(v: Boolean)     = viewModelScope.launch { prefs.setNotifBudget(v) }

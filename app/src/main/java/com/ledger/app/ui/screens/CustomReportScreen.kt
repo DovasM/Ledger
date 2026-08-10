@@ -21,6 +21,7 @@ import com.ledger.app.ui.components.LedgerCard
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.util.buildCustomCsv
 import com.ledger.app.ui.util.shareCsv
+import com.ledger.app.ui.util.rememberReportTransactions
 import com.ledger.app.ui.viewmodel.CategoryViewModel
 import com.ledger.app.ui.viewmodel.TransactionViewModel
 import java.time.DayOfWeek
@@ -37,6 +38,8 @@ fun CustomReportScreen(
 ) {
     val catState by categoryViewModel.state.collectAsStateWithLifecycle()
     val txState  by txViewModel.state.collectAsStateWithLifecycle()
+    // Off-budget accounts are excluded here unless the user asked to see them.
+    val reportTxs = rememberReportTransactions(txState)
     val context  = LocalContext.current
 
     LaunchedEffect(Unit) { txViewModel.loadAll() }
@@ -69,9 +72,9 @@ fun CustomReportScreen(
         val byDay: List<Pair<String, Double>>      // date → total
     )
 
-    val reportData: ReportSummary? = remember(txState.transactions, startYm, endYm, selectedCategories.toList(), includeExpenses, includeIncome, reportGenerated) {
+    val reportData: ReportSummary? = remember(reportTxs, startYm, endYm, selectedCategories.toList(), includeExpenses, includeIncome, reportGenerated) {
         if (!reportGenerated) return@remember null
-        val filtered = txState.transactions.filter { tx ->
+        val filtered = reportTxs.filter { tx ->
             val inRange = runCatching {
                 val d = LocalDate.parse(tx.createdAt.take(10))
                 val ym = YearMonth.of(d.year, d.monthValue)
@@ -359,8 +362,8 @@ fun CustomReportScreen(
                         style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.SemiBold
                     )
                     // Export button — built from the filtered transactions stored in reportData
-                    val filteredTxs = remember(txState.transactions, startYm, endYm, selectedCategories.toList(), includeExpenses, includeIncome) {
-                        txState.transactions.filter { tx ->
+                    val filteredTxs = remember(reportTxs, startYm, endYm, selectedCategories.toList(), includeExpenses, includeIncome) {
+                        reportTxs.filter { tx ->
                             val inRange = runCatching {
                                 val d = LocalDate.parse(tx.createdAt.take(10))
                                 val ym = YearMonth.of(d.year, d.monthValue)

@@ -36,6 +36,7 @@ import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.util.colorHexToColor
 import com.ledger.app.ui.util.iconNameToVector
+import com.ledger.app.ui.util.rememberReportTransactions
 import com.ledger.app.ui.viewmodel.CategoryViewModel
 import com.ledger.app.ui.viewmodel.RecurringViewModel
 import com.ledger.app.ui.viewmodel.TransactionViewModel
@@ -58,6 +59,8 @@ fun MonthlyStatisticsScreen(
     recurringViewModel: RecurringViewModel = hiltViewModel()
 ) {
     val txState        by txViewModel.state.collectAsStateWithLifecycle()
+    // Off-budget accounts are excluded here unless the user asked to see them.
+    val reportTxs = rememberReportTransactions(txState)
     val catState       by categoryViewModel.state.collectAsStateWithLifecycle()
     val recurringState by recurringViewModel.state.collectAsStateWithLifecycle()
 
@@ -70,8 +73,8 @@ fun MonthlyStatisticsScreen(
 
     val today = LocalDate.now()
 
-    val availableYears = remember(txState.transactions) {
-        txState.transactions
+    val availableYears = remember(reportTxs) {
+        reportTxs
             .mapNotNull { runCatching { LocalDate.parse(it.createdAt.take(10)).year }.getOrNull() }
             .distinct().sorted().ifEmpty { listOf(today.year) }
     }
@@ -90,23 +93,23 @@ fun MonthlyStatisticsScreen(
         val d = LocalDate.parse(s.take(10)); d.year == y && d.monthValue == m
     }.getOrDefault(false)
 
-    val selTxs   = txState.transactions.filter { inMonth(it.createdAt, selectedYear, selectedMonth) }
+    val selTxs   = reportTxs.filter { inMonth(it.createdAt, selectedYear, selectedMonth) }
     val prevDate = LocalDate.of(selectedYear, selectedMonth, 1).minusMonths(1)
-    val prevTxs  = txState.transactions.filter { inMonth(it.createdAt, prevDate.year, prevDate.monthValue) }
+    val prevTxs  = reportTxs.filter { inMonth(it.createdAt, prevDate.year, prevDate.monthValue) }
 
     val sixMonths: List<Triple<LocalDate, List<Transaction>, String>> = (5 downTo 0).map { off ->
         val d = LocalDate.of(selectedYear, selectedMonth, 1).minusMonths(off.toLong())
-        Triple(d, txState.transactions.filter { inMonth(it.createdAt, d.year, d.monthValue) },
+        Triple(d, reportTxs.filter { inMonth(it.createdAt, d.year, d.monthValue) },
             d.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()))
     }
 
     val allYearMonths: List<Triple<LocalDate, List<Transaction>, String>> = (1..12).map { m ->
         val d = LocalDate.of(selectedYear, m, 1)
-        Triple(d, txState.transactions.filter { inMonth(it.createdAt, selectedYear, m) },
+        Triple(d, reportTxs.filter { inMonth(it.createdAt, selectedYear, m) },
             d.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()))
     }
 
-    val ytdTxs = txState.transactions.filter {
+    val ytdTxs = reportTxs.filter {
         runCatching {
             val d = LocalDate.parse(it.createdAt.take(10))
             d.year == selectedYear && d.monthValue <= selectedMonth
@@ -115,7 +118,7 @@ fun MonthlyStatisticsScreen(
 
     // Months in the selected year that have any transactions (for empty state nudge)
     val monthsWithData = (1..12).filter { m ->
-        txState.transactions.any { inMonth(it.createdAt, selectedYear, m) }
+        reportTxs.any { inMonth(it.createdAt, selectedYear, m) }
     }
 
     // ── Transaction detail sheet ──────────────────────────────────────────────
