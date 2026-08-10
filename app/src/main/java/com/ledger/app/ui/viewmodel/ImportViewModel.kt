@@ -217,7 +217,7 @@ class ImportViewModel @Inject constructor(
                         amount = tx.amount,
                         isIncome = tx.isIncome,
                         note = null,
-                        createdAt = tx.date
+                        occurredAt = tx.date
                     )
                     count++
                 }

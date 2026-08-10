@@ -192,7 +192,7 @@ fun computeStreakStats(
     val monthPrefix = "%04d-%02d".format(today.year, today.monthValue)
     val todayKey = today.toString()
 
-    fun dateOf(tx: Transaction): LocalDate? = runCatching { LocalDate.parse(tx.createdAt.take(10)) }.getOrNull()
+    fun dateOf(tx: Transaction): LocalDate? = runCatching { LocalDate.parse(tx.occurredAt.take(10)) }.getOrNull()
 
     // The allowance window is where a carried surplus/deficit lives and resets. Budget limits are
     // pro-rated into it via staticDaily, so a weekly budget works inside a monthly window and back.
@@ -211,7 +211,7 @@ fun computeStreakStats(
         fun spentBetween(from: LocalDate, toExclusiveOfToday: Boolean) = ofCategory.filter { tx ->
             val d = dateOf(tx) ?: return@filter false
             !d.isBefore(from) && !d.isAfter(today) &&
-                !(toExclusiveOfToday && tx.createdAt.take(10) == todayKey)
+                !(toExclusiveOfToday && tx.occurredAt.take(10) == todayKey)
         }.sumOf { it.amount }
 
         val staticDaily = budget.limitAmount / period.lengthInDays(today)
@@ -228,8 +228,8 @@ fun computeStreakStats(
             period = period,
             limit = budget.limitAmount,
             periodSpent = spentBetween(start, toExclusiveOfToday = false),
-            spentToday = ofCategory.filter { it.createdAt.take(10) == todayKey }.sumOf { it.amount },
-            monthSpent = ofCategory.filter { it.createdAt.startsWith(monthPrefix) }.sumOf { it.amount },
+            spentToday = ofCategory.filter { it.occurredAt.take(10) == todayKey }.sumOf { it.amount },
+            monthSpent = ofCategory.filter { it.occurredAt.startsWith(monthPrefix) }.sumOf { it.amount },
             monthlyEquivalent = period.monthlyEquivalent(budget.limitAmount, today),
             alertThreshold = if (budget.alertThreshold > 0) budget.alertThreshold else 80.0,
             staticDaily = staticDaily,
@@ -246,13 +246,13 @@ fun computeStreakStats(
     val overallBudget = budgets.filter { it.categoryId == null }.maxByOrNull { it.createdAt }
 
     fun byDay(list: List<Transaction>) = list
-        .groupBy { it.createdAt.take(10) }
+        .groupBy { it.occurredAt.take(10) }
         .mapValues { (_, txs) -> txs.sumOf { it.amount } }
 
     val dailyExpensesAll = byDay(expenses)
     val daysWithTx = transactions
         .filter { it.walletId !in offBudgetWalletIds }
-        .map { it.createdAt.take(10) }.toSet()
+        .map { it.occurredAt.take(10) }.toSet()
 
     // An overall budget covers *everything*, which is the whole point of it: no purchase falls
     // outside the limit the way it did when the total was a sum of category budgets.
@@ -269,7 +269,7 @@ fun computeStreakStats(
             coveredExpenses.filter { tx ->
                 val d = dateOf(tx) ?: return@filter false
                 !d.isBefore(from) && !d.isAfter(to) &&
-                    !(excludeToday && tx.createdAt.take(10) == todayKey)
+                    !(excludeToday && tx.occurredAt.take(10) == todayKey)
             }.sumOf { it.amount }
 
         // Carry-over and the daily rollover compose rather than conflict: carry-over moves the

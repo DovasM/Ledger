@@ -571,8 +571,8 @@ runtime (see the cascade note below).
 ## Schema migrations
 
 `core/src/db/mod.rs` owns a `schema_version` table and numbered migrations (`m1_baseline_tables`,
-`m2_category_links`, `m3_indexes`, `m4_transfers_currency_budgets`). Add the next one as `mN_…`
-plus an `if applied < N` arm.
+`m2_category_links`, `m3_indexes`, `m4_transfers_currency_budgets`, `m5_off_budget_wallets`,
+`m6_transaction_occurred_at`). Add the next one as `mN_…` plus an `if applied < N` arm.
 
 **Every migration must be idempotent, without exception.** Databases predating the version table
 bootstrap at 0 and re-run everything, and that property is what let the table be introduced
@@ -731,16 +731,36 @@ Defined in `core/src/ledger.udl` and mirrored as Kotlin data classes in `ledger.
 
 | Entity | Key fields |
 |---|---|
-| `Transaction` | id, wallet_id, title, category, amount, is_income, note, created_at |
-| `Wallet` | id, name, description, balance, created_at |
+| `Transaction` | id, wallet_id, title, category, amount, is_income, note, **occurred_at** |
+| `Wallet` | id, name, description, currency, balance, off_budget, created_at |
+| `Transfer` | id, from_wallet_id, to_wallet_id, amount, note, created_at |
 | `SavingsGoal` | id, name, current_amount, target_amount, deadline, created_at |
 | `Category` | id, name, icon_name, color_hex, is_expense, created_at |
-| `Budget` | id, category_id, limit_amount, period, alert_threshold, created_at |
+| `Budget` | id, category_id?, wallet_id?, limit_amount, period, alert_threshold, carry_over, created_at |
 | `Debt` | id, name, debt_type, total_amount, remaining_amount, apr, monthly_payment, created_at |
 | `RecurringTransaction` | id, title, amount, category, wallet_id, is_income, frequency, next_date, created_at |
 | `Tag` | id, name, created_at |
 | `PriceAlert` | id, symbol, asset_name, target_price, direction, active, created_at |
 | `MonthSummary` | total_income, total_expenses, net_savings, transaction_count |
+
+### `occurred_at` vs `created_at`
+
+A transaction has two dates and only one of them is a fact about money. `occurred_at` is when the
+spending happened; `created_at` is when the row was written. They diverge on every import (a bank
+statement from March, imported in August) and on every back-dated manual entry, and until `m6` the
+single `created_at` column was carrying both meanings — so a bulk import would pile the whole
+statement onto today and wreck every report at once.
+
+**Every report, chart, streak, budget and widget reads `occurred_at`.** The FFI deliberately exposes
+*only* `occurred_at`; `created_at` stays in the table as an audit trail with no Kotlin binding,
+because having both visible is exactly what let the meanings blur. Reads go through `TX_SELECT`,
+which is `COALESCE(t.occurred_at, t.created_at)` so a row written before the migration still sorts
+correctly. `update_transaction` uses `COALESCE(?, occurred_at, created_at)`, so passing null edits a
+transaction without silently moving its date to today.
+
+Other entities keep a plain `created_at` and it means what it says — notably `budget.created_at`,
+which the carry-over guard in `StreakCalculator` uses to refuse to roll a budget over into months
+that predate it.
 
 ---
 
@@ -784,6 +804,8 @@ Defined in `core/src/ledger.udl` and mirrored as Kotlin data classes in `ledger.
    - **Diagnosing Vulkan failures requires un-silencing two log streams.** The bridge had a no-op `llama_log_set` callback AND Android drops `std::cerr` (where ggml-vulkan prints `"Compute pipeline creation failed for <shader>"`). `llama_simple.cpp` now forwards ggml logs to logcat (`ggml_log_forward`, tag `LlamaGGML`), pipes `stderr`→logcat via a reader thread (`redirect_stderr_to_logcat`, tag `LlamaStderr`), and dumps `ggml_backend_dev_*` after init (`log_backend_devices`, tag `LlamaSimple`). These are the tools to re-test any future driver.
 
 2. **Stale `.so` crash** — After any Rust API change, must rebuild `.so` AND regenerate Kotlin bindings. The UniFFI checksum validation runs on every app start.
+
+2b. **Renaming a UDL field is a search tool — use it, don't shortcut it.** `Transaction.created_at` → `occurred_at` broke 95 Kotlin lines, and that list *was* the audit: every place that had been quietly treating write-time as spend-time. A repo-wide find-and-replace of `createdAt` would have been catastrophic, because `Wallet`, `Budget`, `Category`, `Goal` and `Debt` all still have a `createdAt` that legitimately means write-time. Fix only the lines the compiler names, then re-compile and repeat until clean; a clean build is then proof that nothing else was touched.
 
 2. **`Flow<T>=` parse error** — When a property type is a generic (`Flow<String>`, `Flow<Boolean>`), always put a space before `=` in assignments. `Flow<String>=` is parsed by Kotlin as `>=` (greater-than-or-equal).
 

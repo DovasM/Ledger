@@ -41,7 +41,7 @@ fun WalletDetailsScreen(
     }
 
     val periodTxs = txState.transactions.filter {
-        try { java.time.LocalDate.parse(it.createdAt.take(10)) >= chartPeriodStart } catch (e: Exception) { false }
+        try { java.time.LocalDate.parse(it.occurredAt.take(10)) >= chartPeriodStart } catch (e: Exception) { false }
     }
     val monthIncome = periodTxs.filter { it.isIncome }.sumOf { it.amount }
     val monthExpenses = periodTxs.filter { !it.isIncome }.sumOf { it.amount }

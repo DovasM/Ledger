@@ -10,7 +10,7 @@ pub struct TransactionRow {
     pub amount: f64,
     pub is_income: bool,
     pub note: Option<String>,
-    pub created_at: String,
+    pub occurred_at: String,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]

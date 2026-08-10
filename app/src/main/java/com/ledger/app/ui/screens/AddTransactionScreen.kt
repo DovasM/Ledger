@@ -444,7 +444,7 @@ fun AddTransactionScreen(
                                 items = splitItems,
                                 isIncome = !isExpense,
                                 note = note.ifBlank { null },
-                                createdAt = iso,
+                                occurredAt = iso,
                                 tagNames = selectedTags.toList()
                             ) { navController.popBackStack() }
                         }
@@ -456,7 +456,7 @@ fun AddTransactionScreen(
                             amount = amountValue!!,
                             isIncome = !isExpense,
                             note = note.ifBlank { null },
-                            createdAt = iso,
+                            occurredAt = iso,
                             tagNames = selectedTags.toList()
                         ) { navController.popBackStack() }
                     }

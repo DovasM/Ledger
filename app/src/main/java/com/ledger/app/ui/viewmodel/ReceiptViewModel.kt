@@ -124,7 +124,7 @@ class ReceiptViewModel @Inject constructor(
                         amount = item.amount,
                         isIncome = false,
                         note = note,
-                        createdAt = dateIso
+                        occurredAt = dateIso
                     )
                 }
                 widgetUpdater.refresh()

@@ -60,7 +60,7 @@ fun AnnualSummaryScreen(
 
     val availableYears = remember(reportTxs) {
         reportTxs
-            .mapNotNull { runCatching { LocalDate.parse(it.createdAt.take(10)).year }.getOrNull() }
+            .mapNotNull { runCatching { LocalDate.parse(it.occurredAt.take(10)).year }.getOrNull() }
             .distinct().sorted().ifEmpty { listOf(today.year) }
     }
 
@@ -73,7 +73,7 @@ fun AnnualSummaryScreen(
 
     // Per-month data for selected year
     val monthData = (1..12).map { m ->
-        val txs      = reportTxs.filter { inMonth(it.createdAt, selectedYear, m) }
+        val txs      = reportTxs.filter { inMonth(it.occurredAt, selectedYear, m) }
         val income   = txs.filter {  it.isIncome }.sumOf { it.amount }.toFloat()
         val expenses = txs.filter { !it.isIncome }.sumOf { it.amount }.toFloat()
         val rate     = if (income > 0f) ((income - expenses) / income * 100f).coerceIn(-100f, 100f) else 0f
@@ -95,7 +95,7 @@ fun AnnualSummaryScreen(
 
     // Top categories YTD
     val ytdExpenses = reportTxs.filter {
-        runCatching { LocalDate.parse(it.createdAt.take(10)).year == selectedYear && !it.isIncome }.getOrDefault(false)
+        runCatching { LocalDate.parse(it.occurredAt.take(10)).year == selectedYear && !it.isIncome }.getOrDefault(false)
     }
     val topCategories = ytdExpenses
         .groupBy { it.category }

@@ -66,7 +66,7 @@ fun NotificationsScreen(
     val thisMonthTxs = remember(txState.transactions, today) {
         txState.transactions.filter {
             runCatching {
-                val d = LocalDate.parse(it.createdAt.take(10))
+                val d = LocalDate.parse(it.occurredAt.take(10))
                 d.year == today.year && d.monthValue == today.monthValue
             }.getOrDefault(false)
         }
@@ -178,7 +178,7 @@ fun NotificationsScreen(
         val prevMonth = today.minusMonths(1)
         val prevMonthTxs = txState.transactions.filter {
             runCatching {
-                val d = LocalDate.parse(it.createdAt.take(10))
+                val d = LocalDate.parse(it.occurredAt.take(10))
                 d.year == prevMonth.year && d.monthValue == prevMonth.monthValue
             }.getOrDefault(false)
         }
@@ -192,13 +192,13 @@ fun NotificationsScreen(
                 val m = today.minusMonths(off.toLong())
                 val inc = txState.transactions.filter { tx ->
                     runCatching {
-                        val d = LocalDate.parse(tx.createdAt.take(10))
+                        val d = LocalDate.parse(tx.occurredAt.take(10))
                         d.year == m.year && d.monthValue == m.monthValue && tx.isIncome
                     }.getOrDefault(false)
                 }.sumOf { it.amount }
                 val exp = txState.transactions.filter { tx ->
                     runCatching {
-                        val d = LocalDate.parse(tx.createdAt.take(10))
+                        val d = LocalDate.parse(tx.occurredAt.take(10))
                         d.year == m.year && d.monthValue == m.monthValue && !tx.isIncome
                     }.getOrDefault(false)
                 }.sumOf { it.amount }
@@ -259,7 +259,7 @@ fun NotificationsScreen(
                 val m = today.minusMonths(off.toLong())
                 txState.transactions.filter { tx ->
                     !tx.isIncome && runCatching {
-                        val d = LocalDate.parse(tx.createdAt.take(10))
+                        val d = LocalDate.parse(tx.occurredAt.take(10))
                         d.year == m.year && d.monthValue == m.monthValue
                     }.getOrDefault(false)
                 }.maxByOrNull { it.amount }?.amount

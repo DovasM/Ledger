@@ -99,7 +99,7 @@ fun CashFlowForecastScreen(
     }.getOrDefault(false)
 
     // ── This month ────────────────────────────────────────────────────────────
-    val thisMonthTxs      = reportTxs.filter { inMonth(it.createdAt, today.year, today.monthValue) }
+    val thisMonthTxs      = reportTxs.filter { inMonth(it.occurredAt, today.year, today.monthValue) }
     val thisMonthIncome   = thisMonthTxs.filter {  it.isIncome }.sumOf { it.amount }
     val thisMonthExpenses = thisMonthTxs.filter { !it.isIncome }.sumOf { it.amount }
     val thisMonthNet      = thisMonthIncome - thisMonthExpenses
@@ -126,7 +126,7 @@ fun CashFlowForecastScreen(
     fun variableExpensesForMonth(offset: Int): Double {
         val m = today.minusMonths(offset.toLong())
         val total = reportTxs
-            .filter { !it.isIncome && inMonth(it.createdAt, m.year, m.monthValue) }
+            .filter { !it.isIncome && inMonth(it.occurredAt, m.year, m.monthValue) }
             .sumOf { it.amount }
         return (total - approxMonthlyRecurring).coerceAtLeast(0.0)
     }
@@ -160,7 +160,7 @@ fun CashFlowForecastScreen(
     // ── Monthly bars last 6 months ────────────────────────────────────────────
     val monthBars: List<CfMonthBar> = (5 downTo 0).map { offset ->
         val m = today.minusMonths(offset.toLong())
-        val txs = reportTxs.filter { inMonth(it.createdAt, m.year, m.monthValue) }
+        val txs = reportTxs.filter { inMonth(it.occurredAt, m.year, m.monthValue) }
         CfMonthBar(
             label    = m.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
             income   = txs.filter {  it.isIncome }.sumOf { it.amount }.toFloat(),
@@ -209,19 +209,19 @@ fun CashFlowForecastScreen(
     val predictedExp  = thisMonthExpenses + pendingRecurringExp + dailyBurnRate * remainingDays
 
     val prevM              = today.minusMonths(1)
-    val prevMonthExpenses  = reportTxs.filter { inMonth(it.createdAt, prevM.year, prevM.monthValue) && !it.isIncome }.sumOf { it.amount }
+    val prevMonthExpenses  = reportTxs.filter { inMonth(it.occurredAt, prevM.year, prevM.monthValue) && !it.isIncome }.sumOf { it.amount }
     val expenseMoM         = if (prevMonthExpenses > 0) ((thisMonthExpenses - prevMonthExpenses) / prevMonthExpenses * 100) else 0.0
 
     val avgMonthlyExpenses = (1..6).mapNotNull { off ->
         val m   = today.minusMonths(off.toLong())
-        val sum = reportTxs.filter { inMonth(it.createdAt, m.year, m.monthValue) && !it.isIncome }.sumOf { it.amount }
+        val sum = reportTxs.filter { inMonth(it.occurredAt, m.year, m.monthValue) && !it.isIncome }.sumOf { it.amount }
         sum.takeIf { it > 0 }
     }.let { if (it.isEmpty()) thisMonthExpenses else it.average() }
     val runway = if (avgMonthlyExpenses > 0) totalBalance / avgMonthlyExpenses else 0.0
 
     val incomeHistory: List<Float> = (5 downTo 0).map { off ->
         val m = today.minusMonths(off.toLong())
-        reportTxs.filter { inMonth(it.createdAt, m.year, m.monthValue) && it.isIncome }.sumOf { it.amount }.toFloat()
+        reportTxs.filter { inMonth(it.occurredAt, m.year, m.monthValue) && it.isIncome }.sumOf { it.amount }.toFloat()
     }
     val incomeMean   = incomeHistory.average().toFloat()
     val incomeStdDev = if (incomeMean > 0) sqrt(incomeHistory.map { (it - incomeMean).pow(2) }.average()).toFloat() else 0f
@@ -232,7 +232,7 @@ fun CashFlowForecastScreen(
     val last3AvgByCategory = mutableMapOf<String, Double>()
     for (off in 1..3) {
         val m = today.minusMonths(off.toLong())
-        reportTxs.filter { inMonth(it.createdAt, m.year, m.monthValue) && !it.isIncome }
+        reportTxs.filter { inMonth(it.occurredAt, m.year, m.monthValue) && !it.isIncome }
             .groupBy { it.category }
             .forEach { (cat, txs) ->
                 last3AvgByCategory[cat] = (last3AvgByCategory[cat] ?: 0.0) + txs.sumOf { it.amount } / 3.0
@@ -446,10 +446,10 @@ private fun CalendarTab(today: LocalDate, scheduledEvents: List<CfEvent>, allTxs
 
     val txByDay = allTxs.filter {
         runCatching {
-            val d = LocalDate.parse(it.createdAt.take(10))
+            val d = LocalDate.parse(it.occurredAt.take(10))
             d.year == calendarMonth.year && d.monthValue == calendarMonth.monthValue
         }.getOrDefault(false)
-    }.groupBy { LocalDate.parse(it.createdAt.take(10)).dayOfMonth }
+    }.groupBy { LocalDate.parse(it.occurredAt.take(10)).dayOfMonth }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 20.dp),
@@ -546,7 +546,7 @@ private fun CalendarTab(today: LocalDate, scheduledEvents: List<CfEvent>, allTxs
         if (selectedDay != null) {
             val day = selectedDay!!
             val dayScheduled = scheduledEvents.filter { it.date == day }
-            val dayTxs       = allTxs.filter { runCatching { LocalDate.parse(it.createdAt.take(10)) == day }.getOrDefault(false) }
+            val dayTxs       = allTxs.filter { runCatching { LocalDate.parse(it.occurredAt.take(10)) == day }.getOrDefault(false) }
 
             Text(day.format(DateTimeFormatter.ofPattern("EEEE, MMM d")),
                 style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)

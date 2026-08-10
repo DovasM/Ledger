@@ -47,7 +47,7 @@ pub struct Transaction {
     pub amount: f64,
     pub is_income: bool,
     pub note: Option<String>,
-    pub created_at: String,
+    pub occurred_at: String,
 }
 
 pub struct Wallet {
@@ -163,7 +163,7 @@ impl LedgerDb {
     pub fn list_transactions(&self, wallet_id: String, limit: u32, offset: u32) -> Result<Vec<Transaction>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, TransactionRow>(
-                &format!("{TX_SELECT} WHERE t.wallet_id = ? ORDER BY t.created_at DESC LIMIT ? OFFSET ?")
+                &format!("{TX_SELECT} WHERE t.wallet_id = ? ORDER BY COALESCE(t.occurred_at, t.created_at) DESC LIMIT ? OFFSET ?")
             )
             .bind(&wallet_id).bind(limit as i64).bind(offset as i64)
             .fetch_all(&self.pool).await?;
@@ -174,7 +174,7 @@ impl LedgerDb {
     pub fn list_all_transactions(&self, limit: u32, offset: u32) -> Result<Vec<Transaction>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, TransactionRow>(
-                &format!("{TX_SELECT} ORDER BY t.created_at DESC LIMIT ? OFFSET ?")
+                &format!("{TX_SELECT} ORDER BY COALESCE(t.occurred_at, t.created_at) DESC LIMIT ? OFFSET ?")
             )
             .bind(limit as i64).bind(offset as i64)
             .fetch_all(&self.pool).await?;
@@ -182,13 +182,15 @@ impl LedgerDb {
         })
     }
 
-    pub fn create_transaction(&self, wallet_id: String, title: String, category: String, amount: f64, is_income: bool, note: Option<String>, created_at: Option<String>) -> Result<Transaction, LedgerError> {
+    pub fn create_transaction(&self, wallet_id: String, title: String, category: String, amount: f64, is_income: bool, note: Option<String>, occurred_at: Option<String>) -> Result<Transaction, LedgerError> {
         if title.is_empty() { return Err(LedgerError::InvalidInput("title is required".into())); }
         if amount <= 0.0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
 
         self.rt.block_on(async {
             let id = Uuid::new_v4().to_string();
-            let date = created_at.unwrap_or_else(|| Utc::now().to_rfc3339());
+            let now = Utc::now().to_rfc3339();
+            // Two different times: when it happened (back-datable) and when the row was written.
+            let occurred = occurred_at.unwrap_or_else(|| now.clone());
             let sign: f64 = if is_income { amount } else { -amount };
 
             // Resolved before the transaction opens: a stray category left behind by a failed
@@ -198,10 +200,10 @@ impl LedgerDb {
             // The row and the balance must land together or neither does.
             let mut tx = self.pool.begin().await?;
             sqlx::query(
-                "INSERT INTO transactions (id, wallet_id, title, category_id, category, amount, is_income, note, created_at) VALUES (?,?,?,?,?,?,?,?,?)"
+                "INSERT INTO transactions (id, wallet_id, title, category_id, category, amount, is_income, note, occurred_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
             )
             .bind(&id).bind(&wallet_id).bind(&title).bind(&category_id).bind(&category)
-            .bind(amount).bind(is_income).bind(&note).bind(&date)
+            .bind(amount).bind(is_income).bind(&note).bind(&occurred).bind(&now)
             .execute(&mut *tx).await?;
 
             sqlx::query("UPDATE wallets SET balance = balance + ? WHERE id = ?")
@@ -215,7 +217,7 @@ impl LedgerDb {
         })
     }
 
-    pub fn update_transaction(&self, id: String, title: String, category: String, amount: f64, is_income: bool, note: Option<String>, created_at: Option<String>) -> Result<Transaction, LedgerError> {
+    pub fn update_transaction(&self, id: String, title: String, category: String, amount: f64, is_income: bool, note: Option<String>, occurred_at: Option<String>) -> Result<Transaction, LedgerError> {
         self.rt.block_on(async {
             let category_id = resolve_category_id(&self.pool, &category, is_income).await?;
 
@@ -232,8 +234,9 @@ impl LedgerDb {
                 .bind(&prev_wallet)
                 .execute(&mut *tx).await?;
 
-            sqlx::query("UPDATE transactions SET title=?, category_id=?, category=?, amount=?, is_income=?, note=?, created_at=COALESCE(?,created_at) WHERE id=?")
-                .bind(&title).bind(&category_id).bind(&category).bind(amount).bind(is_income).bind(&note).bind(&created_at).bind(&id)
+            // Editing changes when it happened, never when the row was written.
+            sqlx::query("UPDATE transactions SET title=?, category_id=?, category=?, amount=?, is_income=?, note=?, occurred_at=COALESCE(?,occurred_at,created_at) WHERE id=?")
+                .bind(&title).bind(&category_id).bind(&category).bind(amount).bind(is_income).bind(&note).bind(&occurred_at).bind(&id)
                 .execute(&mut *tx).await?;
 
             sqlx::query("UPDATE wallets SET balance = balance + ? WHERE id = ?")
@@ -500,17 +503,17 @@ impl LedgerDb {
             let prefix = format!("{}-{:02}%", year, month);
 
             let income: f64 = sqlx::query_scalar::<_, Option<f64>>(
-                "SELECT SUM(amount) FROM transactions WHERE is_income=1 AND created_at LIKE ?"
+                "SELECT SUM(amount) FROM transactions WHERE is_income=1 AND COALESCE(occurred_at, created_at) LIKE ?"
             )
             .bind(&prefix).fetch_one(&self.pool).await?.unwrap_or(0.0);
 
             let expenses: f64 = sqlx::query_scalar::<_, Option<f64>>(
-                "SELECT SUM(amount) FROM transactions WHERE is_income=0 AND created_at LIKE ?"
+                "SELECT SUM(amount) FROM transactions WHERE is_income=0 AND COALESCE(occurred_at, created_at) LIKE ?"
             )
             .bind(&prefix).fetch_one(&self.pool).await?.unwrap_or(0.0);
 
             let count: i64 = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM transactions WHERE created_at LIKE ?"
+                "SELECT COUNT(*) FROM transactions WHERE COALESCE(occurred_at, created_at) LIKE ?"
             )
             .bind(&prefix).fetch_one(&self.pool).await?;
 
@@ -919,9 +922,12 @@ impl LedgerDb {
 // Every transaction read resolves its category name through category_id, so a rename is picked up
 // automatically. The stored `category` text is only a fallback for transactions whose category has
 // since been deleted.
+// COALESCE guards the window between the column being added and the backfill landing, and any row
+// an older build inserted without it.
 const TX_SELECT: &str = "SELECT t.id, t.wallet_id, t.title, \
      COALESCE(c.name, t.category) AS category, \
-     t.amount, t.is_income, t.note, t.created_at \
+     t.amount, t.is_income, t.note, \
+     COALESCE(t.occurred_at, t.created_at) AS occurred_at \
      FROM transactions t LEFT JOIN categories c ON c.id = t.category_id";
 
 // Recurring transactions had the same name-only storage, so a rename skipped them too.
@@ -976,7 +982,7 @@ async fn resolve_category_id(
 // ── Row converters ────────────────────────────────────────────────────────────
 
 fn row_to_transaction(r: TransactionRow) -> Transaction {
-    Transaction { id: r.id, wallet_id: r.wallet_id, title: r.title, category: r.category, amount: r.amount, is_income: r.is_income, note: r.note, created_at: r.created_at }
+    Transaction { id: r.id, wallet_id: r.wallet_id, title: r.title, category: r.category, amount: r.amount, is_income: r.is_income, note: r.note, occurred_at: r.occurred_at }
 }
 
 fn row_to_wallet(r: WalletRow) -> Wallet {

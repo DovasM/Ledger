@@ -43,7 +43,7 @@ fun buildMonthlyCsv(
     val net      = income - expenses
     val savingsRate = if (income > 0) net / income * 100 else null
 
-    val grouped = transactions.sortedByDescending { it.createdAt }.groupBy { it.createdAt.take(10) }
+    val grouped = transactions.sortedByDescending { it.occurredAt }.groupBy { it.occurredAt.take(10) }
     val sortedDates = grouped.keys.sortedDescending()
 
     val categoryTotals = transactions.filter { !it.isIncome }
@@ -75,7 +75,7 @@ fun buildMonthlyCsv(
         appendLine("Date,Title,Category,Amount,Type,Note")
         sortedDates.forEach { dateStr ->
             grouped[dateStr]?.forEach { tx ->
-                appendLine("${tx.createdAt.take(10)},${tx.title.csvField()},${tx.category.csvField()},${tx.amount.currency()},${if (tx.isIncome) "Income" else "Expense"},${(tx.note ?: "").csvField()}")
+                appendLine("${tx.occurredAt.take(10)},${tx.title.csvField()},${tx.category.csvField()},${tx.amount.currency()},${if (tx.isIncome) "Income" else "Expense"},${(tx.note ?: "").csvField()}")
             }
         }
     }
@@ -95,7 +95,7 @@ fun buildQuarterlyCsv(
         val net get() = income - expenses
     }
     val monthStats = quarterMonths.map { m ->
-        val txs = transactions.filter { LocalDate.parse(it.createdAt.take(10)).monthValue == m }
+        val txs = transactions.filter { LocalDate.parse(it.occurredAt.take(10)).monthValue == m }
         MonthStats(m, txs.filter { it.isIncome }.sumOf { it.amount }, txs.filter { !it.isIncome }.sumOf { it.amount })
     }
 
@@ -138,8 +138,8 @@ fun buildQuarterlyCsv(
 
         appendLine("TRANSACTIONS")
         appendLine("Date,Title,Category,Amount,Type,Note")
-        transactions.sortedByDescending { it.createdAt }.forEach { tx ->
-            appendLine("${tx.createdAt.take(10)},${tx.title.csvField()},${tx.category.csvField()},${tx.amount.currency()},${if (tx.isIncome) "Income" else "Expense"},${(tx.note ?: "").csvField()}")
+        transactions.sortedByDescending { it.occurredAt }.forEach { tx ->
+            appendLine("${tx.occurredAt.take(10)},${tx.title.csvField()},${tx.category.csvField()},${tx.amount.currency()},${if (tx.isIncome) "Income" else "Expense"},${(tx.note ?: "").csvField()}")
         }
     }
 }
@@ -205,7 +205,7 @@ fun buildCustomCsv(
             "By Month" -> {
                 appendLine("BY MONTH")
                 appendLine("Month,Income,Expenses,Net")
-                transactions.groupBy { it.createdAt.take(7) }
+                transactions.groupBy { it.occurredAt.take(7) }
                     .entries.sortedBy { it.key }
                     .forEach { (key, txs) ->
                         val (yr, mo) = key.split("-").map { it.toInt() }
@@ -232,7 +232,7 @@ fun buildCustomCsv(
                 appendLine("Week of,Income,Expenses,Net")
                 transactions.groupBy {
                     runCatching {
-                        LocalDate.parse(it.createdAt.take(10)).with(java.time.DayOfWeek.MONDAY).toString()
+                        LocalDate.parse(it.occurredAt.take(10)).with(java.time.DayOfWeek.MONDAY).toString()
                     }.getOrElse { "?" }
                 }.entries.sortedBy { it.key }
                     .forEach { (weekStart, txs) ->
@@ -247,7 +247,7 @@ fun buildCustomCsv(
             else -> { // By Day
                 appendLine("BY DAY")
                 appendLine("Date,Income,Expenses,Net")
-                transactions.groupBy { it.createdAt.take(10) }
+                transactions.groupBy { it.occurredAt.take(10) }
                     .entries.sortedByDescending { it.key }
                     .forEach { (date, txs) ->
                         val dInc = txs.filter { it.isIncome }.sumOf { it.amount }
@@ -260,8 +260,8 @@ fun buildCustomCsv(
 
         appendLine("TRANSACTIONS")
         appendLine("Date,Title,Category,Amount,Type,Note")
-        transactions.sortedByDescending { it.createdAt }.forEach { tx ->
-            appendLine("${tx.createdAt.take(10)},${tx.title.csvField()},${tx.category.csvField()},${tx.amount.currency()},${if (tx.isIncome) "Income" else "Expense"},${(tx.note ?: "").csvField()}")
+        transactions.sortedByDescending { it.occurredAt }.forEach { tx ->
+            appendLine("${tx.occurredAt.take(10)},${tx.title.csvField()},${tx.category.csvField()},${tx.amount.currency()},${if (tx.isIncome) "Income" else "Expense"},${(tx.note ?: "").csvField()}")
         }
     }
 }

@@ -77,7 +77,7 @@ fun DashboardScreen(
 
     // Period-filtered income/expenses (synced with chart selection)
     val periodTxs = reportTxs.filter {
-        try { LocalDate.parse(it.createdAt.take(10)) >= chartPeriodStart } catch (e: Exception) { false }
+        try { LocalDate.parse(it.occurredAt.take(10)) >= chartPeriodStart } catch (e: Exception) { false }
     }
     val periodIncome = periodTxs.filter { it.isIncome }.sumOf { it.amount }
     val periodExpenses = periodTxs.filter { !it.isIncome }.sumOf { it.amount }
@@ -91,7 +91,7 @@ fun DashboardScreen(
     // Current month transactions
     val currentMonthTxs = reportTxs.filter {
         try {
-            val d = LocalDate.parse(it.createdAt.take(10))
+            val d = LocalDate.parse(it.occurredAt.take(10))
             d.year == today.year && d.monthValue == today.monthValue
         } catch (e: Exception) { false }
     }
@@ -150,7 +150,7 @@ fun DashboardScreen(
                 }
                 HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    DashDetailRow(Icons.Filled.CalendarToday, "Date", tx.createdAt.take(10))
+                    DashDetailRow(Icons.Filled.CalendarToday, "Date", tx.occurredAt.take(10))
                     DashDetailRow(Icons.Filled.Category, "Category", tx.category.ifBlank { "—" })
                     DashDetailRow(if (tx.isIncome) Icons.Filled.ArrowDownward else Icons.Filled.ArrowUpward, "Type", if (tx.isIncome) "Income" else "Expense")
                     if (!tx.note.isNullOrBlank()) DashDetailRow(Icons.Filled.Notes, "Note", tx.note!!)
@@ -338,7 +338,7 @@ fun DashboardScreen(
                         reportTxs.take(5).forEach { tx ->
                             TransactionRow(
                                 title = tx.title,
-                                subtitle = "${tx.createdAt.take(10)} · ${tx.category}",
+                                subtitle = "${tx.occurredAt.take(10)} · ${tx.category}",
                                 amount = (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amount)}",
                                 isIncome = tx.isIncome,
                                 onClick = { sheetTx = tx }

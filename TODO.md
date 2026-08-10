@@ -73,8 +73,8 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 - [ ] Stale widget-snapshot keys — `w_daily_allowance` lingers in the DataStore after being renamed to `w_today_allowance`. Harmless (nothing reads it) but confusing when debugging the `.preferences_pb`
 - [ ] Replace `previewLayout` XMLs with richer picker previews, and `widget_preview_generic.xml` with a real `previewImage` for API < 31
 - [ ] Dark-theme pass on the widgets — day/night `ColorProvider`s are declared but untested on a dark home screen
-- [ ] **Wallet-level budget** — a spending cap per funding wallet ("$800 from Checking this month"). Would give an unambiguous monthly total instead of summing whatever category budgets happen to exist, and complements (does not replace) per-category budgets. Needs a Rust schema change: `wallet_id` on `Budget` or a separate table, plus `.so` rebuild and UniFFI regen
-- [ ] **Carry-over budgets** — `AddEditBudgetScreen` shows a "Carry unspent amount to next period" row, but nothing implements it
+- [x] **Wallet-level budget — data layer** — `budgets.wallet_id` shipped in `m4`; a budget can now cap one funding wallet regardless of category. The scope selector in `AddEditBudgetScreen` still only offers Overall or Category (tracked under Wallet Operations)
+- [x] **Carry-over budgets** — the "Carry unspent amount to next period" switch is wired end to end (`budgets.carry_over`, `m4`)
 
 ## Transaction Splitting & Shared Expenses
 
@@ -197,12 +197,13 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 - [x] **Money mutations are atomic** — insert-plus-balance and a transfer's two balance updates now run inside a single DB transaction; previously any of them could half-apply. `create_transfer` also verifies both wallets exist, since nothing enforces the foreign keys at runtime
 - [x] **Warn before deleting a category or wallet that has data** — both dialogs now count the affected rows in the database first and say the real number, instead of a generic warning. The wallet dialog states how many transactions will be permanently deleted; the category dialog says how many keep their label but lose the link, and that the budget goes with it
 - [ ] **Stale `armeabi-v7a` native library** — `app/src/main/jniLibs/armeabi-v7a/libuniffi_ledger.so` is from April and predates the `category_id` schema. Harmless today because `abiFilters` is `arm64-v8a` + `x86_64`, but it would ship a broken build if that ABI is ever re-enabled. Either rebuild it or delete the folder
+- [x] **`occurred_at` split from `created_at`** — one column was carrying two meanings: when the money was spent and when the row was written. They are the same for a manual entry made today and different for every import and every back-dated entry, so a bank statement imported in August landed the whole thing on August and wrecked every report at once. `m6` adds `occurred_at`, backfills it from `created_at` (2052 rows, none null) and indexes it. The FFI exposes only `occurred_at`; `created_at` stays in the table as an audit trail with no Kotlin binding, so the two meanings cannot blur again. All 95 affected Kotlin sites were found by the compiler rather than by search
 - [x] **`recurring_transactions.category`** — had the same rename problem; now carries `category_id` and resolves through it
 - [x] **Dead `ON DELETE CASCADE`s** — SQLite ignores foreign keys without `PRAGMA foreign_keys=ON`, which this pool never sets, so all three declared cascades did nothing. Deleting a wallet left its transactions and recurring rows behind; deleting a transaction or tag left link rows. Each `delete_*` now cleans up explicitly and `clean_orphans` sweeps existing strays
 - [x] **Deleting a category orphaned its budget** — invisible forever, since every screen resolves a budget through its category. The budget is now deleted with it
 - [x] **Category links ignored income vs expense** — `resolve_category_id` matched on name alone, so 175 expense transactions linked to the income-side twin (Gifts, Other, NEATITIKMUO all exist in both directions after a Money Manager import). Now matches on name **and** `is_expense`, with a repair pass for existing rows
 - [ ] **HelpSupportScreen** — FAQ items are hardcoded; acceptable as static content but could be loaded from remote
-- [ ] **EditTransaction date picker** — verify date picker persists correctly to DB
+- [x] **EditTransaction date picker** — verified against the device DB. It writes `occurred_at`, and `update_transaction`'s `COALESCE(?, occurred_at, created_at)` means an edit that does not touch the date leaves it alone instead of moving the transaction to today
 - [ ] Seed data utility (`SeedDataUtil.kt`) — decide if this stays for dev only or gets removed before release
 - [ ] CSV export (`CsvExport.kt`) — wire to Custom Report export button
 

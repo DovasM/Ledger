@@ -95,13 +95,13 @@ class TransactionViewModel @Inject constructor(
     fun createTransaction(
         walletId: String, title: String, category: String,
         amount: Double, isIncome: Boolean, note: String?,
-        createdAt: String? = null,
+        occurredAt: String? = null,
         tagNames: List<String> = emptyList(),
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val tx = bridge.createTransaction(walletId, title, category, amount, isIncome, note, createdAt)
+                val tx = bridge.createTransaction(walletId, title, category, amount, isIncome, note, occurredAt)
                 for (name in tagNames) {
                     val tag = bridge.createTag(name)
                     bridge.addTagToTransaction(tx.id, tag.id)
@@ -123,7 +123,7 @@ class TransactionViewModel @Inject constructor(
         items: List<LineItem>,
         isIncome: Boolean,
         note: String?,
-        createdAt: String? = null,
+        occurredAt: String? = null,
         tagNames: List<String> = emptyList(),
         onSuccess: () -> Unit = {}
     ) {
@@ -155,7 +155,7 @@ class TransactionViewModel @Inject constructor(
                         amount = item.amount,
                         isIncome = isIncome,
                         note = note,
-                        createdAt = createdAt
+                        occurredAt = occurredAt
                     )
                     for (name in tagNames) {
                         val tag = bridge.createTag(name)
@@ -174,12 +174,12 @@ class TransactionViewModel @Inject constructor(
     fun updateTransaction(
         id: String, title: String, category: String,
         amount: Double, isIncome: Boolean, note: String?,
-        createdAt: String? = null,
+        occurredAt: String? = null,
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.updateTransaction(id, title, category, amount, isIncome, note, createdAt)
+                bridge.updateTransaction(id, title, category, amount, isIncome, note, occurredAt)
                 loadAll()
                 widgetUpdater.refresh()
                 launch(Dispatchers.Main) { onSuccess() }

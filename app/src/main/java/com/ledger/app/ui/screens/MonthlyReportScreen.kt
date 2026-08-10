@@ -61,7 +61,7 @@ fun MonthlyReportScreen(
     val monthTxs = remember(reportTxs, selectedYear, selectedMonth) {
         reportTxs.filter {
             runCatching {
-                val d = LocalDate.parse(it.createdAt.take(10))
+                val d = LocalDate.parse(it.occurredAt.take(10))
                 d.year == selectedYear && d.monthValue == selectedMonth
             }.getOrElse { false }
         }
@@ -79,12 +79,12 @@ fun MonthlyReportScreen(
             .entries.sortedByDescending { it.value }
     }
 
-    val grouped     = remember(monthTxs) { monthTxs.sortedByDescending { it.createdAt }.groupBy { it.createdAt.take(10) } }
+    val grouped     = remember(monthTxs) { monthTxs.sortedByDescending { it.occurredAt }.groupBy { it.occurredAt.take(10) } }
     val sortedDates = remember(grouped) { grouped.keys.sortedDescending() }
 
     val largestExpense    = monthTxs.filter { !it.isIncome }.maxByOrNull { it.amount }
     val mostFrequentPayee = monthTxs.groupBy { it.title }.maxByOrNull { it.value.size }
-    val daysWithSpend     = monthTxs.filter { !it.isIncome }.map { it.createdAt.take(10) }.distinct().size
+    val daysWithSpend     = monthTxs.filter { !it.isIncome }.map { it.occurredAt.take(10) }.distinct().size
     val avgDailySpend     = if (daysWithSpend > 0) totalExpenses / daysWithSpend else 0.0
 
     val monthName = YearMonth.of(selectedYear, selectedMonth).month.getDisplayName(TextStyle.FULL, Locale.getDefault())

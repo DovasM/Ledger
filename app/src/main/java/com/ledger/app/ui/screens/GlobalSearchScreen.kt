@@ -79,7 +79,7 @@ fun GlobalSearchScreen(
                 TxFilter.EXPENSE -> !tx.isIncome
             }
             matchesQuery && matchesType
-        }.sortedByDescending { it.createdAt }
+        }.sortedByDescending { it.occurredAt }
     }
 
     // ── Quick-jump results ─────────────────────────────────────────────────────
@@ -125,7 +125,7 @@ fun GlobalSearchScreen(
         ) {
             SearchTxSheet(
                 tx = tx, icon = txIcon, color = txColor,
-                displayDate = runCatching { LocalDate.parse(tx.createdAt.take(10)).format(dateFmt) }.getOrElse { tx.createdAt.take(10) },
+                displayDate = runCatching { LocalDate.parse(tx.occurredAt.take(10)).format(dateFmt) }.getOrElse { tx.occurredAt.take(10) },
                 onDismiss = { sheetTx = null },
                 onEdit = { sheetTx = null; navController.navigate(Screen.EditTransaction.createRoute(tx.id)) },
                 onDelete = { txViewModel.deleteTransaction(tx.id); sheetTx = null }
@@ -306,7 +306,7 @@ fun GlobalSearchScreen(
                                 filteredTxs.forEachIndexed { idx, tx ->
                                     val txCategory = catState.categories.find { it.name == tx.category }
                                     val txColor = txCategory?.let { colorHexToColor(it.colorHex) } ?: if (tx.isIncome) Primary else Tertiary
-                                    val displayDate = runCatching { LocalDate.parse(tx.createdAt.take(10)).format(shortFmt) }.getOrElse { tx.createdAt.take(10) }
+                                    val displayDate = runCatching { LocalDate.parse(tx.occurredAt.take(10)).format(shortFmt) }.getOrElse { tx.occurredAt.take(10) }
 
                                     Surface(
                                         onClick = { sheetTx = tx },

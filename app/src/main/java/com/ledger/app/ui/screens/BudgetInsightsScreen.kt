@@ -65,7 +65,7 @@ fun BudgetInsightsScreen(
 
     val thisMonthTxs = remember(reportTxs, thisYm) {
         reportTxs.filter {
-            runCatching { LocalDate.parse(it.createdAt.take(10)).let { d ->
+            runCatching { LocalDate.parse(it.occurredAt.take(10)).let { d ->
                 d.year == thisYm.year && d.monthValue == thisYm.monthValue
             }}.getOrElse { false }
         }
@@ -150,7 +150,7 @@ fun BudgetInsightsScreen(
                         thisMonthIncome = thisMonthIncome,
                         thisMonthExpenses = thisMonthExpenses,
                         budgetedSpent = budgetedSpent,
-                        recentTxs = thisMonthTxs.sortedByDescending { it.createdAt }.take(5),
+                        recentTxs = thisMonthTxs.sortedByDescending { it.occurredAt }.take(5),
                         budgets = budgetState.budgets,
                         spentByCategory = spentByCategory,
                         categoryById = categoryById,
@@ -292,7 +292,7 @@ private fun OverviewTab(
         LedgerCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
                 recentTxs.forEachIndexed { idx, tx ->
-                    val date = runCatching { LocalDate.parse(tx.createdAt.take(10)).format(dayFmt) }.getOrElse { "" }
+                    val date = runCatching { LocalDate.parse(tx.occurredAt.take(10)).format(dayFmt) }.getOrElse { "" }
                     TransactionRow(
                         title = tx.title,
                         subtitle = "$date · ${tx.category}",
