@@ -245,6 +245,24 @@ month whose week runs Mon 03-09 … Sun 03-15, after a 28-day February. Every ex
 `OverallBudgetTest`, `CategoryBudgetTest` and `StreakTest` is worked out by hand from those facts,
 so the tests state what the maths *should* be rather than echoing what it currently does.
 
+The transaction side is covered on both sides of the FFI. `RecurringScheduleTest` covers the one
+place the app writes rows on its own; `ReportFilterTest` covers the off-budget rule that eight
+analysis screens depend on; the rest lives in `core/tests/transactions.rs`.
+
+**Scheduling logic was extracted to be testable.** `applyDueRecurring` used to interleave calendar
+arithmetic with FFI writes, so neither half could be tested. `data/RecurringSchedule.kt` now holds
+the pure part — `planDueRecurring(items, today)` returns what to post and where each next date lands
+— and the bridge only executes it. The two halves fail differently: writing rows is ordinary
+database work, deciding *what* to write has to survive missed months, month ends and leap years.
+
+**One caveat about what a cascade test proves.** `transaction_tags` is one of only three columns
+declaring `ON DELETE CASCADE`, and foreign keys are enforced, so its links disappear whether or not
+`delete_transaction` clears them explicitly — deleting that cleanup does not fail
+`tags_attach_to_transactions_and_are_cleaned_up`. The tables *without* a cascade are where the
+explicit deletes earn their place: removing the one in `delete_goal` fails
+`deleting_a_goal_takes_its_contributions_with_it` with SQLITE_CONSTRAINT_FOREIGNKEY. Verified both
+ways.
+
 `common::TestDb` opens a real SQLite **file** in the temp directory through the same
 `open_database` the app calls, so every test replays the full migration chain from empty — a broken
 migration fails the suite. A file rather than `:memory:` on purpose: the pool opens several

@@ -62,9 +62,11 @@ kotlin-coroutines-debug*.jar
 # Captured heap dumps
 captures/
 
-# Test results
-app/src/test/
-app/src/androidTest/
+# Test *results* belong in build/, which is already ignored above. These two lines used to ignore the
+# test *sources* instead — every unit test written here would have been invisible to git and to
+# anyone who cloned the repo.
+app/build/reports/tests/
+app/build/test-results/
 
 # OS files
 Thumbs.db
