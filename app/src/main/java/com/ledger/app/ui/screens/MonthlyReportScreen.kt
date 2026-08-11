@@ -20,6 +20,7 @@ import androidx.navigation.NavController
 import com.ledger.app.ui.components.LedgerCard
 import com.ledger.app.ui.components.LedgerFloatingCard
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.buildMonthlyCsv
 import com.ledger.app.ui.util.shareCsv
 import com.ledger.app.ui.util.rememberReportTransactions
@@ -67,22 +68,22 @@ fun MonthlyReportScreen(
         }
     }
 
-    val totalIncome   = monthTxs.filter { it.isIncome }.sumOf { it.amount }
-    val totalExpenses = monthTxs.filter { !it.isIncome }.sumOf { it.amount }
+    val totalIncome   = monthTxs.filter { it.isIncome }.sumOf { it.amountCents.asUnits }
+    val totalExpenses = monthTxs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
     val net           = totalIncome - totalExpenses
     val savingsRate: Double? = if (totalIncome > 0) net / totalIncome * 100 else null
 
     val categoryTotals = remember(monthTxs) {
         monthTxs.filter { !it.isIncome }
             .groupBy { it.category }
-            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+            .mapValues { (_, txs) -> txs.sumOf { it.amountCents.asUnits } }
             .entries.sortedByDescending { it.value }
     }
 
     val grouped     = remember(monthTxs) { monthTxs.sortedByDescending { it.occurredAt }.groupBy { it.occurredAt.take(10) } }
     val sortedDates = remember(grouped) { grouped.keys.sortedDescending() }
 
-    val largestExpense    = monthTxs.filter { !it.isIncome }.maxByOrNull { it.amount }
+    val largestExpense    = monthTxs.filter { !it.isIncome }.maxByOrNull { it.amountCents.asUnits }
     val mostFrequentPayee = monthTxs.groupBy { it.title }.maxByOrNull { it.value.size }
     val daysWithSpend     = monthTxs.filter { !it.isIncome }.map { it.occurredAt.take(10) }.distinct().size
     val avgDailySpend     = if (daysWithSpend > 0) totalExpenses / daysWithSpend else 0.0
@@ -233,7 +234,7 @@ fun MonthlyReportScreen(
                             Text("LARGEST EXPENSE", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                             Text(largestExpense?.title ?: "—", style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium, maxLines = 1)
                             if (largestExpense != null)
-                                Text("${"$%,.2f".format(largestExpense.amount)}", style = MaterialTheme.typography.titleSmall, color = Tertiary, fontWeight = FontWeight.Bold)
+                                Text("${"$%,.2f".format(largestExpense.amountCents.asUnits)}", style = MaterialTheme.typography.titleSmall, color = Tertiary, fontWeight = FontWeight.Bold)
                         }
                     }
                     LedgerCard(modifier = Modifier.weight(1f)) {
@@ -264,7 +265,7 @@ fun MonthlyReportScreen(
                 sortedDates.forEach { dateStr ->
                     val dayTxs = grouped[dateStr] ?: return@forEach
                     val dayDate = runCatching { LocalDate.parse(dateStr) }.getOrNull()
-                    val dayNet = dayTxs.sumOf { if (it.isIncome) it.amount else -it.amount }
+                    val dayNet = dayTxs.sumOf { if (it.isIncome) it.amountCents.asUnits else -it.amountCents.asUnits }
 
                     LedgerCard(modifier = Modifier.fillMaxWidth()) {
                         Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
@@ -295,7 +296,7 @@ fun MonthlyReportScreen(
                                         Text(tx.category, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                                     }
                                     Text(
-                                        "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amount)}",
+                                        "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amountCents.asUnits)}",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = if (tx.isIncome) Primary else Tertiary,
                                         fontWeight = FontWeight.SemiBold

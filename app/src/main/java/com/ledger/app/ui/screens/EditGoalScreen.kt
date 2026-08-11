@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.toCents
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
@@ -34,6 +35,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.GoalImageStore
 import com.ledger.app.ui.viewmodel.GoalViewModel
 
@@ -62,7 +64,7 @@ fun EditGoalScreen(
     val goal = state.goals.find { it.id == goalId }
 
     var name by remember(goal) { mutableStateOf(goal?.name ?: "") }
-    var targetAmount by remember(goal) { mutableStateOf(goal?.targetAmount?.let { "%.2f".format(java.util.Locale.US, it) } ?: "") }
+    var targetAmount by remember(goal) { mutableStateOf(goal?.targetAmountCents?.asUnits?.let { "%.2f".format(java.util.Locale.US, it) } ?: "") }
     var selectedDeadline by remember(goal) { mutableStateOf(goal?.deadline ?: "") }
     var selectedIconIndex by remember { mutableStateOf(0) }
     var selectedColorIndex by remember { mutableStateOf(0) }
@@ -134,7 +136,7 @@ fun EditGoalScreen(
                 TextButton(onClick = {
                     val amount = contribAmount.toDoubleOrNull()
                     if (amount != null && amount > 0) {
-                        viewModel.addContribution(goalId, amount) { showContribDialog = false; contribAmount = "" }
+                        viewModel.addContribution(goalId, amount.toCents()) { showContribDialog = false; contribAmount = "" }
                     }
                 }) { Text("Add", color = Primary) }
             },
@@ -203,10 +205,10 @@ fun EditGoalScreen(
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text("Current Progress", style = MaterialTheme.typography.titleSmall, color = OnSurfaceVariant)
                         Text(
-                            "$${"%.2f".format(goal.currentAmount)} of $${"%.2f".format(goal.targetAmount)}",
+                            "$${"%.2f".format(goal.currentAmountCents.asUnits)} of $${"%.2f".format(goal.targetAmountCents.asUnits)}",
                             style = MaterialTheme.typography.titleMedium, color = OnSurface
                         )
-                        val progress = if (goal.targetAmount > 0) (goal.currentAmount / goal.targetAmount).toFloat().coerceIn(0f, 1f) else 0f
+                        val progress = if (goal.targetAmountCents.asUnits > 0) (goal.currentAmountCents.asUnits / goal.targetAmountCents.asUnits).toFloat().coerceIn(0f, 1f) else 0f
                         LinearProgressIndicator(
                             progress = { progress },
                             modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
@@ -349,7 +351,7 @@ fun EditGoalScreen(
                             viewModel.updateGoal(
                                 id = goalId,
                                 name = capturedName,
-                                targetAmount = amount,
+                                targetAmountCents = amount.toCents(),
                                 deadline = selectedDeadline.ifBlank { null }
                             ) {
                                 if (capturedUri != null) GoalImageStore.save(context, capturedName, capturedUri)

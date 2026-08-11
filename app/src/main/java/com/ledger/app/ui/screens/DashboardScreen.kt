@@ -26,6 +26,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.colorHexToColor
 import com.ledger.app.ui.util.iconNameToVector
 import com.ledger.app.ui.util.rememberReportTransactions
@@ -70,7 +71,7 @@ fun DashboardScreen(
 
     // ── Derived data ─────────────────────────────────────────────────────────
 
-    val totalBalance = walletState.wallets.sumOf { it.balance }
+    val totalBalance = walletState.wallets.sumOf { it.balanceCents.asUnits }
 
     val today = LocalDate.now()
     var chartPeriodStart by remember { mutableStateOf(today.withDayOfMonth(1)) }
@@ -79,8 +80,8 @@ fun DashboardScreen(
     val periodTxs = reportTxs.filter {
         try { LocalDate.parse(it.occurredAt.take(10)) >= chartPeriodStart } catch (e: Exception) { false }
     }
-    val periodIncome = periodTxs.filter { it.isIncome }.sumOf { it.amount }
-    val periodExpenses = periodTxs.filter { !it.isIncome }.sumOf { it.amount }
+    val periodIncome = periodTxs.filter { it.isIncome }.sumOf { it.amountCents.asUnits }
+    val periodExpenses = periodTxs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
 
     val greeting = when (today.let { java.time.LocalTime.now().hour }) {
         in 0..11 -> "GOOD MORNING"
@@ -104,8 +105,8 @@ fun DashboardScreen(
             !d.isBefore(today) && !d.isAfter(endOfMonth)
         } catch (e: Exception) { false }
     }
-    val pendingIncome = pendingRecurring.filter { it.isIncome }.sumOf { it.amount }
-    val pendingExpenses = pendingRecurring.filter { !it.isIncome }.sumOf { it.amount }
+    val pendingIncome = pendingRecurring.filter { it.isIncome }.sumOf { it.amountCents.asUnits }
+    val pendingExpenses = pendingRecurring.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
     val forecastBalance = totalBalance + pendingIncome - pendingExpenses
     val forecastDelta = forecastBalance - totalBalance
 
@@ -113,7 +114,7 @@ fun DashboardScreen(
     val spentByCategoryName = currentMonthTxs
         .filter { !it.isIncome }
         .groupBy { it.category }
-        .mapValues { (_, list) -> list.sumOf { it.amount } }
+        .mapValues { (_, list) -> list.sumOf { it.amountCents.asUnits } }
 
     val budgetRows = budgetState.budgets.map { budget ->
         val cat = categoryState.categories.find { it.id == budget.categoryId }
@@ -122,7 +123,7 @@ fun DashboardScreen(
     }.take(3)
 
     // Top categories (expenses only, top 4)
-    val totalExpenses = currentMonthTxs.filter { !it.isIncome }.sumOf { it.amount }
+    val totalExpenses = currentMonthTxs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
     val topCategories = spentByCategoryName.entries
         .sortedByDescending { it.value }
         .take(4)
@@ -144,7 +145,7 @@ fun DashboardScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(tx.title, style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                     Text(
-                        (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amount)}",
+                        (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
                         style = MaterialTheme.typography.titleLarge, color = accentColor, fontWeight = FontWeight.Bold
                     )
                 }
@@ -310,8 +311,8 @@ fun DashboardScreen(
                         goalState.goals.take(2).forEach { goal ->
                             GoalProgressRow(
                                 name = goal.name,
-                                current = goal.currentAmount.toFloat(),
-                                target = goal.targetAmount.toFloat(),
+                                current = goal.currentAmountCents.asUnits.toFloat(),
+                                target = goal.targetAmountCents.asUnits.toFloat(),
                                 color = Primary,
                                 onClick = { navController.navigate(Screen.GoalDetails.createRoute(goal.id)) }
                             )
@@ -339,7 +340,7 @@ fun DashboardScreen(
                             TransactionRow(
                                 title = tx.title,
                                 subtitle = "${tx.occurredAt.take(10)} · ${tx.category}",
-                                amount = (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amount)}",
+                                amount = (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
                                 isIncome = tx.isIncome,
                                 onClick = { sheetTx = tx }
                             )
@@ -395,7 +396,7 @@ fun DashboardScreen(
                         Text("No budgets yet.", style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant, modifier = Modifier.padding(vertical = 8.dp))
                     } else {
                         budgetRows.forEach { (budget, cat, spent) ->
-                            val limit = budget.limitAmount
+                            val limit = budget.limitAmountCents.asUnits
                             val pct = if (limit > 0) (spent / limit).coerceIn(0.0, 1.5).toFloat() else 0f
                             val color = cat?.let { colorHexToColor(it.colorHex) } ?: Primary
                             val label = cat?.name ?: "Budget"

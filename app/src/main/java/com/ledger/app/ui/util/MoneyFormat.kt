@@ -27,6 +27,46 @@ private fun groupingAndDecimal(numberFormatIndex: Int): Pair<String, String> = w
     else -> "," to "."
 }
 
+/**
+ * Money is stored and passed around as an integer number of cents. Adding cents is exact; adding
+ * fractions of a currency unit is not, and it was drifting.
+ *
+ * This is the one place cents turn into a decimal, and it happens on the way to the screen.
+ */
+fun formatCents(
+    cents: Long,
+    currencyCode: String = "USD",
+    numberFormatIndex: Int = 0,
+    decimals: Int = 2,
+    withSymbol: Boolean = true
+): String = formatAmount(cents / 100.0, currencyCode, numberFormatIndex, decimals, withSymbol)
+
+fun formatCentsCompact(
+    cents: Long,
+    currencyCode: String = "USD",
+    numberFormatIndex: Int = 0
+): String = formatAmountCompact(cents / 100.0, currencyCode, numberFormatIndex)
+
+/**
+ * Cents as a fractional number of currency units, for ratios, averages, trends and chart scales —
+ * the places where a real number is the right answer and rounding to the cent would be wrong.
+ *
+ * Never use it to add money together, and never store the result: `Long` cents is the source of
+ * truth, this is a view of it. It exists mainly so that `spent / limit` cannot silently become
+ * integer division, which is the trap in converting a codebase from Double to Long.
+ */
+val Long.asUnits: Double get() = this / 100.0
+
+/**
+ * The other end of [asUnits]: what the user typed, turned into cents. This is the single rounding
+ * step in the whole system, and it happens once, at the edge, on a number a person entered — not
+ * repeatedly in the middle of arithmetic, which is what the old Double storage was doing.
+ */
+fun Double.toCents(): Long = kotlin.math.round(this * 100).toLong()
+
+/** Parses "12.34" (or "12,34") into cents, returning null when it is not a usable amount. */
+fun String.toCentsOrNull(): Long? = replace(',', '.').toDoubleOrNull()?.toCents()
+
 fun formatAmount(
     amount: Double,
     currencyCode: String = "USD",

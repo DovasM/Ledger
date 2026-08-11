@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.toCents
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -56,7 +57,7 @@ fun AddEditBudgetScreen(
     }
     var isOverall by remember(existingBudget) { mutableStateOf(isEdit && existingBudget?.categoryId == null) }
     var categoryMenuExpanded by remember { mutableStateOf(false) }
-    var amount by remember(existingBudget) { mutableStateOf(existingBudget?.limitAmount?.toString() ?: "") }
+    var amount by remember(existingBudget) { mutableStateOf(existingBudget?.limitAmountCents?.toString() ?: "") }
     var selectedPeriod by remember(existingBudget) { mutableStateOf(existingBudget?.period?.replaceFirstChar { it.uppercase() } ?: "Monthly") }
     // Was a dead toggle: the switch existed but nothing stored it. Now wired to Budget.carryOver.
     var rollover by remember(existingBudget) { mutableStateOf(existingBudget?.carryOver ?: false) }
@@ -318,11 +319,11 @@ fun AddEditBudgetScreen(
                                 budgetId,
                                 existingBudget?.categoryId,
                                 existingBudget?.walletId,
-                                limitAmount!!, period, threshold,
+                                limitAmount!!.toCents(), period, threshold,
                                 rollover
                             ) { navController.popBackStack() }
                         } else {
-                            budgetViewModel.createBudget(categoryId, null, limitAmount!!, period, threshold, rollover) {
+                            budgetViewModel.createBudget(categoryId, null, limitAmount!!.toCents(), period, threshold, rollover) {
                                 navController.popBackStack()
                             }
                         }

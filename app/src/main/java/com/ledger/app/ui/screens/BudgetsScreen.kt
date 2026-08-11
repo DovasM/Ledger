@@ -28,7 +28,7 @@ import com.ledger.app.ui.util.BudgetPeriod
 import com.ledger.app.ui.util.CategoryPace
 import com.ledger.app.ui.util.colorHexToColor
 import com.ledger.app.ui.util.computeStreakStats
-import com.ledger.app.ui.util.formatAmount
+import com.ledger.app.ui.util.formatCents
 import com.ledger.app.ui.util.iconNameToVector
 import com.ledger.app.ui.viewmodel.BudgetViewModel
 import com.ledger.app.ui.viewmodel.CategoryViewModel
@@ -46,10 +46,10 @@ private data class BudgetRow(
     val budget: Budget,
     val category: Category?
 ) {
-    val limit get() = pace.limit
-    val spent get() = pace.periodSpent
+    val limitCents get() = pace.limitCents
+    val spentCents get() = pace.periodSpentCents
     val pct get() = pace.ratio.coerceIn(0.0, 1.5)
-    val remaining get() = pace.remaining.coerceAtLeast(0.0)
+    val remainingCents get() = pace.remainingCents.coerceAtLeast(0L)
     val isOver get() = pace.isOver
     val alertFraction get() = pace.alertThreshold / 100.0
     val color get() = category?.let { colorHexToColor(it.colorHex) } ?: Color(0xFF00513F)
@@ -86,7 +86,7 @@ fun BudgetsScreen(
     val currentEntry by navController.currentBackStackEntryAsState()
     LaunchedEffect(currentEntry?.destination?.route) { budgetViewModel.load(); categoryViewModel.load(); transactionViewModel.loadAll() }
 
-    fun money(amount: Double) = formatAmount(amount, currency, numberFormat, decimals = 0)
+    fun money(amountCents: Long) = formatCents(amountCents, currency, numberFormat, decimals = 0)
 
     val today = LocalDate.now()
 
@@ -107,8 +107,8 @@ fun BudgetsScreen(
     // The overall budget is the only real total. Falling back to the sum of category limits is a
     // last resort and is labelled as such — that sum was never a figure the user chose.
     val overall = stats.overall
-    val totalLimit = overall?.effectiveLimit ?: stats.monthlyBudgetEquivalent
-    val totalSpent = overall?.periodSpent ?: rows.sumOf { it.pace.monthSpent }
+    val totalLimit = overall?.effectiveLimitCents ?: stats.monthlyBudgetEquivalentCents
+    val totalSpent = overall?.periodSpentCents ?: rows.sumOf { it.pace.monthSpentCents }
     val overCount  = rows.count { it.isOver }
     val scaledTotal = overall == null && rows.any { it.pace.period != BudgetPeriod.MONTHLY }
 
@@ -165,15 +165,15 @@ fun BudgetsScreen(
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text("Remaining", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                                Text(money((totalLimit - totalSpent).coerceAtLeast(0.0)),
+                                Text(money((totalLimit - totalSpent).coerceAtLeast(0L)),
                                     style = MaterialTheme.typography.titleLarge, color = OnSurface, fontWeight = FontWeight.Bold)
                             }
                         }
                         Text(
                             when {
-                                overall != null && overall.carried != 0.0 ->
-                                    "${money(stats.dailyAllowance)}/day · ${if (overall.carried > 0) "+" else ""}${money(overall.carried)} carried from last ${overall.period.label.lowercase().removeSuffix("ly")}"
-                                overall != null -> "${money(stats.dailyAllowance)}/day"
+                                overall != null && overall.carriedCents != 0L ->
+                                    "${money(stats.dailyAllowanceCents)}/day · ${if (overall.carriedCents > 0) "+" else ""}${money(overall.carriedCents)} carried from last ${overall.period.label.lowercase().removeSuffix("ly")}"
+                                overall != null -> "${money(stats.dailyAllowanceCents)}/day"
                                 // No overall budget means no daily allowance at all — say so
                                 // rather than quietly showing nothing.
                                 else -> "No overall budget, so there is no daily allowance" +
@@ -212,7 +212,7 @@ fun BudgetsScreen(
                                 Icon(if (row.isOver) Icons.Filled.Warning else Icons.Filled.NotificationsActive,
                                     null, tint = row.statusColor, modifier = Modifier.size(18.dp))
                                 Text(
-                                    if (row.isOver) "${row.category?.name ?: "Budget"} is ${money(row.spent - row.limit)} over this ${row.pace.period.label.lowercase().removeSuffix("ly")}"
+                                    if (row.isOver) "${row.category?.name ?: "Budget"} is ${money(row.spentCents - row.limitCents)} over this ${row.pace.period.label.lowercase().removeSuffix("ly")}"
                                     else "${row.category?.name ?: "Budget"} is at ${"%.0f".format(row.pct * 100)}% of limit",
                                     style = MaterialTheme.typography.bodySmall, color = OnSurface
                                 )
@@ -226,7 +226,7 @@ fun BudgetsScreen(
             // one driving the daily allowance on the widget.
             overall?.let { o ->
                 val budget = budgetState.budgets.find { it.id == o.budgetId }
-                val over = o.periodRemaining < 0
+                val over = o.periodRemainingCents < 0
                 LedgerCard(
                     modifier = Modifier.fillMaxWidth(),
                     onClick = { budget?.let { navController.navigate(Screen.EditBudget.createRoute(it.id)) } }
@@ -246,10 +246,10 @@ fun BudgetsScreen(
                                 )
                             }
                             Column(horizontalAlignment = Alignment.End) {
-                                Text("${money(o.periodSpent)} / ${money(o.effectiveLimit)}",
+                                Text("${money(o.periodSpentCents)} / ${money(o.effectiveLimitCents)}",
                                     style = MaterialTheme.typography.labelMedium, color = OnSurface, fontWeight = FontWeight.SemiBold)
                                 Text(
-                                    if (over) "${money(-o.periodRemaining)} over" else "${money(o.periodRemaining)} left",
+                                    if (over) "${money(-o.periodRemainingCents)} over" else "${money(o.periodRemainingCents)} left",
                                     style = MaterialTheme.typography.labelSmall,
                                     color = if (over) Tertiary else OnSurfaceVariant
                                 )
@@ -257,7 +257,7 @@ fun BudgetsScreen(
                         }
                         LinearProgressIndicator(
                             progress = {
-                                if (o.effectiveLimit > 0) (o.periodSpent / o.effectiveLimit).toFloat().coerceIn(0f, 1f) else 0f
+                                if (o.effectiveLimitCents > 0) (o.periodSpentCents.toDouble() / o.effectiveLimitCents).toFloat().coerceIn(0f, 1f) else 0f
                             },
                             modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
                             color = if (over) Tertiary else Primary, trackColor = SurfaceContainerHighest
@@ -277,7 +277,7 @@ fun BudgetsScreen(
                     Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.ErrorOutline, null, tint = Tertiary, modifier = Modifier.size(20.dp))
                         Column(modifier = Modifier.weight(1f)) {
-                            Text("Unused overall budget · ${money(b.limitAmount)}", style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
+                            Text("Unused overall budget · ${money(b.limitAmountCents)}", style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
                             Text(
                                 "Only one overall budget applies, and the newest wins. Delete this one.",
                                 style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
@@ -306,7 +306,7 @@ fun BudgetsScreen(
                     val row = longPressRow!!
                     LedgerActionDialog(
                         title = row.category?.name ?: "Budget",
-                        subtitle = "${money(row.spent)} / ${money(row.limit)} · ${row.pace.period.label} · ${row.status}",
+                        subtitle = "${money(row.spentCents)} / ${money(row.limitCents)} · ${row.pace.period.label} · ${row.status}",
                         onDismiss = { longPressRow = null },
                         onEdit = { longPressRow = null; navController.navigate(Screen.EditBudget.createRoute(row.budget.id)) },
                         onDelete = { budgetViewModel.deleteBudget(row.budget.id) {}; longPressRow = null }
@@ -329,7 +329,7 @@ fun BudgetsScreen(
 @Composable
 private fun BudgetCard(
     row: BudgetRow,
-    money: (Double) -> String,
+    money: (Long) -> String,
     onClick: () -> Unit,
     onLongClick: () -> Unit
 ) {
@@ -354,12 +354,12 @@ private fun BudgetCard(
                     )
                 }
                 Column(horizontalAlignment = Alignment.End) {
-                    Text("${money(row.spent)} / ${money(row.limit)}",
+                    Text("${money(row.spentCents)} / ${money(row.limitCents)}",
                         style = MaterialTheme.typography.labelMedium, color = OnSurface, fontWeight = FontWeight.SemiBold)
                     if (row.isOver) {
-                        Text("${money(row.spent - row.limit)} over", style = MaterialTheme.typography.labelSmall, color = Tertiary)
+                        Text("${money(row.spentCents - row.limitCents)} over", style = MaterialTheme.typography.labelSmall, color = Tertiary)
                     } else {
-                        Text("${money(row.remaining)} left", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                        Text("${money(row.remainingCents)} left", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     }
                 }
             }

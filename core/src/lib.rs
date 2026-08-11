@@ -44,7 +44,7 @@ pub struct Transaction {
     pub wallet_id: String,
     pub title: String,
     pub category: String,
-    pub amount: f64,
+    pub amount_cents: i64,
     pub is_income: bool,
     pub note: Option<String>,
     pub occurred_at: String,
@@ -55,7 +55,7 @@ pub struct Wallet {
     pub name: String,
     pub description: String,
     pub currency: String,
-    pub balance: f64,
+    pub balance_cents: i64,
     pub off_budget: bool,
     pub created_at: String,
 }
@@ -64,7 +64,7 @@ pub struct Transfer {
     pub id: String,
     pub from_wallet_id: String,
     pub to_wallet_id: String,
-    pub amount: f64,
+    pub amount_cents: i64,
     pub note: Option<String>,
     pub created_at: String,
 }
@@ -72,8 +72,8 @@ pub struct Transfer {
 pub struct SavingsGoal {
     pub id: String,
     pub name: String,
-    pub current_amount: f64,
-    pub target_amount: f64,
+    pub current_amount_cents: i64,
+    pub target_amount_cents: i64,
     pub deadline: Option<String>,
     pub created_at: String,
 }
@@ -81,7 +81,7 @@ pub struct SavingsGoal {
 pub struct GoalContribution {
     pub id: String,
     pub goal_id: String,
-    pub amount: f64,
+    pub amount_cents: i64,
     pub note: Option<String>,
     // "contribution" for money the user put in, "opening" for the single row m7 wrote to carry the
     // balance that existed before contributions were itemised.
@@ -92,7 +92,7 @@ pub struct GoalContribution {
 pub struct DebtPayment {
     pub id: String,
     pub debt_id: String,
-    pub amount: f64,
+    pub amount_cents: i64,
     pub note: Option<String>,
     // "payment", "opening", or "adjustment" — the last one is written when the remaining amount is
     // typed over directly, so the total still reconciles against the history.
@@ -101,9 +101,9 @@ pub struct DebtPayment {
 }
 
 pub struct MonthSummary {
-    pub total_income: f64,
-    pub total_expenses: f64,
-    pub net_savings: f64,
+    pub total_income_cents: i64,
+    pub total_expenses_cents: i64,
+    pub net_savings_cents: i64,
     pub transaction_count: i32,
 }
 
@@ -120,7 +120,7 @@ pub struct Budget {
     pub id: String,
     pub category_id: Option<String>,
     pub wallet_id: Option<String>,
-    pub limit_amount: f64,
+    pub limit_amount_cents: i64,
     pub period: String,
     pub alert_threshold: f64,
     pub carry_over: bool,
@@ -131,17 +131,17 @@ pub struct Debt {
     pub id: String,
     pub name: String,
     pub debt_type: String,
-    pub total_amount: f64,
-    pub remaining_amount: f64,
+    pub total_amount_cents: i64,
+    pub remaining_amount_cents: i64,
     pub apr: f64,
-    pub monthly_payment: f64,
+    pub monthly_payment_cents: i64,
     pub created_at: String,
 }
 
 pub struct RecurringTransaction {
     pub id: String,
     pub title: String,
-    pub amount: f64,
+    pub amount_cents: i64,
     pub category: String,
     pub wallet_id: String,
     pub is_income: bool,
@@ -160,7 +160,7 @@ pub struct PriceAlert {
     pub id: String,
     pub symbol: String,
     pub asset_name: String,
-    pub target_price: f64,
+    pub target_price_cents: i64,
     pub direction: String,
     pub active: bool,
     pub created_at: String,
@@ -204,16 +204,16 @@ impl LedgerDb {
         })
     }
 
-    pub fn create_transaction(&self, wallet_id: String, title: String, category: String, amount: f64, is_income: bool, note: Option<String>, occurred_at: Option<String>) -> Result<Transaction, LedgerError> {
+    pub fn create_transaction(&self, wallet_id: String, title: String, category: String, amount_cents: i64, is_income: bool, note: Option<String>, occurred_at: Option<String>) -> Result<Transaction, LedgerError> {
         if title.is_empty() { return Err(LedgerError::InvalidInput("title is required".into())); }
-        if amount <= 0.0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
+        if amount_cents <= 0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
 
         self.rt.block_on(async {
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
             // Two different times: when it happened (back-datable) and when the row was written.
             let occurred = occurred_at.unwrap_or_else(|| now.clone());
-            let sign: f64 = if is_income { amount } else { -amount };
+            let sign: i64 = if is_income { amount_cents } else { -amount_cents };
 
             // Resolved before the transaction opens: a stray category left behind by a failed
             // insert is harmless, a half-applied balance is not.
@@ -222,13 +222,13 @@ impl LedgerDb {
             // The row and the balance must land together or neither does.
             let mut tx = self.pool.begin().await?;
             sqlx::query(
-                "INSERT INTO transactions (id, wallet_id, title, category_id, category, amount, is_income, note, occurred_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
+                "INSERT INTO transactions (id, wallet_id, title, category_id, category, amount_cents, is_income, note, occurred_at, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
             )
             .bind(&id).bind(&wallet_id).bind(&title).bind(&category_id).bind(&category)
-            .bind(amount).bind(is_income).bind(&note).bind(&occurred).bind(&now)
+            .bind(amount_cents).bind(is_income).bind(&note).bind(&occurred).bind(&now)
             .execute(&mut *tx).await?;
 
-            sqlx::query("UPDATE wallets SET balance = balance + ? WHERE id = ?")
+            sqlx::query("UPDATE wallets SET balance_cents = balance_cents + ? WHERE id = ?")
                 .bind(sign).bind(&wallet_id)
                 .execute(&mut *tx).await?;
             tx.commit().await?;
@@ -239,30 +239,30 @@ impl LedgerDb {
         })
     }
 
-    pub fn update_transaction(&self, id: String, title: String, category: String, amount: f64, is_income: bool, note: Option<String>, occurred_at: Option<String>) -> Result<Transaction, LedgerError> {
+    pub fn update_transaction(&self, id: String, title: String, category: String, amount_cents: i64, is_income: bool, note: Option<String>, occurred_at: Option<String>) -> Result<Transaction, LedgerError> {
         self.rt.block_on(async {
             let category_id = resolve_category_id(&self.pool, &category, is_income).await?;
 
             // Editing an amount or flipping income/expense used to leave the wallet balance on the
             // old figure. Reverse the previous effect, then apply the new one.
-            let previous: Option<(String, f64, bool)> = sqlx::query_as(
-                "SELECT wallet_id, amount, is_income FROM transactions WHERE id=?"
+            let previous: Option<(String, i64, bool)> = sqlx::query_as(
+                "SELECT wallet_id, amount_cents, is_income FROM transactions WHERE id=?"
             ).bind(&id).fetch_optional(&self.pool).await?;
             let (prev_wallet, prev_amount, prev_is_income) = previous.ok_or(LedgerError::NotFound)?;
 
             let mut tx = self.pool.begin().await?;
-            sqlx::query("UPDATE wallets SET balance = balance - ? WHERE id = ?")
+            sqlx::query("UPDATE wallets SET balance_cents = balance_cents - ? WHERE id = ?")
                 .bind(if prev_is_income { prev_amount } else { -prev_amount })
                 .bind(&prev_wallet)
                 .execute(&mut *tx).await?;
 
             // Editing changes when it happened, never when the row was written.
-            sqlx::query("UPDATE transactions SET title=?, category_id=?, category=?, amount=?, is_income=?, note=?, occurred_at=COALESCE(?,occurred_at,created_at) WHERE id=?")
-                .bind(&title).bind(&category_id).bind(&category).bind(amount).bind(is_income).bind(&note).bind(&occurred_at).bind(&id)
+            sqlx::query("UPDATE transactions SET title=?, category_id=?, category=?, amount_cents=?, is_income=?, note=?, occurred_at=COALESCE(?,occurred_at,created_at) WHERE id=?")
+                .bind(&title).bind(&category_id).bind(&category).bind(amount_cents).bind(is_income).bind(&note).bind(&occurred_at).bind(&id)
                 .execute(&mut *tx).await?;
 
-            sqlx::query("UPDATE wallets SET balance = balance + ? WHERE id = ?")
-                .bind(if is_income { amount } else { -amount })
+            sqlx::query("UPDATE wallets SET balance_cents = balance_cents + ? WHERE id = ?")
+                .bind(if is_income { amount_cents } else { -amount_cents })
                 .bind(&prev_wallet)
                 .execute(&mut *tx).await?;
             tx.commit().await?;
@@ -277,10 +277,10 @@ impl LedgerDb {
     pub fn delete_transaction(&self, id: String) -> Result<(), LedgerError> {
         self.rt.block_on(async {
             // Deleting used to leave the wallet balance carrying the removed amount forever.
-            let row: Option<(String, f64, bool)> = sqlx::query_as(
-                "SELECT wallet_id, amount, is_income FROM transactions WHERE id=?"
+            let row: Option<(String, i64, bool)> = sqlx::query_as(
+                "SELECT wallet_id, amount_cents, is_income FROM transactions WHERE id=?"
             ).bind(&id).fetch_optional(&self.pool).await?;
-            let Some((wallet_id, amount, is_income)) = row else { return Ok(()) };
+            let Some((wallet_id, amount_cents, is_income)) = row else { return Ok(()) };
 
             let mut tx = self.pool.begin().await?;
             // transaction_tags declares ON DELETE CASCADE, but SQLite ignores it without
@@ -289,8 +289,8 @@ impl LedgerDb {
                 .bind(&id).execute(&mut *tx).await?;
             sqlx::query("DELETE FROM transactions WHERE id=?")
                 .bind(&id).execute(&mut *tx).await?;
-            sqlx::query("UPDATE wallets SET balance = balance - ? WHERE id = ?")
-                .bind(if is_income { amount } else { -amount })
+            sqlx::query("UPDATE wallets SET balance_cents = balance_cents - ? WHERE id = ?")
+                .bind(if is_income { amount_cents } else { -amount_cents })
                 .bind(&wallet_id)
                 .execute(&mut *tx).await?;
             tx.commit().await?;
@@ -303,26 +303,26 @@ impl LedgerDb {
     pub fn list_wallets(&self) -> Result<Vec<Wallet>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, WalletRow>(
-                "SELECT id, name, description, currency, balance, off_budget, created_at FROM wallets ORDER BY created_at ASC"
+                "SELECT id, name, description, currency, balance_cents, off_budget, created_at FROM wallets ORDER BY created_at ASC"
             )
             .fetch_all(&self.pool).await?;
             Ok(rows.into_iter().map(row_to_wallet).collect())
         })
     }
 
-    pub fn create_wallet(&self, name: String, description: String, currency: String, initial_balance: f64, off_budget: bool) -> Result<Wallet, LedgerError> {
+    pub fn create_wallet(&self, name: String, description: String, currency: String, initial_balance_cents: i64, off_budget: bool) -> Result<Wallet, LedgerError> {
         if name.is_empty() { return Err(LedgerError::InvalidInput("name is required".into())); }
         self.rt.block_on(async {
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
             sqlx::query(
-                "INSERT INTO wallets (id, name, description, currency, balance, off_budget, created_at) VALUES (?,?,?,?,?,?,?)"
+                "INSERT INTO wallets (id, name, description, currency, balance_cents, off_budget, created_at) VALUES (?,?,?,?,?,?,?)"
             )
-            .bind(&id).bind(&name).bind(&description).bind(&currency).bind(initial_balance).bind(off_budget).bind(&now)
+            .bind(&id).bind(&name).bind(&description).bind(&currency).bind(initial_balance_cents).bind(off_budget).bind(&now)
             .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, WalletRow>(
-                "SELECT id, name, description, currency, balance, off_budget, created_at FROM wallets WHERE id=?"
+                "SELECT id, name, description, currency, balance_cents, off_budget, created_at FROM wallets WHERE id=?"
             )
             .bind(&id).fetch_one(&self.pool).await?;
             Ok(row_to_wallet(row))
@@ -336,7 +336,7 @@ impl LedgerDb {
                 .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, WalletRow>(
-                "SELECT id, name, description, currency, balance, off_budget, created_at FROM wallets WHERE id=?"
+                "SELECT id, name, description, currency, balance_cents, off_budget, created_at FROM wallets WHERE id=?"
             )
             .bind(&id).fetch_optional(&self.pool).await?
             .ok_or(LedgerError::NotFound)?;
@@ -380,7 +380,7 @@ impl LedgerDb {
     pub fn list_transfers(&self, limit: u32, offset: u32) -> Result<Vec<Transfer>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, TransferRow>(
-                "SELECT id, from_wallet_id, to_wallet_id, amount, note, created_at
+                "SELECT id, from_wallet_id, to_wallet_id, amount_cents, note, created_at
                  FROM transfers ORDER BY created_at DESC LIMIT ? OFFSET ?"
             )
             .bind(limit as i64).bind(offset as i64)
@@ -389,8 +389,8 @@ impl LedgerDb {
         })
     }
 
-    pub fn create_transfer(&self, from_wallet_id: String, to_wallet_id: String, amount: f64, note: Option<String>, created_at: Option<String>) -> Result<Transfer, LedgerError> {
-        if amount <= 0.0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
+    pub fn create_transfer(&self, from_wallet_id: String, to_wallet_id: String, amount_cents: i64, note: Option<String>, created_at: Option<String>) -> Result<Transfer, LedgerError> {
+        if amount_cents <= 0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
         if from_wallet_id == to_wallet_id {
             return Err(LedgerError::InvalidInput("cannot transfer to the same wallet".into()));
         }
@@ -408,20 +408,20 @@ impl LedgerDb {
             // Two balance updates and an insert: all three land together or none do.
             let mut tx = self.pool.begin().await?;
             sqlx::query(
-                "INSERT INTO transfers (id, from_wallet_id, to_wallet_id, amount, note, created_at) VALUES (?,?,?,?,?,?)"
+                "INSERT INTO transfers (id, from_wallet_id, to_wallet_id, amount_cents, note, created_at) VALUES (?,?,?,?,?,?)"
             )
-            .bind(&id).bind(&from_wallet_id).bind(&to_wallet_id).bind(amount).bind(&note).bind(&date)
+            .bind(&id).bind(&from_wallet_id).bind(&to_wallet_id).bind(amount_cents).bind(&note).bind(&date)
             .execute(&mut *tx).await?;
 
             // A transfer only moves balance; it must never touch income or expense totals.
-            sqlx::query("UPDATE wallets SET balance = balance - ? WHERE id = ?")
-                .bind(amount).bind(&from_wallet_id).execute(&mut *tx).await?;
-            sqlx::query("UPDATE wallets SET balance = balance + ? WHERE id = ?")
-                .bind(amount).bind(&to_wallet_id).execute(&mut *tx).await?;
+            sqlx::query("UPDATE wallets SET balance_cents = balance_cents - ? WHERE id = ?")
+                .bind(amount_cents).bind(&from_wallet_id).execute(&mut *tx).await?;
+            sqlx::query("UPDATE wallets SET balance_cents = balance_cents + ? WHERE id = ?")
+                .bind(amount_cents).bind(&to_wallet_id).execute(&mut *tx).await?;
             tx.commit().await?;
 
             let row = sqlx::query_as::<_, TransferRow>(
-                "SELECT id, from_wallet_id, to_wallet_id, amount, note, created_at FROM transfers WHERE id=?"
+                "SELECT id, from_wallet_id, to_wallet_id, amount_cents, note, created_at FROM transfers WHERE id=?"
             )
             .bind(&id).fetch_one(&self.pool).await?;
             Ok(row_to_transfer(row))
@@ -431,17 +431,17 @@ impl LedgerDb {
     pub fn delete_transfer(&self, id: String) -> Result<(), LedgerError> {
         self.rt.block_on(async {
             let row = sqlx::query_as::<_, TransferRow>(
-                "SELECT id, from_wallet_id, to_wallet_id, amount, note, created_at FROM transfers WHERE id=?"
+                "SELECT id, from_wallet_id, to_wallet_id, amount_cents, note, created_at FROM transfers WHERE id=?"
             )
             .bind(&id).fetch_optional(&self.pool).await?
             .ok_or(LedgerError::NotFound)?;
 
             // Put the money back before dropping the record, or the balances drift.
             let mut tx = self.pool.begin().await?;
-            sqlx::query("UPDATE wallets SET balance = balance + ? WHERE id = ?")
-                .bind(row.amount).bind(&row.from_wallet_id).execute(&mut *tx).await?;
-            sqlx::query("UPDATE wallets SET balance = balance - ? WHERE id = ?")
-                .bind(row.amount).bind(&row.to_wallet_id).execute(&mut *tx).await?;
+            sqlx::query("UPDATE wallets SET balance_cents = balance_cents + ? WHERE id = ?")
+                .bind(row.amount_cents).bind(&row.from_wallet_id).execute(&mut *tx).await?;
+            sqlx::query("UPDATE wallets SET balance_cents = balance_cents - ? WHERE id = ?")
+                .bind(row.amount_cents).bind(&row.to_wallet_id).execute(&mut *tx).await?;
 
             sqlx::query("DELETE FROM transfers WHERE id=?").bind(&id).execute(&mut *tx).await?;
             tx.commit().await?;
@@ -461,16 +461,16 @@ impl LedgerDb {
         })
     }
 
-    pub fn create_goal(&self, name: String, target_amount: f64, deadline: Option<String>) -> Result<SavingsGoal, LedgerError> {
+    pub fn create_goal(&self, name: String, target_amount_cents: i64, deadline: Option<String>) -> Result<SavingsGoal, LedgerError> {
         if name.is_empty() { return Err(LedgerError::InvalidInput("name is required".into())); }
-        if target_amount <= 0.0 { return Err(LedgerError::InvalidInput("target must be positive".into())); }
+        if target_amount_cents <= 0 { return Err(LedgerError::InvalidInput("target must be positive".into())); }
         self.rt.block_on(async {
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
             sqlx::query(
-                "INSERT INTO savings_goals (id, name, target_amount, deadline, created_at) VALUES (?,?,?,?,?)"
+                "INSERT INTO savings_goals (id, name, target_amount_cents, deadline, created_at) VALUES (?,?,?,?,?)"
             )
-            .bind(&id).bind(&name).bind(target_amount).bind(&deadline).bind(&now)
+            .bind(&id).bind(&name).bind(target_amount_cents).bind(&deadline).bind(&now)
             .execute(&self.pool).await?;
 
             self.goal_by_id(&id).await
@@ -480,15 +480,15 @@ impl LedgerDb {
     pub fn list_goal_contributions(&self, goal_id: String) -> Result<Vec<GoalContribution>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, GoalContributionRow>(
-                &format!("SELECT id, goal_id, amount, note, kind, occurred_at FROM goal_contributions WHERE goal_id = ? {HISTORY_ORDER}")
+                &format!("SELECT id, goal_id, amount_cents, note, kind, occurred_at FROM goal_contributions WHERE goal_id = ? {HISTORY_ORDER}")
             )
             .bind(&goal_id).fetch_all(&self.pool).await?;
             Ok(rows.into_iter().map(row_to_contribution).collect())
         })
     }
 
-    pub fn add_contribution(&self, goal_id: String, amount: f64, note: Option<String>, occurred_at: Option<String>) -> Result<SavingsGoal, LedgerError> {
-        if amount <= 0.0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
+    pub fn add_contribution(&self, goal_id: String, amount_cents: i64, note: Option<String>, occurred_at: Option<String>) -> Result<SavingsGoal, LedgerError> {
+        if amount_cents <= 0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
         self.rt.block_on(async {
             let (exists,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM savings_goals WHERE id=?")
                 .bind(&goal_id).fetch_one(&self.pool).await?;
@@ -496,9 +496,9 @@ impl LedgerDb {
 
             let now = Utc::now().to_rfc3339();
             sqlx::query(
-                "INSERT INTO goal_contributions (id, goal_id, amount, note, kind, occurred_at, created_at) VALUES (?,?,?,?,'contribution',?,?)"
+                "INSERT INTO goal_contributions (id, goal_id, amount_cents, note, kind, occurred_at, created_at) VALUES (?,?,?,?,'contribution',?,?)"
             )
-            .bind(Uuid::new_v4().to_string()).bind(&goal_id).bind(amount).bind(&note)
+            .bind(Uuid::new_v4().to_string()).bind(&goal_id).bind(amount_cents).bind(&note)
             .bind(occurred_at.unwrap_or_else(|| now.clone())).bind(&now)
             .execute(&self.pool).await?;
 
@@ -521,12 +521,12 @@ impl LedgerDb {
         })
     }
 
-    pub fn update_goal(&self, id: String, name: String, target_amount: f64, deadline: Option<String>) -> Result<SavingsGoal, LedgerError> {
+    pub fn update_goal(&self, id: String, name: String, target_amount_cents: i64, deadline: Option<String>) -> Result<SavingsGoal, LedgerError> {
         if name.is_empty() { return Err(LedgerError::InvalidInput("name is required".into())); }
-        if target_amount <= 0.0 { return Err(LedgerError::InvalidInput("target must be positive".into())); }
+        if target_amount_cents <= 0 { return Err(LedgerError::InvalidInput("target must be positive".into())); }
         self.rt.block_on(async {
-            sqlx::query("UPDATE savings_goals SET name=?, target_amount=?, deadline=? WHERE id=?")
-                .bind(&name).bind(target_amount).bind(&deadline).bind(&id)
+            sqlx::query("UPDATE savings_goals SET name=?, target_amount_cents=?, deadline=? WHERE id=?")
+                .bind(&name).bind(target_amount_cents).bind(&deadline).bind(&id)
                 .execute(&self.pool).await?;
             self.goal_by_id(&id).await
         })
@@ -558,25 +558,27 @@ impl LedgerDb {
         self.rt.block_on(async {
             let prefix = format!("{}-{:02}%", year, month);
 
-            let income: f64 = sqlx::query_scalar::<_, Option<f64>>(
-                "SELECT SUM(amount) FROM transactions WHERE is_income=1 AND COALESCE(occurred_at, created_at) LIKE ?"
+            // SUM over an INTEGER column is exact, so the monthly totals no longer depend on how
+            // many rows happened to be added up or in what order.
+            let income: i64 = sqlx::query_scalar::<_, Option<i64>>(
+                "SELECT SUM(amount_cents) FROM transactions WHERE is_income=1 AND occurred_at LIKE ?"
             )
-            .bind(&prefix).fetch_one(&self.pool).await?.unwrap_or(0.0);
+            .bind(&prefix).fetch_one(&self.pool).await?.unwrap_or(0);
 
-            let expenses: f64 = sqlx::query_scalar::<_, Option<f64>>(
-                "SELECT SUM(amount) FROM transactions WHERE is_income=0 AND COALESCE(occurred_at, created_at) LIKE ?"
+            let expenses: i64 = sqlx::query_scalar::<_, Option<i64>>(
+                "SELECT SUM(amount_cents) FROM transactions WHERE is_income=0 AND occurred_at LIKE ?"
             )
-            .bind(&prefix).fetch_one(&self.pool).await?.unwrap_or(0.0);
+            .bind(&prefix).fetch_one(&self.pool).await?.unwrap_or(0);
 
             let count: i64 = sqlx::query_scalar::<_, i64>(
-                "SELECT COUNT(*) FROM transactions WHERE COALESCE(occurred_at, created_at) LIKE ?"
+                "SELECT COUNT(*) FROM transactions WHERE occurred_at LIKE ?"
             )
             .bind(&prefix).fetch_one(&self.pool).await?;
 
             Ok(MonthSummary {
-                total_income: income,
-                total_expenses: expenses,
-                net_savings: income - expenses,
+                total_income_cents: income,
+                total_expenses_cents: expenses,
+                net_savings_cents: income - expenses,
                 transaction_count: count as i32,
             })
         })
@@ -668,15 +670,15 @@ impl LedgerDb {
     pub fn list_budgets(&self) -> Result<Vec<Budget>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, BudgetRow>(
-                "SELECT id, category_id, wallet_id, limit_amount, period, alert_threshold, carry_over, created_at FROM budgets ORDER BY created_at ASC"
+                "SELECT id, category_id, wallet_id, limit_amount_cents, period, alert_threshold, carry_over, created_at FROM budgets ORDER BY created_at ASC"
             )
             .fetch_all(&self.pool).await?;
             Ok(rows.into_iter().map(row_to_budget).collect())
         })
     }
 
-    pub fn create_budget(&self, category_id: Option<String>, wallet_id: Option<String>, limit_amount: f64, period: String, alert_threshold: f64, carry_over: bool) -> Result<Budget, LedgerError> {
-        if limit_amount <= 0.0 { return Err(LedgerError::InvalidInput("limit must be positive".into())); }
+    pub fn create_budget(&self, category_id: Option<String>, wallet_id: Option<String>, limit_amount_cents: i64, period: String, alert_threshold: f64, carry_over: bool) -> Result<Budget, LedgerError> {
+        if limit_amount_cents <= 0 { return Err(LedgerError::InvalidInput("limit must be positive".into())); }
         // Both null is the *overall* budget — a cap on everything you spend. It is the only way to
         // state "at most X a month in total"; summing whatever category budgets happen to exist
         // produces an arbitrary number rather than an intention.
@@ -697,28 +699,28 @@ impl LedgerDb {
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
             sqlx::query(
-                "INSERT INTO budgets (id, category_id, wallet_id, limit_amount, period, alert_threshold, carry_over, created_at) VALUES (?,?,?,?,?,?,?,?)"
+                "INSERT INTO budgets (id, category_id, wallet_id, limit_amount_cents, period, alert_threshold, carry_over, created_at) VALUES (?,?,?,?,?,?,?,?)"
             )
-            .bind(&id).bind(&category_id).bind(&wallet_id).bind(limit_amount).bind(&period).bind(alert_threshold).bind(carry_over).bind(&now)
+            .bind(&id).bind(&category_id).bind(&wallet_id).bind(limit_amount_cents).bind(&period).bind(alert_threshold).bind(carry_over).bind(&now)
             .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, BudgetRow>(
-                "SELECT id, category_id, wallet_id, limit_amount, period, alert_threshold, carry_over, created_at FROM budgets WHERE id=?"
+                "SELECT id, category_id, wallet_id, limit_amount_cents, period, alert_threshold, carry_over, created_at FROM budgets WHERE id=?"
             )
             .bind(&id).fetch_one(&self.pool).await?;
             Ok(row_to_budget(row))
         })
     }
 
-    pub fn update_budget(&self, id: String, category_id: Option<String>, wallet_id: Option<String>, limit_amount: f64, period: String, alert_threshold: f64, carry_over: bool) -> Result<Budget, LedgerError> {
-        if limit_amount <= 0.0 { return Err(LedgerError::InvalidInput("limit must be positive".into())); }
+    pub fn update_budget(&self, id: String, category_id: Option<String>, wallet_id: Option<String>, limit_amount_cents: i64, period: String, alert_threshold: f64, carry_over: bool) -> Result<Budget, LedgerError> {
+        if limit_amount_cents <= 0 { return Err(LedgerError::InvalidInput("limit must be positive".into())); }
         self.rt.block_on(async {
-            sqlx::query("UPDATE budgets SET category_id=?, wallet_id=?, limit_amount=?, period=?, alert_threshold=?, carry_over=? WHERE id=?")
-                .bind(&category_id).bind(&wallet_id).bind(limit_amount).bind(&period).bind(alert_threshold).bind(carry_over).bind(&id)
+            sqlx::query("UPDATE budgets SET category_id=?, wallet_id=?, limit_amount_cents=?, period=?, alert_threshold=?, carry_over=? WHERE id=?")
+                .bind(&category_id).bind(&wallet_id).bind(limit_amount_cents).bind(&period).bind(alert_threshold).bind(carry_over).bind(&id)
                 .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, BudgetRow>(
-                "SELECT id, category_id, wallet_id, limit_amount, period, alert_threshold, carry_over, created_at FROM budgets WHERE id=?"
+                "SELECT id, category_id, wallet_id, limit_amount_cents, period, alert_threshold, carry_over, created_at FROM budgets WHERE id=?"
             )
             .bind(&id).fetch_optional(&self.pool).await?
             .ok_or(LedgerError::NotFound)?;
@@ -743,27 +745,27 @@ impl LedgerDb {
         })
     }
 
-    pub fn create_debt(&self, name: String, debt_type: String, total_amount: f64, remaining_amount: f64, apr: f64, monthly_payment: f64) -> Result<Debt, LedgerError> {
+    pub fn create_debt(&self, name: String, debt_type: String, total_amount_cents: i64, remaining_amount_cents: i64, apr: f64, monthly_payment_cents: i64) -> Result<Debt, LedgerError> {
         if name.is_empty() { return Err(LedgerError::InvalidInput("name is required".into())); }
-        if total_amount <= 0.0 { return Err(LedgerError::InvalidInput("total amount must be positive".into())); }
-        if monthly_payment <= 0.0 { return Err(LedgerError::InvalidInput("monthly payment must be positive".into())); }
+        if total_amount_cents <= 0 { return Err(LedgerError::InvalidInput("total amount_cents must be positive".into())); }
+        if monthly_payment_cents <= 0 { return Err(LedgerError::InvalidInput("monthly payment must be positive".into())); }
         self.rt.block_on(async {
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
             let mut tx = self.pool.begin().await?;
             sqlx::query(
-                "INSERT INTO debts (id, name, debt_type, total_amount, apr, monthly_payment, created_at) VALUES (?,?,?,?,?,?,?)"
+                "INSERT INTO debts (id, name, debt_type, total_amount_cents, apr, monthly_payment_cents, created_at) VALUES (?,?,?,?,?,?,?)"
             )
-            .bind(&id).bind(&name).bind(&debt_type).bind(total_amount).bind(apr).bind(monthly_payment).bind(&now)
+            .bind(&id).bind(&name).bind(&debt_type).bind(total_amount_cents).bind(apr).bind(monthly_payment_cents).bind(&now)
             .execute(&mut *tx).await?;
 
             // "I owe 3400 of an original 5000" is the normal way to enter an existing debt. The
             // 1600 already paid is real and has to be recorded, or the derived remaining would
             // report the full 5000.
-            let already_paid = total_amount - remaining_amount;
-            if already_paid > 0.0 {
+            let already_paid = total_amount_cents - remaining_amount_cents;
+            if already_paid > 0 {
                 sqlx::query(
-                    "INSERT INTO debt_payments (id, debt_id, amount, note, kind, occurred_at, created_at) VALUES (?,?,?,?,'opening',?,?)"
+                    "INSERT INTO debt_payments (id, debt_id, amount_cents, note, kind, occurred_at, created_at) VALUES (?,?,?,?,'opening',?,?)"
                 )
                 .bind(Uuid::new_v4().to_string()).bind(&id).bind(already_paid)
                 .bind("Paid before this debt was tracked").bind(&now).bind(&now)
@@ -778,15 +780,15 @@ impl LedgerDb {
     pub fn list_debt_payments(&self, debt_id: String) -> Result<Vec<DebtPayment>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, DebtPaymentRow>(
-                &format!("SELECT id, debt_id, amount, note, kind, occurred_at FROM debt_payments WHERE debt_id = ? {HISTORY_ORDER}")
+                &format!("SELECT id, debt_id, amount_cents, note, kind, occurred_at FROM debt_payments WHERE debt_id = ? {HISTORY_ORDER}")
             )
             .bind(&debt_id).fetch_all(&self.pool).await?;
             Ok(rows.into_iter().map(row_to_payment).collect())
         })
     }
 
-    pub fn add_debt_payment(&self, debt_id: String, amount: f64, note: Option<String>, occurred_at: Option<String>) -> Result<Debt, LedgerError> {
-        if amount <= 0.0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
+    pub fn add_debt_payment(&self, debt_id: String, amount_cents: i64, note: Option<String>, occurred_at: Option<String>) -> Result<Debt, LedgerError> {
+        if amount_cents <= 0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
         self.rt.block_on(async {
             let (exists,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM debts WHERE id=?")
                 .bind(&debt_id).fetch_one(&self.pool).await?;
@@ -794,9 +796,9 @@ impl LedgerDb {
 
             let now = Utc::now().to_rfc3339();
             sqlx::query(
-                "INSERT INTO debt_payments (id, debt_id, amount, note, kind, occurred_at, created_at) VALUES (?,?,?,?,'payment',?,?)"
+                "INSERT INTO debt_payments (id, debt_id, amount_cents, note, kind, occurred_at, created_at) VALUES (?,?,?,?,'payment',?,?)"
             )
-            .bind(Uuid::new_v4().to_string()).bind(&debt_id).bind(amount).bind(&note)
+            .bind(Uuid::new_v4().to_string()).bind(&debt_id).bind(amount_cents).bind(&note)
             .bind(occurred_at.unwrap_or_else(|| now.clone())).bind(&now)
             .execute(&self.pool).await?;
 
@@ -816,29 +818,29 @@ impl LedgerDb {
         })
     }
 
-    pub fn update_debt(&self, id: String, name: String, debt_type: String, total_amount: f64, remaining_amount: f64, apr: f64, monthly_payment: f64) -> Result<Debt, LedgerError> {
+    pub fn update_debt(&self, id: String, name: String, debt_type: String, total_amount_cents: i64, remaining_amount_cents: i64, apr: f64, monthly_payment_cents: i64) -> Result<Debt, LedgerError> {
         if name.is_empty() { return Err(LedgerError::InvalidInput("name is required".into())); }
         self.rt.block_on(async {
             let mut tx = self.pool.begin().await?;
-            let changed = sqlx::query("UPDATE debts SET name=?, debt_type=?, total_amount=?, apr=?, monthly_payment=? WHERE id=?")
-                .bind(&name).bind(&debt_type).bind(total_amount).bind(apr).bind(monthly_payment).bind(&id)
+            let changed = sqlx::query("UPDATE debts SET name=?, debt_type=?, total_amount_cents=?, apr=?, monthly_payment_cents=? WHERE id=?")
+                .bind(&name).bind(&debt_type).bind(total_amount_cents).bind(apr).bind(monthly_payment_cents).bind(&id)
                 .execute(&mut *tx).await?;
             if changed.rows_affected() == 0 { return Err(LedgerError::NotFound); }
 
             // The edit screen still lets the remaining amount be typed over directly. It is no
             // longer a column, so honouring that means writing the difference as an adjustment —
             // the number the user asked for, with the history still adding up to it.
-            let (paid,): (f64,) = sqlx::query_as(
-                "SELECT COALESCE(SUM(amount), 0.0) FROM debt_payments WHERE debt_id=?"
+            let (paid,): (i64,) = sqlx::query_as(
+                "SELECT COALESCE(SUM(amount_cents), 0) FROM debt_payments WHERE debt_id=?"
             ).bind(&id).fetch_one(&mut *tx).await?;
-            let delta = (total_amount - remaining_amount) - paid;
-            if delta.abs() > 0.005 {
+            let delta = (total_amount_cents - remaining_amount_cents) - paid;
+            if delta != 0 {
                 let now = Utc::now().to_rfc3339();
                 sqlx::query(
-                    "INSERT INTO debt_payments (id, debt_id, amount, note, kind, occurred_at, created_at) VALUES (?,?,?,?,'adjustment',?,?)"
+                    "INSERT INTO debt_payments (id, debt_id, amount_cents, note, kind, occurred_at, created_at) VALUES (?,?,?,?,'adjustment',?,?)"
                 )
                 .bind(Uuid::new_v4().to_string()).bind(&id).bind(delta)
-                .bind("Remaining amount corrected by hand").bind(&now).bind(&now)
+                .bind("Remaining amount_cents corrected by hand").bind(&now).bind(&now)
                 .execute(&mut *tx).await?;
             }
             tx.commit().await?;
@@ -877,17 +879,17 @@ impl LedgerDb {
         })
     }
 
-    pub fn create_recurring(&self, title: String, amount: f64, category: String, wallet_id: String, is_income: bool, frequency: String, next_date: String) -> Result<RecurringTransaction, LedgerError> {
+    pub fn create_recurring(&self, title: String, amount_cents: i64, category: String, wallet_id: String, is_income: bool, frequency: String, next_date: String) -> Result<RecurringTransaction, LedgerError> {
         if title.is_empty() { return Err(LedgerError::InvalidInput("title is required".into())); }
-        if amount <= 0.0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
+        if amount_cents <= 0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
         self.rt.block_on(async {
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
             let category_id = resolve_category_id(&self.pool, &category, is_income).await?;
             sqlx::query(
-                "INSERT INTO recurring_transactions (id, title, amount, category_id, category, wallet_id, is_income, frequency, next_date, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
+                "INSERT INTO recurring_transactions (id, title, amount_cents, category_id, category, wallet_id, is_income, frequency, next_date, created_at) VALUES (?,?,?,?,?,?,?,?,?,?)"
             )
-            .bind(&id).bind(&title).bind(amount).bind(&category_id).bind(&category).bind(&wallet_id).bind(is_income).bind(&frequency).bind(&next_date).bind(&now)
+            .bind(&id).bind(&title).bind(amount_cents).bind(&category_id).bind(&category).bind(&wallet_id).bind(is_income).bind(&frequency).bind(&next_date).bind(&now)
             .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, RecurringTransactionRow>(
@@ -898,7 +900,7 @@ impl LedgerDb {
         })
     }
 
-    pub fn update_recurring(&self, id: String, title: String, amount: f64, category: String, frequency: String, next_date: String) -> Result<RecurringTransaction, LedgerError> {
+    pub fn update_recurring(&self, id: String, title: String, amount_cents: i64, category: String, frequency: String, next_date: String) -> Result<RecurringTransaction, LedgerError> {
         if title.is_empty() { return Err(LedgerError::InvalidInput("title is required".into())); }
         self.rt.block_on(async {
             let is_income: bool = sqlx::query_as::<_, (bool,)>("SELECT is_income FROM recurring_transactions WHERE id=?")
@@ -906,8 +908,8 @@ impl LedgerDb {
                 .map(|(v,)| v).unwrap_or(false);
             let category_id = resolve_category_id(&self.pool, &category, is_income).await?;
 
-            sqlx::query("UPDATE recurring_transactions SET title=?, amount=?, category_id=?, category=?, frequency=?, next_date=? WHERE id=?")
-                .bind(&title).bind(amount).bind(&category_id).bind(&category).bind(&frequency).bind(&next_date).bind(&id)
+            sqlx::query("UPDATE recurring_transactions SET title=?, amount_cents=?, category_id=?, category=?, frequency=?, next_date=? WHERE id=?")
+                .bind(&title).bind(amount_cents).bind(&category_id).bind(&category).bind(&frequency).bind(&next_date).bind(&id)
                 .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, RecurringTransactionRow>(
@@ -999,27 +1001,27 @@ impl LedgerDb {
     pub fn list_price_alerts(&self) -> Result<Vec<PriceAlert>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, PriceAlertRow>(
-                "SELECT id, symbol, asset_name, target_price, direction, active, created_at FROM price_alerts ORDER BY created_at DESC"
+                "SELECT id, symbol, asset_name, target_price_cents, direction, active, created_at FROM price_alerts ORDER BY created_at DESC"
             )
             .fetch_all(&self.pool).await?;
             Ok(rows.into_iter().map(row_to_alert).collect())
         })
     }
 
-    pub fn create_price_alert(&self, symbol: String, asset_name: String, target_price: f64, direction: String) -> Result<PriceAlert, LedgerError> {
+    pub fn create_price_alert(&self, symbol: String, asset_name: String, target_price_cents: i64, direction: String) -> Result<PriceAlert, LedgerError> {
         if symbol.is_empty() { return Err(LedgerError::InvalidInput("symbol is required".into())); }
-        if target_price <= 0.0 { return Err(LedgerError::InvalidInput("target price must be positive".into())); }
+        if target_price_cents <= 0 { return Err(LedgerError::InvalidInput("target price must be positive".into())); }
         self.rt.block_on(async {
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
             sqlx::query(
-                "INSERT INTO price_alerts (id, symbol, asset_name, target_price, direction, active, created_at) VALUES (?,?,?,?,?,1,?)"
+                "INSERT INTO price_alerts (id, symbol, asset_name, target_price_cents, direction, active, created_at) VALUES (?,?,?,?,?,1,?)"
             )
-            .bind(&id).bind(&symbol).bind(&asset_name).bind(target_price).bind(&direction).bind(&now)
+            .bind(&id).bind(&symbol).bind(&asset_name).bind(target_price_cents).bind(&direction).bind(&now)
             .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, PriceAlertRow>(
-                "SELECT id, symbol, asset_name, target_price, direction, active, created_at FROM price_alerts WHERE id=?"
+                "SELECT id, symbol, asset_name, target_price_cents, direction, active, created_at FROM price_alerts WHERE id=?"
             )
             .bind(&id).fetch_one(&self.pool).await?;
             Ok(row_to_alert(row))
@@ -1033,7 +1035,7 @@ impl LedgerDb {
                 .execute(&self.pool).await?;
 
             let row = sqlx::query_as::<_, PriceAlertRow>(
-                "SELECT id, symbol, asset_name, target_price, direction, active, created_at FROM price_alerts WHERE id=?"
+                "SELECT id, symbol, asset_name, target_price_cents, direction, active, created_at FROM price_alerts WHERE id=?"
             )
             .bind(&id).fetch_optional(&self.pool).await?
             .ok_or(LedgerError::NotFound)?;
@@ -1054,31 +1056,30 @@ impl LedgerDb {
 // Every transaction read resolves its category name through category_id, so a rename is picked up
 // automatically. The stored `category` text is only a fallback for transactions whose category has
 // since been deleted.
-// COALESCE guards the window between the column being added and the backfill landing, and any row
-// an older build inserted without it.
+// occurred_at needed a COALESCE onto created_at while m6 had it nullable; m8 rebuilt the table with
+// it NOT NULL, so reads can finally just say what they mean.
 const TX_SELECT: &str = "SELECT t.id, t.wallet_id, t.title, \
      COALESCE(c.name, t.category) AS category, \
-     t.amount, t.is_income, t.note, \
-     COALESCE(t.occurred_at, t.created_at) AS occurred_at \
+     t.amount_cents, t.is_income, t.note, t.occurred_at \
      FROM transactions t LEFT JOIN categories c ON c.id = t.category_id";
 
 // `occurred_at` is a date, so today's transactions all tie. `created_at` is a full timestamp and
 // unique per row, which makes it the tiebreak that puts a just-added transaction at the top of its
 // own day instead of somewhere arbitrary among the day's other rows — where it reads as "the app
 // didn't save it". Never order by `occurred_at` alone.
-const TX_ORDER: &str = "ORDER BY COALESCE(t.occurred_at, t.created_at) DESC, t.created_at DESC, t.id DESC";
+const TX_ORDER: &str = "ORDER BY t.occurred_at DESC, t.created_at DESC, t.id DESC";
 
-// current_amount and remaining_amount are no longer columns. They are summed from the history on
+// current_amount_cents and remaining_amount_cents are not columns. They are summed from the history on
 // every read, which costs nothing at these row counts and removes the second source of truth that
 // let wallets.balance drift twice.
 const GOAL_SELECT: &str = "SELECT g.id, g.name, \
-     COALESCE((SELECT SUM(amount) FROM goal_contributions WHERE goal_id = g.id), 0.0) AS current_amount, \
-     g.target_amount, g.deadline, g.created_at \
+     COALESCE((SELECT SUM(amount_cents) FROM goal_contributions WHERE goal_id = g.id), 0) AS current_amount_cents, \
+     g.target_amount_cents, g.deadline, g.created_at \
      FROM savings_goals g";
 
-const DEBT_SELECT: &str = "SELECT d.id, d.name, d.debt_type, d.total_amount, \
-     d.total_amount - COALESCE((SELECT SUM(amount) FROM debt_payments WHERE debt_id = d.id), 0.0) AS remaining_amount, \
-     d.apr, d.monthly_payment, d.created_at \
+const DEBT_SELECT: &str = "SELECT d.id, d.name, d.debt_type, d.total_amount_cents, \
+     d.total_amount_cents - COALESCE((SELECT SUM(amount_cents) FROM debt_payments WHERE debt_id = d.id), 0) AS remaining_amount_cents, \
+     d.apr, d.monthly_payment_cents, d.created_at \
      FROM debts d";
 
 // Same reasoning as TX_ORDER: occurred_at is a date, so entries made on one day tie and a
@@ -1086,7 +1087,7 @@ const DEBT_SELECT: &str = "SELECT d.id, d.name, d.debt_type, d.total_amount, \
 const HISTORY_ORDER: &str = "ORDER BY occurred_at DESC, created_at DESC, id DESC";
 
 // Recurring transactions had the same name-only storage, so a rename skipped them too.
-const RECURRING_SELECT: &str = "SELECT r.id, r.title, r.amount, \
+const RECURRING_SELECT: &str = "SELECT r.id, r.title, r.amount_cents, \
      COALESCE(c.name, r.category) AS category, \
      r.wallet_id, r.is_income, r.frequency, r.next_date, r.created_at \
      FROM recurring_transactions r LEFT JOIN categories c ON c.id = r.category_id";
@@ -1137,27 +1138,27 @@ async fn resolve_category_id(
 // ── Row converters ────────────────────────────────────────────────────────────
 
 fn row_to_transaction(r: TransactionRow) -> Transaction {
-    Transaction { id: r.id, wallet_id: r.wallet_id, title: r.title, category: r.category, amount: r.amount, is_income: r.is_income, note: r.note, occurred_at: r.occurred_at }
+    Transaction { id: r.id, wallet_id: r.wallet_id, title: r.title, category: r.category, amount_cents: r.amount_cents, is_income: r.is_income, note: r.note, occurred_at: r.occurred_at }
 }
 
 fn row_to_wallet(r: WalletRow) -> Wallet {
-    Wallet { id: r.id, name: r.name, description: r.description, currency: r.currency, balance: r.balance, off_budget: r.off_budget, created_at: r.created_at }
+    Wallet { id: r.id, name: r.name, description: r.description, currency: r.currency, balance_cents: r.balance_cents, off_budget: r.off_budget, created_at: r.created_at }
 }
 
 fn row_to_transfer(r: TransferRow) -> Transfer {
-    Transfer { id: r.id, from_wallet_id: r.from_wallet_id, to_wallet_id: r.to_wallet_id, amount: r.amount, note: r.note, created_at: r.created_at }
+    Transfer { id: r.id, from_wallet_id: r.from_wallet_id, to_wallet_id: r.to_wallet_id, amount_cents: r.amount_cents, note: r.note, created_at: r.created_at }
 }
 
 fn row_to_goal(r: SavingsGoalRow) -> SavingsGoal {
-    SavingsGoal { id: r.id, name: r.name, current_amount: r.current_amount, target_amount: r.target_amount, deadline: r.deadline, created_at: r.created_at }
+    SavingsGoal { id: r.id, name: r.name, current_amount_cents: r.current_amount_cents, target_amount_cents: r.target_amount_cents, deadline: r.deadline, created_at: r.created_at }
 }
 
 fn row_to_contribution(r: GoalContributionRow) -> GoalContribution {
-    GoalContribution { id: r.id, goal_id: r.goal_id, amount: r.amount, note: r.note, kind: r.kind, occurred_at: r.occurred_at }
+    GoalContribution { id: r.id, goal_id: r.goal_id, amount_cents: r.amount_cents, note: r.note, kind: r.kind, occurred_at: r.occurred_at }
 }
 
 fn row_to_payment(r: DebtPaymentRow) -> DebtPayment {
-    DebtPayment { id: r.id, debt_id: r.debt_id, amount: r.amount, note: r.note, kind: r.kind, occurred_at: r.occurred_at }
+    DebtPayment { id: r.id, debt_id: r.debt_id, amount_cents: r.amount_cents, note: r.note, kind: r.kind, occurred_at: r.occurred_at }
 }
 
 fn row_to_category(r: CategoryRow) -> Category {
@@ -1165,15 +1166,15 @@ fn row_to_category(r: CategoryRow) -> Category {
 }
 
 fn row_to_budget(r: BudgetRow) -> Budget {
-    Budget { id: r.id, category_id: r.category_id, wallet_id: r.wallet_id, limit_amount: r.limit_amount, period: r.period, alert_threshold: r.alert_threshold, carry_over: r.carry_over, created_at: r.created_at }
+    Budget { id: r.id, category_id: r.category_id, wallet_id: r.wallet_id, limit_amount_cents: r.limit_amount_cents, period: r.period, alert_threshold: r.alert_threshold, carry_over: r.carry_over, created_at: r.created_at }
 }
 
 fn row_to_debt(r: DebtRow) -> Debt {
-    Debt { id: r.id, name: r.name, debt_type: r.debt_type, total_amount: r.total_amount, remaining_amount: r.remaining_amount, apr: r.apr, monthly_payment: r.monthly_payment, created_at: r.created_at }
+    Debt { id: r.id, name: r.name, debt_type: r.debt_type, total_amount_cents: r.total_amount_cents, remaining_amount_cents: r.remaining_amount_cents, apr: r.apr, monthly_payment_cents: r.monthly_payment_cents, created_at: r.created_at }
 }
 
 fn row_to_recurring(r: RecurringTransactionRow) -> RecurringTransaction {
-    RecurringTransaction { id: r.id, title: r.title, amount: r.amount, category: r.category, wallet_id: r.wallet_id, is_income: r.is_income, frequency: r.frequency, next_date: r.next_date, created_at: r.created_at }
+    RecurringTransaction { id: r.id, title: r.title, amount_cents: r.amount_cents, category: r.category, wallet_id: r.wallet_id, is_income: r.is_income, frequency: r.frequency, next_date: r.next_date, created_at: r.created_at }
 }
 
 fn row_to_tag(r: TagRow) -> Tag {
@@ -1181,5 +1182,5 @@ fn row_to_tag(r: TagRow) -> Tag {
 }
 
 fn row_to_alert(r: PriceAlertRow) -> PriceAlert {
-    PriceAlert { id: r.id, symbol: r.symbol, asset_name: r.asset_name, target_price: r.target_price, direction: r.direction, active: r.active, created_at: r.created_at }
+    PriceAlert { id: r.id, symbol: r.symbol, asset_name: r.asset_name, target_price_cents: r.target_price_cents, direction: r.direction, active: r.active, created_at: r.created_at }
 }

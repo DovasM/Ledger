@@ -43,10 +43,10 @@ class GoalViewModel @Inject constructor(
         }
     }
 
-    fun createGoal(name: String, targetAmount: Double, deadline: String?, onSuccess: () -> Unit = {}) {
+    fun createGoal(name: String, targetAmountCents: Long, deadline: String?, onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.createGoal(name, targetAmount, deadline)
+                bridge.createGoal(name, targetAmountCents, deadline)
                 load()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
@@ -55,10 +55,10 @@ class GoalViewModel @Inject constructor(
         }
     }
 
-    fun updateGoal(id: String, name: String, targetAmount: Double, deadline: String?, onSuccess: () -> Unit = {}) {
+    fun updateGoal(id: String, name: String, targetAmountCents: Long, deadline: String?, onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.updateGoal(id, name, targetAmount, deadline)
+                bridge.updateGoal(id, name, targetAmountCents, deadline)
                 load()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
@@ -67,10 +67,10 @@ class GoalViewModel @Inject constructor(
         }
     }
 
-    fun addContribution(goalId: String, amount: Double, note: String? = null, occurredAt: String? = null, onSuccess: () -> Unit = {}) {
+    fun addContribution(goalId: String, amountCents: Long, note: String? = null, occurredAt: String? = null, onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.addContribution(goalId, amount, note, occurredAt)
+                bridge.addContribution(goalId, amountCents, note, occurredAt)
                 load()
                 loadContributions(goalId)
                 launch(Dispatchers.Main) { onSuccess() }

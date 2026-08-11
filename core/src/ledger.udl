@@ -26,7 +26,7 @@ dictionary Transaction {
     string wallet_id;
     string title;
     string category;
-    f64 amount;
+    i64 amount_cents;
     boolean is_income;
     string? note;
     // The date the transaction happened. The row's own creation time stays in the database as
@@ -40,7 +40,7 @@ dictionary Wallet {
     string name;
     string description;
     string currency;
-    f64 balance;
+    i64 balance_cents;
     // Off-budget accounts (a work account, an investment account) still count toward net worth but
     // are excluded from budgets, the daily allowance and the streak.
     boolean off_budget;
@@ -53,7 +53,7 @@ dictionary Transfer {
     string id;
     string from_wallet_id;
     string to_wallet_id;
-    f64 amount;
+    i64 amount_cents;
     string? note;
     string created_at;
 };
@@ -61,8 +61,8 @@ dictionary Transfer {
 dictionary SavingsGoal {
     string id;
     string name;
-    f64 current_amount;
-    f64 target_amount;
+    i64 current_amount_cents;
+    i64 target_amount_cents;
     string? deadline;
     string created_at;
 };
@@ -72,7 +72,7 @@ dictionary SavingsGoal {
 dictionary GoalContribution {
     string id;
     string goal_id;
-    f64 amount;
+    i64 amount_cents;
     string? note;
     // "contribution", or "opening" for the row m7 wrote to carry the pre-history balance.
     string kind;
@@ -82,7 +82,7 @@ dictionary GoalContribution {
 dictionary DebtPayment {
     string id;
     string debt_id;
-    f64 amount;
+    i64 amount_cents;
     string? note;
     // "payment", "opening", or "adjustment" when the remaining amount was typed over by hand.
     string kind;
@@ -90,9 +90,9 @@ dictionary DebtPayment {
 };
 
 dictionary MonthSummary {
-    f64 total_income;
-    f64 total_expenses;
-    f64 net_savings;
+    i64 total_income_cents;
+    i64 total_expenses_cents;
+    i64 net_savings_cents;
     i32 transaction_count;
 };
 
@@ -111,7 +111,7 @@ dictionary Budget {
     string id;
     string? category_id;
     string? wallet_id;
-    f64 limit_amount;
+    i64 limit_amount_cents;
     string period;
     f64 alert_threshold;
     boolean carry_over;
@@ -122,17 +122,17 @@ dictionary Debt {
     string id;
     string name;
     string debt_type;
-    f64 total_amount;
-    f64 remaining_amount;
+    i64 total_amount_cents;
+    i64 remaining_amount_cents;
     f64 apr;
-    f64 monthly_payment;
+    i64 monthly_payment_cents;
     string created_at;
 };
 
 dictionary RecurringTransaction {
     string id;
     string title;
-    f64 amount;
+    i64 amount_cents;
     string category;
     string wallet_id;
     boolean is_income;
@@ -151,7 +151,7 @@ dictionary PriceAlert {
     string id;
     string symbol;
     string asset_name;
-    f64 target_price;
+    i64 target_price_cents;
     string direction;
     boolean active;
     string created_at;
@@ -176,10 +176,10 @@ interface LedgerDb {
     sequence<Transaction> list_all_transactions(u32 limit, u32 offset);
 
     [Throws=LedgerError]
-    Transaction create_transaction(string wallet_id, string title, string category, f64 amount, boolean is_income, string? note, string? occurred_at);
+    Transaction create_transaction(string wallet_id, string title, string category, i64 amount_cents, boolean is_income, string? note, string? occurred_at);
 
     [Throws=LedgerError]
-    Transaction update_transaction(string id, string title, string category, f64 amount, boolean is_income, string? note, string? occurred_at);
+    Transaction update_transaction(string id, string title, string category, i64 amount_cents, boolean is_income, string? note, string? occurred_at);
 
     [Throws=LedgerError]
     void delete_transaction(string id);
@@ -189,7 +189,7 @@ interface LedgerDb {
     sequence<Wallet> list_wallets();
 
     [Throws=LedgerError]
-    Wallet create_wallet(string name, string description, string currency, f64 initial_balance, boolean off_budget);
+    Wallet create_wallet(string name, string description, string currency, i64 initial_balance_cents, boolean off_budget);
 
     [Throws=LedgerError]
     Wallet update_wallet(string id, string name, string description, string currency, boolean off_budget);
@@ -206,7 +206,7 @@ interface LedgerDb {
     sequence<Transfer> list_transfers(u32 limit, u32 offset);
 
     [Throws=LedgerError]
-    Transfer create_transfer(string from_wallet_id, string to_wallet_id, f64 amount, string? note, string? created_at);
+    Transfer create_transfer(string from_wallet_id, string to_wallet_id, i64 amount_cents, string? note, string? created_at);
 
     [Throws=LedgerError]
     void delete_transfer(string id);
@@ -216,19 +216,19 @@ interface LedgerDb {
     sequence<SavingsGoal> list_goals();
 
     [Throws=LedgerError]
-    SavingsGoal create_goal(string name, f64 target_amount, string? deadline);
+    SavingsGoal create_goal(string name, i64 target_amount_cents, string? deadline);
 
     [Throws=LedgerError]
     sequence<GoalContribution> list_goal_contributions(string goal_id);
 
     [Throws=LedgerError]
-    SavingsGoal add_contribution(string goal_id, f64 amount, string? note, string? occurred_at);
+    SavingsGoal add_contribution(string goal_id, i64 amount_cents, string? note, string? occurred_at);
 
     [Throws=LedgerError]
     SavingsGoal delete_contribution(string id);
 
     [Throws=LedgerError]
-    SavingsGoal update_goal(string id, string name, f64 target_amount, string? deadline);
+    SavingsGoal update_goal(string id, string name, i64 target_amount_cents, string? deadline);
 
     [Throws=LedgerError]
     void delete_goal(string id);
@@ -259,10 +259,10 @@ interface LedgerDb {
     sequence<Budget> list_budgets();
 
     [Throws=LedgerError]
-    Budget create_budget(string? category_id, string? wallet_id, f64 limit_amount, string period, f64 alert_threshold, boolean carry_over);
+    Budget create_budget(string? category_id, string? wallet_id, i64 limit_amount_cents, string period, f64 alert_threshold, boolean carry_over);
 
     [Throws=LedgerError]
-    Budget update_budget(string id, string? category_id, string? wallet_id, f64 limit_amount, string period, f64 alert_threshold, boolean carry_over);
+    Budget update_budget(string id, string? category_id, string? wallet_id, i64 limit_amount_cents, string period, f64 alert_threshold, boolean carry_over);
 
     [Throws=LedgerError]
     void delete_budget(string id);
@@ -272,10 +272,10 @@ interface LedgerDb {
     sequence<Debt> list_debts();
 
     [Throws=LedgerError]
-    Debt create_debt(string name, string debt_type, f64 total_amount, f64 remaining_amount, f64 apr, f64 monthly_payment);
+    Debt create_debt(string name, string debt_type, i64 total_amount_cents, i64 remaining_amount_cents, f64 apr, i64 monthly_payment_cents);
 
     [Throws=LedgerError]
-    Debt update_debt(string id, string name, string debt_type, f64 total_amount, f64 remaining_amount, f64 apr, f64 monthly_payment);
+    Debt update_debt(string id, string name, string debt_type, i64 total_amount_cents, i64 remaining_amount_cents, f64 apr, i64 monthly_payment_cents);
 
     [Throws=LedgerError]
     void delete_debt(string id);
@@ -284,7 +284,7 @@ interface LedgerDb {
     sequence<DebtPayment> list_debt_payments(string debt_id);
 
     [Throws=LedgerError]
-    Debt add_debt_payment(string debt_id, f64 amount, string? note, string? occurred_at);
+    Debt add_debt_payment(string debt_id, i64 amount_cents, string? note, string? occurred_at);
 
     [Throws=LedgerError]
     Debt delete_debt_payment(string id);
@@ -294,10 +294,10 @@ interface LedgerDb {
     sequence<RecurringTransaction> list_recurring();
 
     [Throws=LedgerError]
-    RecurringTransaction create_recurring(string title, f64 amount, string category, string wallet_id, boolean is_income, string frequency, string next_date);
+    RecurringTransaction create_recurring(string title, i64 amount_cents, string category, string wallet_id, boolean is_income, string frequency, string next_date);
 
     [Throws=LedgerError]
-    RecurringTransaction update_recurring(string id, string title, f64 amount, string category, string frequency, string next_date);
+    RecurringTransaction update_recurring(string id, string title, i64 amount_cents, string category, string frequency, string next_date);
 
     [Throws=LedgerError]
     void delete_recurring(string id);
@@ -326,7 +326,7 @@ interface LedgerDb {
     sequence<PriceAlert> list_price_alerts();
 
     [Throws=LedgerError]
-    PriceAlert create_price_alert(string symbol, string asset_name, f64 target_price, string direction);
+    PriceAlert create_price_alert(string symbol, string asset_name, i64 target_price_cents, string direction);
 
     [Throws=LedgerError]
     PriceAlert set_price_alert_active(string id, boolean active);

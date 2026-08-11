@@ -35,8 +35,8 @@ import androidx.glance.text.TextAlign
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
 import com.ledger.app.ui.navigation.Screen
-import com.ledger.app.ui.util.formatAmount
-import com.ledger.app.ui.util.formatAmountCompact
+import com.ledger.app.ui.util.formatCents
+import com.ledger.app.ui.util.formatCentsCompact
 import dagger.hilt.android.EntryPointAccessors
 import kotlinx.coroutines.flow.first
 
@@ -110,12 +110,12 @@ class DailyAllowanceWidget : GlanceAppWidget() {
 
     @Composable
     private fun AllowanceState(snapshot: WidgetSnapshot) {
-        val remaining = snapshot.remainingToday
+        val remaining = snapshot.remainingTodayCents
         val overspent = remaining < 0
 
         Label("LEFT TODAY")
         BigAmount(snapshot.money(remaining, compact = true), overspent)
-        Bar(snapshot.spentToday, snapshot.todayAllowance, overspent)
+        Bar(snapshot.spentTodayCents, snapshot.todayAllowanceCents, overspent)
         Spacer(GlanceModifier.height(6.dp))
         Footnote(snapshot)
 
@@ -125,9 +125,9 @@ class DailyAllowanceWidget : GlanceAppWidget() {
         if (tight != null && LocalSize.current.height >= FULL.height) {
             Divider()
             Text(
-                if (snapshot.tightestRemaining < 0)
-                    "$tight over ${snapshot.money(-snapshot.tightestRemaining, compact = true)}"
-                else "$tight ${snapshot.money(snapshot.tightestRemaining, compact = true)} left",
+                if (snapshot.tightestRemainingCents < 0)
+                    "$tight over ${snapshot.money(-snapshot.tightestRemainingCents, compact = true)}"
+                else "$tight ${snapshot.money(snapshot.tightestRemainingCents, compact = true)} left",
                 maxLines = 1,
                 style = TextStyle(
                     color = if (snapshot.tightestAlerting) WidgetColors.alert else WidgetColors.onSurface,
@@ -141,26 +141,26 @@ class DailyAllowanceWidget : GlanceAppWidget() {
     // Option A: the whole widget is one category, so the headline figure is directly actionable.
     @Composable
     private fun CategoryState(snapshot: WidgetSnapshot, category: CategoryAllowance) {
-        val remaining = category.remainingToday
+        val remaining = category.remainingTodayCents
         val overspent = remaining < 0
 
         Label("${category.name.uppercase()} · TODAY")
         BigAmount(snapshot.money(remaining, compact = true), overspent)
-        Bar(category.spentToday, category.todayAllowance, overspent)
+        Bar(category.spentTodayCents, category.todayAllowanceCents, overspent)
         Spacer(GlanceModifier.height(6.dp))
         Text(
-            "of ${snapshot.money(category.todayAllowance, compact = true)}",
+            "of ${snapshot.money(category.todayAllowanceCents, compact = true)}",
             style = TextStyle(color = WidgetColors.onSurfaceMuted, fontSize = 11.sp)
         )
         if (LocalSize.current.height >= FULL.height) {
             Divider()
             Text(
-                if (category.periodRemaining < 0)
-                    "${snapshot.money(-category.periodRemaining, compact = true)} over this ${category.periodLabel}"
-                else "${snapshot.money(category.periodRemaining, compact = true)} left this ${category.periodLabel}",
+                if (category.periodRemainingCents < 0)
+                    "${snapshot.money(-category.periodRemainingCents, compact = true)} over this ${category.periodLabel}"
+                else "${snapshot.money(category.periodRemainingCents, compact = true)} left this ${category.periodLabel}",
                 maxLines = 1,
                 style = TextStyle(
-                    color = if (category.periodRemaining < 0) WidgetColors.alert else WidgetColors.onSurface,
+                    color = if (category.periodRemainingCents < 0) WidgetColors.alert else WidgetColors.onSurface,
                     fontSize = 11.sp,
                     textAlign = TextAlign.Center
                 )
@@ -173,7 +173,7 @@ class DailyAllowanceWidget : GlanceAppWidget() {
     private fun BalanceState(snapshot: WidgetSnapshot) {
         Label("BALANCE")
         Text(
-            snapshot.money(snapshot.totalBalance, compact = true),
+            snapshot.money(snapshot.totalBalanceCents, compact = true),
             style = TextStyle(color = WidgetColors.onSurface, fontSize = 24.sp, fontWeight = FontWeight.Bold)
         )
         Spacer(GlanceModifier.height(8.dp))
@@ -215,8 +215,8 @@ class DailyAllowanceWidget : GlanceAppWidget() {
     }
 
     @Composable
-    private fun Bar(spent: Double, allowance: Double, overspent: Boolean) {
-        val used = if (allowance > 0) (spent / allowance).coerceIn(0.0, 1.0).toFloat() else 0f
+    private fun Bar(spentCents: Long, allowanceCents: Long, overspent: Boolean) {
+        val used = if (allowanceCents > 0) (spentCents.toDouble() / allowanceCents).coerceIn(0.0, 1.0).toFloat() else 0f
         LinearProgressIndicator(
             progress = used,
             modifier = GlanceModifier.fillMaxWidth().height(6.dp).cornerRadius(3.dp),
@@ -235,7 +235,7 @@ class DailyAllowanceWidget : GlanceAppWidget() {
     // One line, three possible jobs, most urgent first.
     @Composable
     private fun Footnote(snapshot: WidgetSnapshot) {
-        val carryDelta = snapshot.todayAllowance - snapshot.baseDaily
+        val carryDelta = snapshot.todayAllowanceCents - snapshot.baseDailyCents
         val text: String
         val color: ColorProvider
         when {
@@ -252,12 +252,12 @@ class DailyAllowanceWidget : GlanceAppWidget() {
             }
             // Spending outside every budget no longer moves the number above, so say so rather
             // than leave the widget looking suspiciously still.
-            snapshot.unbudgetedToday > 0 -> {
-                text = "+${snapshot.money(snapshot.unbudgetedToday, compact = true)} unbudgeted"
+            snapshot.unbudgetedTodayCents > 0 -> {
+                text = "+${snapshot.money(snapshot.unbudgetedTodayCents, compact = true)} unbudgeted"
                 color = WidgetColors.onSurfaceMuted
             }
             else -> {
-                text = "of ${snapshot.money(snapshot.todayAllowance, compact = true)}"
+                text = "of ${snapshot.money(snapshot.todayAllowanceCents, compact = true)}"
                 color = WidgetColors.onSurfaceMuted
             }
         }
@@ -276,10 +276,10 @@ class DailyAllowanceWidget : GlanceAppWidget() {
 }
 
 // Honours the "hide amounts" widget preference — a home screen is a public surface.
-internal fun WidgetSnapshot.money(amount: Double, compact: Boolean = false): String = when {
+internal fun WidgetSnapshot.money(amountCents: Long, compact: Boolean = false): String = when {
     hideAmounts -> "•••"
-    compact     -> formatAmountCompact(amount, currency, numberFormat)
-    else        -> formatAmount(amount, currency, numberFormat)
+    compact     -> formatCentsCompact(amountCents, currency, numberFormat)
+    else        -> formatCents(amountCents, currency, numberFormat)
 }
 
 class DailyAllowanceWidgetReceiver : LedgerWidgetReceiver() {

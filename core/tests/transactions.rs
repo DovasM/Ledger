@@ -15,10 +15,10 @@ fn newest_transaction_is_first_among_the_same_day() {
     let w = t.with_wallet();
 
     for title in ["imported one", "imported two", "imported three"] {
-        t.db.create_transaction(w.clone(), title.into(), "Groceries".into(), 5.0, false, None, day("2026-08-10")).unwrap();
+        t.db.create_transaction(w.clone(), title.into(), "Groceries".into(), 500, false, None, day("2026-08-10")).unwrap();
     }
     let just_added = t.db
-        .create_transaction(w.clone(), "typed by hand".into(), "Groceries".into(), 14.0, false, None, day("2026-08-10"))
+        .create_transaction(w.clone(), "typed by hand".into(), "Groceries".into(), 1400, false, None, day("2026-08-10"))
         .unwrap();
 
     let listed = t.db.list_all_transactions(100, 0).unwrap();
@@ -35,9 +35,9 @@ fn back_dated_transaction_sorts_by_when_it_happened() {
     let t = TestDb::new();
     let w = t.with_wallet();
 
-    t.db.create_transaction(w.clone(), "today".into(), "Groceries".into(), 5.0, false, None, day("2026-08-10")).unwrap();
+    t.db.create_transaction(w.clone(), "today".into(), "Groceries".into(), 500, false, None, day("2026-08-10")).unwrap();
     // Written second, happened first.
-    t.db.create_transaction(w.clone(), "back in March".into(), "Groceries".into(), 5.0, false, None, day("2026-03-01")).unwrap();
+    t.db.create_transaction(w.clone(), "back in March".into(), "Groceries".into(), 500, false, None, day("2026-03-01")).unwrap();
 
     let titles: Vec<_> = t.db.list_all_transactions(100, 0).unwrap().into_iter().map(|x| x.title).collect();
     assert_eq!(titles, vec!["today", "back in March"]);
@@ -50,7 +50,7 @@ fn paging_never_repeats_or_drops_a_row() {
     let t = TestDb::new();
     let w = t.with_wallet();
     for i in 0..25 {
-        t.db.create_transaction(w.clone(), format!("tx {i}"), "Groceries".into(), 1.0, false, None, day("2026-08-10")).unwrap();
+        t.db.create_transaction(w.clone(), format!("tx {i}"), "Groceries".into(), 100, false, None, day("2026-08-10")).unwrap();
     }
 
     let mut seen = Vec::new();
@@ -68,12 +68,12 @@ fn occurred_at_is_stored_as_given_and_defaults_to_now() {
     let w = t.with_wallet();
 
     let back_dated = t.db
-        .create_transaction(w.clone(), "March".into(), "Groceries".into(), 5.0, false, None, day("2026-03-01"))
+        .create_transaction(w.clone(), "March".into(), "Groceries".into(), 500, false, None, day("2026-03-01"))
         .unwrap();
     assert_eq!(back_dated.occurred_at, "2026-03-01T00:00:00Z");
 
     let defaulted = t.db
-        .create_transaction(w, "no date given".into(), "Groceries".into(), 5.0, false, None, None)
+        .create_transaction(w, "no date given".into(), "Groceries".into(), 500, false, None, None)
         .unwrap();
     assert!(!defaulted.occurred_at.is_empty(), "a missing date must fall back to now, not to empty");
 }
@@ -85,17 +85,17 @@ fn editing_without_a_date_keeps_the_original_date() {
     let t = TestDb::new();
     let w = t.with_wallet();
     let tx = t.db
-        .create_transaction(w, "March".into(), "Groceries".into(), 5.0, false, None, day("2026-03-01"))
+        .create_transaction(w, "March".into(), "Groceries".into(), 500, false, None, day("2026-03-01"))
         .unwrap();
 
     let edited = t.db
-        .update_transaction(tx.id.clone(), "March, corrected".into(), "Groceries".into(), 7.0, false, None, None)
+        .update_transaction(tx.id.clone(), "March, corrected".into(), "Groceries".into(), 700, false, None, None)
         .unwrap();
     assert_eq!(edited.occurred_at, "2026-03-01T00:00:00Z");
-    assert_eq!(edited.amount, 7.0);
+    assert_eq!(edited.amount_cents, 700);
 
     let moved = t.db
-        .update_transaction(tx.id, "March, moved".into(), "Groceries".into(), 7.0, false, None, day("2026-04-02"))
+        .update_transaction(tx.id, "March, moved".into(), "Groceries".into(), 700, false, None, day("2026-04-02"))
         .unwrap();
     assert_eq!(moved.occurred_at, "2026-04-02T00:00:00Z", "an explicit date must still move it");
 }
@@ -105,22 +105,22 @@ fn editing_without_a_date_keeps_the_original_date() {
 #[test]
 fn wallet_balance_survives_edit_and_delete() {
     let t = TestDb::new();
-    let w = t.db.create_wallet("Checking".into(), String::new(), "EUR".into(), 100.0, false).unwrap().id;
-    let balance = |id: &str| t.db.list_wallets().unwrap().into_iter().find(|x| x.id == id).unwrap().balance;
+    let w = t.db.create_wallet("Checking".into(), String::new(), "EUR".into(), 10000, false).unwrap().id;
+    let balance = |id: &str| t.db.list_wallets().unwrap().into_iter().find(|x| x.id == id).unwrap().balance_cents;
 
     let tx = t.db
-        .create_transaction(w.clone(), "groceries".into(), "Groceries".into(), 30.0, false, None, day("2026-08-10"))
+        .create_transaction(w.clone(), "groceries".into(), "Groceries".into(), 3000, false, None, day("2026-08-10"))
         .unwrap();
-    assert_eq!(balance(&w), 70.0);
+    assert_eq!(balance(&w), 7000);
 
-    t.db.update_transaction(tx.id.clone(), "groceries".into(), "Groceries".into(), 10.0, false, None, None).unwrap();
-    assert_eq!(balance(&w), 90.0, "an edited amount must replace the old one, not stack on it");
+    t.db.update_transaction(tx.id.clone(), "groceries".into(), "Groceries".into(), 1000, false, None, None).unwrap();
+    assert_eq!(balance(&w), 9000, "an edited amount must replace the old one, not stack on it");
 
-    t.db.update_transaction(tx.id.clone(), "refund".into(), "Groceries".into(), 10.0, true, None, None).unwrap();
-    assert_eq!(balance(&w), 110.0, "flipping expense to income must reverse the expense first");
+    t.db.update_transaction(tx.id.clone(), "refund".into(), "Groceries".into(), 1000, true, None, None).unwrap();
+    assert_eq!(balance(&w), 11000, "flipping expense to income must reverse the expense first");
 
     t.db.delete_transaction(tx.id).unwrap();
-    assert_eq!(balance(&w), 100.0, "deleting must put the money back");
+    assert_eq!(balance(&w), 10000, "deleting must put the money back");
 }
 
 /// The bug: `resolve_category_id` matched on name alone, so 175 expense transactions linked to the
@@ -132,8 +132,8 @@ fn category_links_respect_income_versus_expense() {
     t.db.create_category("Gifts".into(), "gift".into(), "#FF0000".into(), true).unwrap();
     t.db.create_category("Gifts".into(), "gift".into(), "#00FF00".into(), false).unwrap();
 
-    let spent = t.db.create_transaction(w.clone(), "present".into(), "Gifts".into(), 20.0, false, None, day("2026-08-10")).unwrap();
-    let received = t.db.create_transaction(w, "birthday".into(), "Gifts".into(), 50.0, true, None, day("2026-08-10")).unwrap();
+    let spent = t.db.create_transaction(w.clone(), "present".into(), "Gifts".into(), 2000, false, None, day("2026-08-10")).unwrap();
+    let received = t.db.create_transaction(w, "birthday".into(), "Gifts".into(), 5000, true, None, day("2026-08-10")).unwrap();
 
     assert_eq!(spent.category, "Gifts");
     assert_eq!(received.category, "Gifts");

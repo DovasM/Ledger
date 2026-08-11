@@ -61,6 +61,291 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         m7_goal_and_debt_history(pool).await?;
         record_version(pool, 7).await?;
     }
+    if applied < 8 {
+        m8_money_as_cents(pool).await?;
+        record_version(pool, 8).await?;
+    }
+
+    Ok(())
+}
+
+// Money was REAL. Binary floating point cannot represent 0.10, so it was never the exact number the
+// user typed, and every sum drifted a little further from it — a running wallet balance updated
+// thousands of times has no bound on the error at all. Amounts are now integer cents: exact to
+// store, exact to add, and the only rounding happens once, on the way in.
+//
+// Percentages (budgets.alert_threshold, debts.apr) stay REAL. They are not money and rounding them
+// to a hundredth of a percent would be a real loss of meaning.
+//
+// Column names all gain _cents rather than being converted in place. The rename is the point: it
+// breaks every call site, and the ones that matter are not the obvious formatting calls but the
+// arithmetic — `spent / limit` keeps compiling after a Double becomes a Long and silently starts
+// doing integer division. A field that no longer exists cannot be silently misused.
+async fn m8_money_as_cents(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    // ROUND before CAST: 7.20 is stored as 7.199999999999999, and CAST alone truncates it to 719.
+    // CAST(ROUND(x * 100) AS INTEGER) gives 720.
+    let money = |col: &str| format!("CAST(ROUND({col} * 100) AS INTEGER)");
+
+    if column_exists(pool, "transactions", "amount").await? {
+        rebuild_table(
+            pool,
+            "transactions",
+            "CREATE TABLE transactions_new (
+                id           TEXT PRIMARY KEY,
+                wallet_id    TEXT NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
+                title        TEXT NOT NULL,
+                category     TEXT NOT NULL DEFAULT '',
+                category_id  TEXT REFERENCES categories(id),
+                amount_cents INTEGER NOT NULL,
+                is_income    INTEGER NOT NULL DEFAULT 0,
+                note         TEXT,
+                occurred_at  TEXT NOT NULL,
+                created_at   TEXT NOT NULL
+            )",
+            // occurred_at becomes NOT NULL here. m6 added it nullable and backfilled every row, so
+            // the COALESCE that guarded reads has been dead weight since; the rebuild is the free
+            // moment to make the schema say what is actually true.
+            &format!(
+                "INSERT INTO transactions_new (id, wallet_id, title, category, category_id, amount_cents, is_income, note, occurred_at, created_at)
+                 SELECT id, wallet_id, title, category, category_id, {}, is_income, note, COALESCE(occurred_at, created_at), created_at FROM transactions",
+                money("amount")
+            ),
+        )
+        .await?;
+        // Dropping the table took its indexes with it.
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_tx_wallet   ON transactions(wallet_id);
+             CREATE INDEX IF NOT EXISTS idx_tx_category ON transactions(category_id);
+             CREATE INDEX IF NOT EXISTS idx_tx_created  ON transactions(created_at);
+             CREATE INDEX IF NOT EXISTS idx_tx_occurred ON transactions(occurred_at);",
+        )
+        .execute(pool)
+        .await?;
+    }
+
+    if column_exists(pool, "wallets", "balance").await? {
+        rebuild_table(
+            pool,
+            "wallets",
+            "CREATE TABLE wallets_new (
+                id             TEXT PRIMARY KEY,
+                name           TEXT NOT NULL,
+                description    TEXT NOT NULL DEFAULT '',
+                currency       TEXT NOT NULL DEFAULT '',
+                balance_cents  INTEGER NOT NULL DEFAULT 0,
+                off_budget     INTEGER NOT NULL DEFAULT 0,
+                created_at     TEXT NOT NULL
+            )",
+            &format!(
+                "INSERT INTO wallets_new (id, name, description, currency, balance_cents, off_budget, created_at)
+                 SELECT id, name, description, currency, {}, off_budget, created_at FROM wallets",
+                money("balance")
+            ),
+        )
+        .await?;
+    }
+
+    if column_exists(pool, "transfers", "amount").await? {
+        rebuild_table(
+            pool,
+            "transfers",
+            "CREATE TABLE transfers_new (
+                id             TEXT PRIMARY KEY,
+                from_wallet_id TEXT NOT NULL REFERENCES wallets(id),
+                to_wallet_id   TEXT NOT NULL REFERENCES wallets(id),
+                amount_cents   INTEGER NOT NULL,
+                note           TEXT,
+                created_at     TEXT NOT NULL
+            )",
+            &format!(
+                "INSERT INTO transfers_new (id, from_wallet_id, to_wallet_id, amount_cents, note, created_at)
+                 SELECT id, from_wallet_id, to_wallet_id, {}, note, created_at FROM transfers",
+                money("amount")
+            ),
+        )
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_transfer_from ON transfers(from_wallet_id);
+             CREATE INDEX IF NOT EXISTS idx_transfer_to   ON transfers(to_wallet_id);",
+        )
+        .execute(pool)
+        .await?;
+    }
+
+    if column_exists(pool, "savings_goals", "target_amount").await? {
+        rebuild_table(
+            pool,
+            "savings_goals",
+            "CREATE TABLE savings_goals_new (
+                id                  TEXT PRIMARY KEY,
+                name                TEXT NOT NULL,
+                target_amount_cents INTEGER NOT NULL,
+                deadline            TEXT,
+                created_at          TEXT NOT NULL
+            )",
+            &format!(
+                "INSERT INTO savings_goals_new (id, name, target_amount_cents, deadline, created_at)
+                 SELECT id, name, {}, deadline, created_at FROM savings_goals",
+                money("target_amount")
+            ),
+        )
+        .await?;
+    }
+
+    if column_exists(pool, "goal_contributions", "amount").await? {
+        rebuild_table(
+            pool,
+            "goal_contributions",
+            "CREATE TABLE goal_contributions_new (
+                id           TEXT PRIMARY KEY,
+                goal_id      TEXT NOT NULL REFERENCES savings_goals(id),
+                amount_cents INTEGER NOT NULL,
+                note         TEXT,
+                kind         TEXT NOT NULL DEFAULT 'contribution',
+                occurred_at  TEXT NOT NULL,
+                created_at   TEXT NOT NULL
+            )",
+            &format!(
+                "INSERT INTO goal_contributions_new (id, goal_id, amount_cents, note, kind, occurred_at, created_at)
+                 SELECT id, goal_id, {}, note, kind, occurred_at, created_at FROM goal_contributions",
+                money("amount")
+            ),
+        )
+        .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_contrib_goal ON goal_contributions(goal_id)")
+            .execute(pool)
+            .await?;
+    }
+
+    if column_exists(pool, "debts", "total_amount").await? {
+        rebuild_table(
+            pool,
+            "debts",
+            "CREATE TABLE debts_new (
+                id                    TEXT PRIMARY KEY,
+                name                  TEXT NOT NULL,
+                debt_type             TEXT NOT NULL,
+                total_amount_cents    INTEGER NOT NULL,
+                apr                   REAL NOT NULL,
+                monthly_payment_cents INTEGER NOT NULL,
+                created_at            TEXT NOT NULL
+            )",
+            &format!(
+                "INSERT INTO debts_new (id, name, debt_type, total_amount_cents, apr, monthly_payment_cents, created_at)
+                 SELECT id, name, debt_type, {}, apr, {}, created_at FROM debts",
+                money("total_amount"),
+                money("monthly_payment")
+            ),
+        )
+        .await?;
+    }
+
+    if column_exists(pool, "debt_payments", "amount").await? {
+        rebuild_table(
+            pool,
+            "debt_payments",
+            "CREATE TABLE debt_payments_new (
+                id           TEXT PRIMARY KEY,
+                debt_id      TEXT NOT NULL REFERENCES debts(id),
+                amount_cents INTEGER NOT NULL,
+                note         TEXT,
+                kind         TEXT NOT NULL DEFAULT 'payment',
+                occurred_at  TEXT NOT NULL,
+                created_at   TEXT NOT NULL
+            )",
+            &format!(
+                "INSERT INTO debt_payments_new (id, debt_id, amount_cents, note, kind, occurred_at, created_at)
+                 SELECT id, debt_id, {}, note, kind, occurred_at, created_at FROM debt_payments",
+                money("amount")
+            ),
+        )
+        .await?;
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_payment_debt ON debt_payments(debt_id)")
+            .execute(pool)
+            .await?;
+    }
+
+    if column_exists(pool, "budgets", "limit_amount").await? {
+        rebuild_table(
+            pool,
+            "budgets",
+            "CREATE TABLE budgets_new (
+                id                 TEXT PRIMARY KEY,
+                category_id        TEXT REFERENCES categories(id),
+                wallet_id          TEXT REFERENCES wallets(id),
+                limit_amount_cents INTEGER NOT NULL,
+                period             TEXT NOT NULL DEFAULT 'monthly',
+                alert_threshold    REAL NOT NULL DEFAULT 80,
+                carry_over         INTEGER NOT NULL DEFAULT 0,
+                created_at         TEXT NOT NULL
+            )",
+            &format!(
+                "INSERT INTO budgets_new (id, category_id, wallet_id, limit_amount_cents, period, alert_threshold, carry_over, created_at)
+                 SELECT id, category_id, wallet_id, {}, period, alert_threshold, carry_over, created_at FROM budgets",
+                money("limit_amount")
+            ),
+        )
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_budget_cat ON budgets(category_id);
+             CREATE UNIQUE INDEX IF NOT EXISTS idx_budgets_unique ON budgets(category_id, wallet_id, period);",
+        )
+        .execute(pool)
+        .await?;
+    }
+
+    if column_exists(pool, "recurring_transactions", "amount").await? {
+        rebuild_table(
+            pool,
+            "recurring_transactions",
+            "CREATE TABLE recurring_transactions_new (
+                id           TEXT PRIMARY KEY,
+                title        TEXT NOT NULL,
+                amount_cents INTEGER NOT NULL,
+                category     TEXT NOT NULL DEFAULT '',
+                category_id  TEXT REFERENCES categories(id),
+                wallet_id    TEXT NOT NULL,
+                is_income    INTEGER NOT NULL DEFAULT 0,
+                frequency    TEXT NOT NULL DEFAULT 'monthly',
+                next_date    TEXT NOT NULL,
+                created_at   TEXT NOT NULL
+            )",
+            &format!(
+                "INSERT INTO recurring_transactions_new (id, title, amount_cents, category, category_id, wallet_id, is_income, frequency, next_date, created_at)
+                 SELECT id, title, {}, category, category_id, wallet_id, is_income, frequency, next_date, created_at FROM recurring_transactions",
+                money("amount")
+            ),
+        )
+        .await?;
+        sqlx::query(
+            "CREATE INDEX IF NOT EXISTS idx_rec_wallet   ON recurring_transactions(wallet_id);
+             CREATE INDEX IF NOT EXISTS idx_rec_category ON recurring_transactions(category_id);",
+        )
+        .execute(pool)
+        .await?;
+    }
+
+    if column_exists(pool, "price_alerts", "target_price").await? {
+        rebuild_table(
+            pool,
+            "price_alerts",
+            "CREATE TABLE price_alerts_new (
+                id                 TEXT PRIMARY KEY,
+                symbol             TEXT NOT NULL,
+                asset_name         TEXT NOT NULL DEFAULT '',
+                target_price_cents INTEGER NOT NULL,
+                direction          TEXT NOT NULL DEFAULT 'above',
+                active             INTEGER NOT NULL DEFAULT 1,
+                created_at         TEXT NOT NULL
+            )",
+            &format!(
+                "INSERT INTO price_alerts_new (id, symbol, asset_name, target_price_cents, direction, active, created_at)
+                 SELECT id, symbol, asset_name, {}, direction, active, created_at FROM price_alerts",
+                money("target_price")
+            ),
+        )
+        .await?;
+    }
 
     Ok(())
 }

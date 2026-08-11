@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.asUnits
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -45,7 +46,7 @@ fun TransactionsScreen(
         val tx = longPressTx!!
         LedgerActionDialog(
             title = tx.title,
-            subtitle = (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amount)}",
+            subtitle = (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
             onDismiss = { longPressTx = null },
             onEdit = { longPressTx = null; navController.navigate(Screen.EditTransaction.createRoute(tx.id)) },
             onDelete = { viewModel.deleteTransaction(tx.id) {}; longPressTx = null }
@@ -143,7 +144,7 @@ fun TransactionsScreen(
                             TransactionRow(
                                 tx.title,
                                 tx.category,
-                                (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amount)}",
+                                (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
                                 isIncome = tx.isIncome,
                                 onClick = { sheetTx = tx },
                                 onLongClick = { longPressTx = tx },
@@ -173,7 +174,7 @@ private fun TxDetailSheet(tx: Transaction, tags: List<Tag>, onDismiss: () -> Uni
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(tx.title, style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                 Text(
-                    (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amount)}",
+                    (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
                     style = MaterialTheme.typography.titleLarge,
                     color = accentColor,
                     fontWeight = FontWeight.Bold

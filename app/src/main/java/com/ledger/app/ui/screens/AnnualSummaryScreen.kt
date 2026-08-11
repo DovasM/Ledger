@@ -28,6 +28,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.colorHexToColor
 import com.ledger.app.ui.util.rememberReportTransactions
 import com.ledger.app.ui.viewmodel.CategoryViewModel
@@ -74,8 +75,8 @@ fun AnnualSummaryScreen(
     // Per-month data for selected year
     val monthData = (1..12).map { m ->
         val txs      = reportTxs.filter { inMonth(it.occurredAt, selectedYear, m) }
-        val income   = txs.filter {  it.isIncome }.sumOf { it.amount }.toFloat()
-        val expenses = txs.filter { !it.isIncome }.sumOf { it.amount }.toFloat()
+        val income   = txs.filter {  it.isIncome }.sumOf { it.amountCents.asUnits }.toFloat()
+        val expenses = txs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }.toFloat()
         val rate     = if (income > 0f) ((income - expenses) / income * 100f).coerceIn(-100f, 100f) else 0f
         Triple(income, expenses, rate)
     }
@@ -99,7 +100,7 @@ fun AnnualSummaryScreen(
     }
     val topCategories = ytdExpenses
         .groupBy { it.category }
-        .mapValues { it.value.sumOf { t -> t.amount } }
+        .mapValues { it.value.sumOf { t -> t.amountCents.asUnits } }
         .entries.sortedByDescending { it.value }.take(5)
     val maxCatAmount = topCategories.firstOrNull()?.value?.toFloat()?.takeIf { it > 0f } ?: 1f
 

@@ -8,7 +8,7 @@ use common::{day, TestDb};
 #[test]
 fn off_budget_survives_an_edit() {
     let t = TestDb::new();
-    let w = t.db.create_wallet("Work".into(), String::new(), "EUR".into(), 0.0, true).unwrap();
+    let w = t.db.create_wallet("Work".into(), String::new(), "EUR".into(), 0, true).unwrap();
     assert!(w.off_budget, "the flag must persist through create");
 
     let edited = t.db.update_wallet(w.id.clone(), "Work account".into(), String::new(), "EUR".into(), true).unwrap();
@@ -26,16 +26,16 @@ fn off_budget_survives_an_edit() {
 #[test]
 fn a_second_overall_budget_is_refused() {
     let t = TestDb::new();
-    t.db.create_budget(None, None, 250.0, "monthly".into(), 0.8, true).unwrap();
+    t.db.create_budget(None, None, 25000, "monthly".into(), 0.8, true).unwrap();
 
-    let second = t.db.create_budget(None, None, 400.0, "monthly".into(), 0.8, false);
+    let second = t.db.create_budget(None, None, 40000, "monthly".into(), 0.8, false);
     assert!(second.is_err(), "a second overall budget must be rejected, not ignored");
 
     // A category budget and a wallet budget are different things and stay allowed.
     let c = t.db.create_category("Groceries".into(), "cart".into(), "#00FF00".into(), true).unwrap();
-    t.db.create_budget(Some(c.id), None, 100.0, "monthly".into(), 0.8, false).unwrap();
-    let wallet = t.db.create_wallet("Checking".into(), String::new(), "EUR".into(), 0.0, false).unwrap();
-    t.db.create_budget(None, Some(wallet.id), 800.0, "monthly".into(), 0.8, false).unwrap();
+    t.db.create_budget(Some(c.id), None, 10000, "monthly".into(), 0.8, false).unwrap();
+    let wallet = t.db.create_wallet("Checking".into(), String::new(), "EUR".into(), 0, false).unwrap();
+    t.db.create_budget(None, Some(wallet.id), 80000, "monthly".into(), 0.8, false).unwrap();
     assert_eq!(t.db.list_budgets().unwrap().len(), 3);
 }
 
@@ -44,20 +44,20 @@ fn a_second_overall_budget_is_refused() {
 #[test]
 fn a_transfer_moves_money_without_touching_income_or_expenses() {
     let t = TestDb::new();
-    let from = t.db.create_wallet("Checking".into(), String::new(), "EUR".into(), 100.0, false).unwrap();
-    let to = t.db.create_wallet("Savings".into(), String::new(), "EUR".into(), 0.0, false).unwrap();
-    let balance = |id: &str| t.db.list_wallets().unwrap().into_iter().find(|x| x.id == id).unwrap().balance;
+    let from = t.db.create_wallet("Checking".into(), String::new(), "EUR".into(), 10000, false).unwrap();
+    let to = t.db.create_wallet("Savings".into(), String::new(), "EUR".into(), 0, false).unwrap();
+    let balance = |id: &str| t.db.list_wallets().unwrap().into_iter().find(|x| x.id == id).unwrap().balance_cents;
 
-    let tr = t.db.create_transfer(from.id.clone(), to.id.clone(), 40.0, None, None).unwrap();
-    assert_eq!(balance(&from.id), 60.0);
-    assert_eq!(balance(&to.id), 40.0);
+    let tr = t.db.create_transfer(from.id.clone(), to.id.clone(), 4000, None, None).unwrap();
+    assert_eq!(balance(&from.id), 6000);
+    assert_eq!(balance(&to.id), 4000);
     assert!(t.db.list_all_transactions(100, 0).unwrap().is_empty(), "a transfer must not appear as a transaction");
 
     t.db.delete_transfer(tr.id).unwrap();
-    assert_eq!(balance(&from.id), 100.0, "deleting a transfer must put the money back");
-    assert_eq!(balance(&to.id), 0.0);
+    assert_eq!(balance(&from.id), 10000, "deleting a transfer must put the money back");
+    assert_eq!(balance(&to.id), 0);
 
-    assert!(t.db.create_transfer(from.id.clone(), from.id, 10.0, None, None).is_err(), "same wallet on both sides");
+    assert!(t.db.create_transfer(from.id.clone(), from.id, 1000, None, None).is_err(), "same wallet on both sides");
 }
 
 /// SQLite ignores foreign keys unless `PRAGMA foreign_keys=ON`, which this pool never sets, so
@@ -65,11 +65,11 @@ fn a_transfer_moves_money_without_touching_income_or_expenses() {
 #[test]
 fn deleting_a_wallet_takes_its_transactions_with_it() {
     let t = TestDb::new();
-    let keep = t.db.create_wallet("Checking".into(), String::new(), "EUR".into(), 0.0, false).unwrap();
-    let drop = t.db.create_wallet("Old".into(), String::new(), "EUR".into(), 0.0, false).unwrap();
+    let keep = t.db.create_wallet("Checking".into(), String::new(), "EUR".into(), 0, false).unwrap();
+    let drop = t.db.create_wallet("Old".into(), String::new(), "EUR".into(), 0, false).unwrap();
 
-    t.db.create_transaction(keep.id.clone(), "stays".into(), "Groceries".into(), 5.0, false, None, day("2026-08-10")).unwrap();
-    t.db.create_transaction(drop.id.clone(), "goes".into(), "Groceries".into(), 5.0, false, None, day("2026-08-10")).unwrap();
+    t.db.create_transaction(keep.id.clone(), "stays".into(), "Groceries".into(), 500, false, None, day("2026-08-10")).unwrap();
+    t.db.create_transaction(drop.id.clone(), "goes".into(), "Groceries".into(), 500, false, None, day("2026-08-10")).unwrap();
 
     assert_eq!(t.db.count_transactions_for_wallet(drop.id.clone()).unwrap(), 1, "the UI warns with this count");
 
@@ -85,8 +85,8 @@ fn deleting_a_category_takes_its_budget_and_leaves_the_transactions_labelled() {
     let t = TestDb::new();
     let w = t.with_wallet();
     let c = t.db.create_category("Groceries".into(), "cart".into(), "#00FF00".into(), true).unwrap();
-    t.db.create_budget(Some(c.id.clone()), None, 100.0, "monthly".into(), 0.8, false).unwrap();
-    t.db.create_transaction(w, "shopping".into(), "Groceries".into(), 5.0, false, None, day("2026-08-10")).unwrap();
+    t.db.create_budget(Some(c.id.clone()), None, 10000, "monthly".into(), 0.8, false).unwrap();
+    t.db.create_transaction(w, "shopping".into(), "Groceries".into(), 500, false, None, day("2026-08-10")).unwrap();
 
     assert_eq!(t.db.count_transactions_for_category(c.id.clone()).unwrap(), 1);
 

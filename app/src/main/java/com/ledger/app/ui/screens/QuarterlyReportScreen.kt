@@ -21,6 +21,7 @@ import androidx.navigation.NavController
 import com.ledger.app.ui.components.LedgerCard
 import com.ledger.app.ui.components.LedgerFloatingCard
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.buildQuarterlyCsv
 import com.ledger.app.ui.util.shareCsv
 import com.ledger.app.ui.util.rememberReportTransactions
@@ -76,8 +77,8 @@ fun QuarterlyReportScreen(
             }
             MonthStats(
                 month,
-                txs.filter { it.isIncome }.sumOf { it.amount },
-                txs.filter { !it.isIncome }.sumOf { it.amount }
+                txs.filter { it.isIncome }.sumOf { it.amountCents.asUnits },
+                txs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
             )
         }
     }
@@ -99,7 +100,7 @@ fun QuarterlyReportScreen(
     val categoryTotals = remember(quarterTxs) {
         quarterTxs.filter { !it.isIncome }
             .groupBy { it.category }
-            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+            .mapValues { (_, txs) -> txs.sumOf { it.amountCents.asUnits } }
             .entries.sortedByDescending { it.value }
     }
 

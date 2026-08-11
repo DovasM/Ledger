@@ -604,7 +604,7 @@ runtime (see the cascade note below).
 
 `core/src/db/mod.rs` owns a `schema_version` table and numbered migrations (`m1_baseline_tables`,
 `m2_category_links`, `m3_indexes`, `m4_transfers_currency_budgets`, `m5_off_budget_wallets`,
-`m6_transaction_occurred_at`, `m7_goal_and_debt_history`). Add the next one as `mN_…` plus an
+`m6_transaction_occurred_at`, `m7_goal_and_debt_history`, `m8_money_as_cents`). Add the next one as `mN_…` plus an
 `if applied < N` arm.
 
 **Every migration must be idempotent, without exception.** Databases predating the version table
@@ -782,21 +782,60 @@ with a foreign key, write the cleanup into the delete path — do not rely on th
 
 Defined in `core/src/ledger.udl` and mirrored as Kotlin data classes in `ledger.kt`:
 
+All monetary fields are integer cents (see *Money is integer cents* above).
+
 | Entity | Key fields |
 |---|---|
-| `Transaction` | id, wallet_id, title, category, amount, is_income, note, **occurred_at** |
-| `Wallet` | id, name, description, currency, balance, off_budget, created_at |
-| `Transfer` | id, from_wallet_id, to_wallet_id, amount, note, created_at |
-| `SavingsGoal` | id, name, **current_amount (derived)**, target_amount, deadline, created_at |
-| `GoalContribution` | id, goal_id, amount, note, kind, occurred_at |
-| `DebtPayment` | id, debt_id, amount, note, kind, occurred_at |
+| `Transaction` | id, wallet_id, title, category, amount_cents, is_income, note, **occurred_at** |
+| `Wallet` | id, name, description, currency, balance_cents, off_budget, created_at |
+| `Transfer` | id, from_wallet_id, to_wallet_id, amount_cents, note, created_at |
+| `SavingsGoal` | id, name, **current_amount_cents (derived)**, target_amount_cents, deadline, created_at |
+| `GoalContribution` | id, goal_id, amount_cents, note, kind, occurred_at |
+| `DebtPayment` | id, debt_id, amount_cents, note, kind, occurred_at |
 | `Category` | id, name, icon_name, color_hex, is_expense, created_at |
-| `Budget` | id, category_id?, wallet_id?, limit_amount, period, alert_threshold, carry_over, created_at |
-| `Debt` | id, name, debt_type, total_amount, **remaining_amount (derived)**, apr, monthly_payment, created_at |
-| `RecurringTransaction` | id, title, amount, category, wallet_id, is_income, frequency, next_date, created_at |
+| `Budget` | id, category_id?, wallet_id?, limit_amount_cents, period, alert_threshold, carry_over, created_at |
+| `Debt` | id, name, debt_type, total_amount_cents, **remaining_amount_cents (derived)**, apr, monthly_payment_cents, created_at |
+| `RecurringTransaction` | id, title, amount_cents, category, wallet_id, is_income, frequency, next_date, created_at |
 | `Tag` | id, name, created_at |
-| `PriceAlert` | id, symbol, asset_name, target_price, direction, active, created_at |
-| `MonthSummary` | total_income, total_expenses, net_savings, transaction_count |
+| `PriceAlert` | id, symbol, asset_name, target_price_cents, direction, active, created_at |
+| `MonthSummary` | total_income_cents, total_expenses_cents, net_savings_cents, transaction_count |
+
+### Money is integer cents
+
+Every amount in the database, across the FFI and through the ViewModels is a **`Long` number of
+cents**. Binary floating point cannot represent 0.10, so a `REAL` column was never quite the number
+the user typed, and a running total updated thousands of times has no bound on its error. The wallet
+balances on the real device had already drifted to `6548.390000000001` and `-85.35000000000002`
+before `m8` converted them.
+
+- **Columns are named `*_cents`** and the Kotlin fields `*Cents`. The rename was the point: changing
+  a `Double` to a `Long` leaves `spent / limit` compiling perfectly while silently becoming integer
+  division. A field that no longer exists cannot be quietly misused, so the compiler enumerated all
+  898 sites. It still missed two classes of problem — see below.
+- **Percentages stay `Double`**: `budgets.alert_threshold` and `debts.apr` are not money.
+- **`MoneyFormat.kt` owns the boundary.** `formatCents` on the way out, `Double.toCents()` /
+  `String.toCentsOrNull()` on the way in. That parse is the single rounding step in the system.
+- **`Long.asUnits`** is a *view* for ratios, averages, trends and chart scales, where a real number
+  is the honest type. Never add money with it and never store its result.
+
+Where the exactness has to hold end to end — `StreakCalculator` (the daily allowance), `CsvExport`,
+`WidgetUpdater` and the widget snapshot — the value stays `Long` cents the whole way and is
+formatted once at the end. The analysis and report screens read `.asUnits` and do their statistics
+in `Double`, which is what those screens actually mean.
+
+**Two things the compiler cannot catch, and both had already gone wrong:**
+
+1. **`"%,.2f".format(x)` takes `Any?`.** Passing a `Long` compiles and then throws
+   `IllegalFormatConversionException` at runtime. After any change to a money type, grep
+   `'%[,.0-9]*f"\.format(' ` for arguments that are cents.
+2. **Integer division compiles.** `(spent / limit).toFloat()` on two `Long`s yields 0 or 1 and
+   nothing in between — it had already silently flattened a budget progress bar. Grep for `Cents`
+   either side of a `/`. `StreakCalculator`'s two integer divisions are deliberate and commented:
+   the daily share is whole cents and rounding down is the conservative direction.
+
+`m8` converts with `CAST(ROUND(x * 100) AS INTEGER)`. The `ROUND` is load-bearing: `0.29 * 100` is
+`28.999999999999996`, so a bare `CAST` files 29 cents as 28 and loses a cent on every such row.
+`m8_converts_every_amount_exactly` pins that exact value.
 
 ### Derived totals: goal balance and debt remaining
 

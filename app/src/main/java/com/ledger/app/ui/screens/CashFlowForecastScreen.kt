@@ -1,5 +1,7 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.toCents
+
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -41,6 +43,7 @@ import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.colorHexToColor
 import com.ledger.app.ui.util.rememberReportTransactions
 import com.ledger.app.ui.viewmodel.*
@@ -56,7 +59,7 @@ import kotlin.math.*
 private data class CfEvent(val title: String, val amount: Double, val isIncome: Boolean, val date: LocalDate)
 private data class CfMonthBar(val label: String, val income: Float, val expenses: Float)
 private data class CfSlice(val name: String, val amount: Float, val color: Color)
-private data class CfBudgetRow(val label: String, val spent: Double, val limit: Double, val color: Color)
+private data class CfBudgetRow(val label: String, val spentCents: Long, val limitCents: Long, val color: Color)
 private data class CfUnusual(val category: String, val thisMonth: Double, val avg3: Double)
 
 // ── Screen ────────────────────────────────────────────────────────────────────
@@ -92,7 +95,7 @@ fun CashFlowForecastScreen(
     }
 
     val today        = LocalDate.now()
-    val totalBalance = walletState.wallets.sumOf { it.balance }
+    val totalBalance = walletState.wallets.sumOf { it.balanceCents.asUnits }
 
     fun inMonth(s: String, y: Int, m: Int) = runCatching {
         val d = LocalDate.parse(s.take(10)); d.year == y && d.monthValue == m
@@ -100,8 +103,8 @@ fun CashFlowForecastScreen(
 
     // ── This month ────────────────────────────────────────────────────────────
     val thisMonthTxs      = reportTxs.filter { inMonth(it.occurredAt, today.year, today.monthValue) }
-    val thisMonthIncome   = thisMonthTxs.filter {  it.isIncome }.sumOf { it.amount }
-    val thisMonthExpenses = thisMonthTxs.filter { !it.isIncome }.sumOf { it.amount }
+    val thisMonthIncome   = thisMonthTxs.filter {  it.isIncome }.sumOf { it.amountCents.asUnits }
+    val thisMonthExpenses = thisMonthTxs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
     val thisMonthNet      = thisMonthIncome - thisMonthExpenses
     val daysElapsed       = today.dayOfMonth.coerceAtLeast(1)
 
@@ -111,7 +114,7 @@ fun CashFlowForecastScreen(
         for (r in recurringState.recurring) {
             var next = runCatching { LocalDate.parse(r.nextDate.take(10)) }.getOrNull() ?: continue
             while (!next.isAfter(horizon)) {
-                if (!next.isBefore(today)) add(CfEvent(r.title, r.amount, r.isIncome, next))
+                if (!next.isBefore(today)) add(CfEvent(r.title, r.amountCents.asUnits, r.isIncome, next))
                 next = cfAdvanceDate(next, r.frequency)
             }
         }
@@ -122,12 +125,12 @@ fun CashFlowForecastScreen(
     // Recurring amounts are excluded to avoid double-counting — they're applied
     // explicitly per day below. If ≥7 days of current month data exist, blend in
     // 30% current month to let recent habits nudge the projection.
-    val approxMonthlyRecurring = recurringState.recurring.filter { !it.isIncome }.sumOf { it.amount }
+    val approxMonthlyRecurring = recurringState.recurring.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
     fun variableExpensesForMonth(offset: Int): Double {
         val m = today.minusMonths(offset.toLong())
         val total = reportTxs
             .filter { !it.isIncome && inMonth(it.occurredAt, m.year, m.monthValue) }
-            .sumOf { it.amount }
+            .sumOf { it.amountCents.asUnits }
         return (total - approxMonthlyRecurring).coerceAtLeast(0.0)
     }
     val rolling3MonthAvgDaily = (1..3)
@@ -163,14 +166,14 @@ fun CashFlowForecastScreen(
         val txs = reportTxs.filter { inMonth(it.occurredAt, m.year, m.monthValue) }
         CfMonthBar(
             label    = m.month.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
-            income   = txs.filter {  it.isIncome }.sumOf { it.amount }.toFloat(),
-            expenses = txs.filter { !it.isIncome }.sumOf { it.amount }.toFloat()
+            income   = txs.filter {  it.isIncome }.sumOf { it.amountCents.asUnits }.toFloat(),
+            expenses = txs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }.toFloat()
         )
     }
 
     // ── Expense donut slices ───────────────────────────────────────────────────
     val spentByCategory = thisMonthTxs.filter { !it.isIncome }
-        .groupBy { it.category }.mapValues { it.value.sumOf { t -> t.amount }.toFloat() }
+        .groupBy { it.category }.mapValues { it.value.sumOf { t -> t.amountCents.asUnits }.toFloat() }
     val donutPalette = listOf(
         Color(0xFF5C6BC0), Color(0xFFEF5350), Color(0xFF26A69A), Color(0xFFFFA726),
         Color(0xFF66BB6A), Color(0xFFAB47BC), Color(0xFF29B6F6), Color(0xFFFF7043)
@@ -188,7 +191,7 @@ fun CashFlowForecastScreen(
         val cat   = categoryState.categories.find { it.id == b.categoryId }
         val spent = (spentByCategory[cat?.name] ?: 0f).toDouble()
         val color = cat?.let { runCatching { colorHexToColor(it.colorHex) }.getOrNull() } ?: Primary
-        CfBudgetRow(cat?.name ?: "Budget", spent, b.limitAmount, color)
+        CfBudgetRow(cat?.name ?: "Budget", spent.toCents(), b.limitAmountCents, color)
     }
 
     // ── Insights data ─────────────────────────────────────────────────────────
@@ -200,7 +203,7 @@ fun CashFlowForecastScreen(
         var next = runCatching { LocalDate.parse(r.nextDate.take(10)) }.getOrNull() ?: return@sumOf 0.0
         var total = 0.0
         while (!next.isAfter(endOfMonth)) {
-            if (next.isAfter(today)) total += r.amount
+            if (next.isAfter(today)) total += r.amountCents.asUnits
             next = cfAdvanceDate(next, r.frequency)
         }
         total
@@ -209,19 +212,19 @@ fun CashFlowForecastScreen(
     val predictedExp  = thisMonthExpenses + pendingRecurringExp + dailyBurnRate * remainingDays
 
     val prevM              = today.minusMonths(1)
-    val prevMonthExpenses  = reportTxs.filter { inMonth(it.occurredAt, prevM.year, prevM.monthValue) && !it.isIncome }.sumOf { it.amount }
+    val prevMonthExpenses  = reportTxs.filter { inMonth(it.occurredAt, prevM.year, prevM.monthValue) && !it.isIncome }.sumOf { it.amountCents.asUnits }
     val expenseMoM         = if (prevMonthExpenses > 0) ((thisMonthExpenses - prevMonthExpenses) / prevMonthExpenses * 100) else 0.0
 
     val avgMonthlyExpenses = (1..6).mapNotNull { off ->
         val m   = today.minusMonths(off.toLong())
-        val sum = reportTxs.filter { inMonth(it.occurredAt, m.year, m.monthValue) && !it.isIncome }.sumOf { it.amount }
+        val sum = reportTxs.filter { inMonth(it.occurredAt, m.year, m.monthValue) && !it.isIncome }.sumOf { it.amountCents.asUnits }
         sum.takeIf { it > 0 }
     }.let { if (it.isEmpty()) thisMonthExpenses else it.average() }
     val runway = if (avgMonthlyExpenses > 0) totalBalance / avgMonthlyExpenses else 0.0
 
     val incomeHistory: List<Float> = (5 downTo 0).map { off ->
         val m = today.minusMonths(off.toLong())
-        reportTxs.filter { inMonth(it.occurredAt, m.year, m.monthValue) && it.isIncome }.sumOf { it.amount }.toFloat()
+        reportTxs.filter { inMonth(it.occurredAt, m.year, m.monthValue) && it.isIncome }.sumOf { it.amountCents.asUnits }.toFloat()
     }
     val incomeMean   = incomeHistory.average().toFloat()
     val incomeStdDev = if (incomeMean > 0) sqrt(incomeHistory.map { (it - incomeMean).pow(2) }.average()).toFloat() else 0f
@@ -235,7 +238,7 @@ fun CashFlowForecastScreen(
         reportTxs.filter { inMonth(it.occurredAt, m.year, m.monthValue) && !it.isIncome }
             .groupBy { it.category }
             .forEach { (cat, txs) ->
-                last3AvgByCategory[cat] = (last3AvgByCategory[cat] ?: 0.0) + txs.sumOf { it.amount } / 3.0
+                last3AvgByCategory[cat] = (last3AvgByCategory[cat] ?: 0.0) + txs.sumOf { it.amountCents.asUnits } / 3.0
             }
     }
     val unusualSpending: List<CfUnusual> = spentByCategory
@@ -247,7 +250,7 @@ fun CashFlowForecastScreen(
         .sortedByDescending { it.thisMonth / it.avg3 }
 
     val largestUpcoming      = scheduledEvents.filter { !it.isIncome }.maxByOrNull { it.amount }
-    val totalMonthlyDebt     = debtState.debts.sumOf { it.monthlyPayment }
+    val totalMonthlyDebt     = debtState.debts.sumOf { it.monthlyPaymentCents.asUnits }
     val debtRatio            = if (thisMonthIncome > 0) totalMonthlyDebt / thisMonthIncome * 100 else 0.0
     val payYourselfFirst     = projectedDelta.coerceAtLeast(0.0)
 
@@ -565,7 +568,7 @@ private fun CalendarTab(today: LocalDate, scheduledEvents: List<CfEvent>, allTxs
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 4.dp), color = OutlineVariant.copy(alpha = 0.15f))
                     }
                     dayTxs.forEachIndexed { idx, tx ->
-                        DayEventRow(tx.title, "${if (tx.isIncome) "+" else "-"}${"$%.2f".format(tx.amount)}", "Actual",
+                        DayEventRow(tx.title, "${if (tx.isIncome) "+" else "-"}${"$%.2f".format(tx.amountCents.asUnits)}", "Actual",
                             if (tx.isIncome) Primary else Tertiary)
                         if (idx < dayTxs.lastIndex)
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 4.dp), color = OutlineVariant.copy(alpha = 0.15f))
@@ -616,13 +619,13 @@ private fun AnalyticsTab(
             LedgerCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                     budgetRows.forEach { row ->
-                        val pct   = if (row.limit > 0) (row.spent / row.limit).coerceIn(0.0, 1.5).toFloat() else 0f
+                        val pct   = if (row.limitCents > 0) (row.spentCents.toDouble() / row.limitCents).coerceIn(0.0, 1.5).toFloat() else 0f
                         val color = if (pct > 1f) Tertiary else row.color
                         Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text(row.label, style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium)
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text("${"$%.0f".format(row.spent)} / ${"$%.0f".format(row.limit)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                    Text("${"$%.0f".format(row.spentCents.asUnits)} / ${"$%.0f".format(row.limitCents.asUnits)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                                     Surface(shape = RoundedCornerShape(4.dp), color = color.copy(alpha = 0.12f)) {
                                         Text("${"%.0f".format(pct * 100)}%", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                             style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.Bold)

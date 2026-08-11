@@ -23,6 +23,7 @@ import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.rememberReportTransactions
 import com.ledger.app.ui.viewmodel.BudgetViewModel
 import com.ledger.app.ui.viewmodel.CategoryViewModel
@@ -71,14 +72,14 @@ fun BudgetInsightsScreen(
         }
     }
 
-    val thisMonthExpenses = remember(thisMonthTxs) { thisMonthTxs.filter { !it.isIncome }.sumOf { it.amount } }
-    val thisMonthIncome   = remember(thisMonthTxs) { thisMonthTxs.filter { it.isIncome }.sumOf { it.amount } }
+    val thisMonthExpenses = remember(thisMonthTxs) { thisMonthTxs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits } }
+    val thisMonthIncome   = remember(thisMonthTxs) { thisMonthTxs.filter { it.isIncome }.sumOf { it.amountCents.asUnits } }
 
     // category name → amount spent this month
     val spentByCategory = remember(thisMonthTxs) {
         thisMonthTxs.filter { !it.isIncome }
             .groupBy { it.category }
-            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+            .mapValues { (_, txs) -> txs.sumOf { it.amountCents.asUnits } }
     }
 
     // Spending in budgeted categories only — matches what BudgetsScreen shows
@@ -180,7 +181,7 @@ private fun OverviewTab(
     today: LocalDate
 ) {
     val monthName = today.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
-    val totalBudget = budgets.sumOf { it.limitAmount }
+    val totalBudget = budgets.sumOf { it.limitAmountCents.asUnits }
     val hasBudgets = budgets.isNotEmpty() && totalBudget > 0
     val savingsRate = if (thisMonthIncome > 0) (thisMonthIncome - thisMonthExpenses) / thisMonthIncome * 100 else null
 
@@ -259,7 +260,7 @@ private fun OverviewTab(
     if (hasBudgets) {
         val overBudget = budgets.filter { b ->
             val catName = categoryById[b.categoryId]?.name ?: return@filter false
-            (spentByCategory[catName] ?: 0.0) >= b.limitAmount
+            (spentByCategory[catName] ?: 0.0) >= b.limitAmountCents.asUnits
         }
         if (overBudget.isNotEmpty()) {
             LedgerCard(modifier = Modifier.fillMaxWidth()) {
@@ -271,7 +272,7 @@ private fun OverviewTab(
                     overBudget.forEach { b ->
                         val cat = categoryById[b.categoryId]
                         val spent = spentByCategory[cat?.name ?: ""] ?: 0.0
-                        val over = spent - b.limitAmount
+                        val over = spent - b.limitAmountCents.asUnits
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(cat?.name ?: "Budget", style = MaterialTheme.typography.bodySmall, color = OnSurface)
                             Text(
@@ -296,7 +297,7 @@ private fun OverviewTab(
                     TransactionRow(
                         title = tx.title,
                         subtitle = "$date · ${tx.category}",
-                        amount = "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amount)}",
+                        amount = "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amountCents.asUnits)}",
                         isIncome = tx.isIncome,
                         modifier = Modifier.padding(horizontal = 12.dp)
                     )
@@ -336,7 +337,7 @@ private fun FixedCostsTab(recurringExpenses: List<uniffi.ledger.RecurringTransac
     }
 
     val totalMonthly = remember(recurringExpenses) {
-        recurringExpenses.sumOf { toMonthly(it.amount, it.frequency) }
+        recurringExpenses.sumOf { toMonthly(it.amountCents.asUnits, it.frequency) }
     }
 
     if (recurringExpenses.isEmpty()) {
@@ -363,9 +364,9 @@ private fun FixedCostsTab(recurringExpenses: List<uniffi.ledger.RecurringTransac
     LedgerCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
             recurringExpenses
-                .sortedByDescending { toMonthly(it.amount, it.frequency) }
+                .sortedByDescending { toMonthly(it.amountCents.asUnits, it.frequency) }
                 .forEachIndexed { idx, r ->
-                    val monthly = toMonthly(r.amount, r.frequency)
+                    val monthly = toMonthly(r.amountCents.asUnits, r.frequency)
                     val nextDate = runCatching {
                         LocalDate.parse(r.nextDate.take(10)).format(DateTimeFormatter.ofPattern("MMM d"))
                     }.getOrElse { r.nextDate.take(10) }
@@ -390,7 +391,7 @@ private fun FixedCostsTab(recurringExpenses: List<uniffi.ledger.RecurringTransac
                             }
                             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
-                                    "-${"$%,.2f".format(r.amount)}",
+                                    "-${"$%,.2f".format(r.amountCents.asUnits)}",
                                     style = MaterialTheme.typography.bodyMedium, color = Tertiary, fontWeight = FontWeight.SemiBold
                                 )
                                 if (r.frequency.lowercase() != "monthly") {

@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.toCents
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -238,7 +239,7 @@ fun AddRecurringScreen(
                     if (isFormValid && amountVal != null && wallet != null) {
                         viewModel.createRecurring(
                             title = title,
-                            amount = amountVal,
+                            amountCents = amountVal.toCents(),
                             category = categoryName,
                             walletId = wallet.id,
                             isIncome = !isExpense,

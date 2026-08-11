@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.asUnits
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -43,8 +44,8 @@ fun WalletDetailsScreen(
     val periodTxs = txState.transactions.filter {
         try { java.time.LocalDate.parse(it.occurredAt.take(10)) >= chartPeriodStart } catch (e: Exception) { false }
     }
-    val monthIncome = periodTxs.filter { it.isIncome }.sumOf { it.amount }
-    val monthExpenses = periodTxs.filter { !it.isIncome }.sumOf { it.amount }
+    val monthIncome = periodTxs.filter { it.isIncome }.sumOf { it.amountCents.asUnits }
+    val monthExpenses = periodTxs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
     val recentTxns = txState.transactions.take(5)
 
     Scaffold(
@@ -84,7 +85,7 @@ fun WalletDetailsScreen(
                         Column {
                             Text("CURRENT BALANCE", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                             Text(
-                                "${"$%,.2f".format(wallet?.balance ?: 0.0)}",
+                                "${"$%,.2f".format(wallet?.balanceCents?.asUnits ?: 0.0)}",
                                 style = MaterialTheme.typography.displaySmall,
                                 color = OnSurface, fontWeight = FontWeight.Bold
                             )
@@ -93,7 +94,7 @@ fun WalletDetailsScreen(
                     }
                     LedgerTrendChart(
                         transactions = txState.transactions,
-                        currentBalance = wallet?.balance ?: 0.0,
+                        currentBalance = wallet?.balanceCents?.asUnits ?: 0.0,
                         periods = listOf("1W", "1M", "3M", "6M", "1Y"),
                         defaultPeriod = "1M",
                         accentColor = Primary,
@@ -141,7 +142,7 @@ fun WalletDetailsScreen(
                             TransactionRow(
                                 tx.title,
                                 tx.category,
-                                (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amount)}",
+                                (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
                                 isIncome = tx.isIncome
                             )
                         }

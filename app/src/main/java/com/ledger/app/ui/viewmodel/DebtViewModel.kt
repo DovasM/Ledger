@@ -44,13 +44,13 @@ class DebtViewModel @Inject constructor(
     }
 
     fun createDebt(
-        name: String, debtType: String, totalAmount: Double,
-        remainingAmount: Double, apr: Double, monthlyPayment: Double,
+        name: String, debtType: String, totalAmountCents: Long,
+        remainingAmountCents: Long, apr: Double, monthlyPaymentCents: Long,
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.createDebt(name, debtType, totalAmount, remainingAmount, apr, monthlyPayment)
+                bridge.createDebt(name, debtType, totalAmountCents, remainingAmountCents, apr, monthlyPaymentCents)
                 load()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
@@ -60,13 +60,13 @@ class DebtViewModel @Inject constructor(
     }
 
     fun updateDebt(
-        id: String, name: String, debtType: String, totalAmount: Double,
-        remainingAmount: Double, apr: Double, monthlyPayment: Double,
+        id: String, name: String, debtType: String, totalAmountCents: Long,
+        remainingAmountCents: Long, apr: Double, monthlyPaymentCents: Long,
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.updateDebt(id, name, debtType, totalAmount, remainingAmount, apr, monthlyPayment)
+                bridge.updateDebt(id, name, debtType, totalAmountCents, remainingAmountCents, apr, monthlyPaymentCents)
                 load()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
@@ -99,10 +99,10 @@ class DebtViewModel @Inject constructor(
     }
 
     /** Recording a payment is how the remaining amount goes down; it is no longer typed over. */
-    fun addPayment(debtId: String, amount: Double, note: String? = null, occurredAt: String? = null, onSuccess: () -> Unit = {}) {
+    fun addPayment(debtId: String, amountCents: Long, note: String? = null, occurredAt: String? = null, onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.addDebtPayment(debtId, amount, note, occurredAt)
+                bridge.addDebtPayment(debtId, amountCents, note, occurredAt)
                 load()
                 loadPayments(debtId)
                 launch(Dispatchers.Main) { onSuccess() }

@@ -24,6 +24,7 @@ import androidx.navigation.NavController
 import com.ledger.app.ui.components.LedgerCard
 import com.ledger.app.ui.components.LedgerFloatingCard
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.buildNetWorthCsv
 import com.ledger.app.ui.util.shareCsv
 import com.ledger.app.ui.viewmodel.DebtViewModel
@@ -49,8 +50,8 @@ fun NetWorthScreen(
     LaunchedEffect(Unit) { txViewModel.loadAll() }
 
     val today            = LocalDate.now()
-    val totalAssets      = walletState.wallets.sumOf { it.balance }
-    val totalLiabilities = debtState.debts.sumOf { it.remainingAmount }
+    val totalAssets      = walletState.wallets.sumOf { it.balanceCents.asUnits }
+    val totalLiabilities = debtState.debts.sumOf { it.remainingAmountCents.asUnits }
     val currentNW        = totalAssets - totalLiabilities
 
     // Trajectory: reconstruct the last 6 months of net worth by going backward from today.
@@ -64,7 +65,7 @@ fun NetWorthScreen(
                     val txDate = LocalDate.parse(it.occurredAt.take(10))
                     txDate.year == d.year && txDate.monthValue == d.monthValue
                 }.getOrElse { false }
-            }.sumOf { if (it.isIncome) it.amount else -it.amount }
+            }.sumOf { if (it.isIncome) it.amountCents.asUnits else -it.amountCents.asUnits }
         }
         // Build trajectory: nwPoints[5] = current, nwPoints[4] = last month, etc.
         val nwPoints = DoubleArray(6)
@@ -222,7 +223,7 @@ fun NetWorthScreen(
                                             Text(wallet.description, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                                     }
                                     Text(
-                                        "${"$%,.2f".format(wallet.balance)}",
+                                        "${"$%,.2f".format(wallet.balanceCents.asUnits)}",
                                         style = MaterialTheme.typography.titleMedium,
                                         color = Primary, fontWeight = FontWeight.SemiBold
                                     )
@@ -251,7 +252,7 @@ fun NetWorthScreen(
                                         Text("${debt.debtType} · ${debt.apr}% APR", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                                     }
                                     Text(
-                                        "${"$%,.2f".format(debt.remainingAmount)}",
+                                        "${"$%,.2f".format(debt.remainingAmountCents.asUnits)}",
                                         style = MaterialTheme.typography.titleMedium,
                                         color = Tertiary, fontWeight = FontWeight.SemiBold
                                     )

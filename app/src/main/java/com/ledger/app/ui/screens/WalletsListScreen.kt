@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.asUnits
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -67,7 +68,7 @@ fun WalletsListScreen(
                 .padding(horizontal = 20.dp, vertical = 24.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            val totalBalance = state.wallets.sumOf { it.balance }
+            val totalBalance = state.wallets.sumOf { it.balanceCents.asUnits }
 
             LedgerFloatingCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -107,7 +108,7 @@ fun WalletsListScreen(
                     val w = longPressWallet!!
                     LedgerActionDialog(
                         title = w.name,
-                        subtitle = "Balance: ${"$%,.2f".format(w.balance)}",
+                        subtitle = "Balance: ${"$%,.2f".format(w.balanceCents.asUnits)}",
                         onDismiss = { longPressWallet = null },
                         onEdit = { longPressWallet = null; navController.navigate(Screen.EditWallet.createRoute(w.id)) }
                     )
@@ -131,7 +132,7 @@ private fun WalletDistributionBar(wallets: List<Wallet>) {
         Color(0xFFE65100), Color(0xFF00838F), Color(0xFF558B2F)
     )
 
-    val total = wallets.sumOf { it.balance.coerceAtLeast(0.0) }
+    val total = wallets.sumOf { it.balanceCents.asUnits.coerceAtLeast(0.0) }
 
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         // Segmented bar
@@ -143,7 +144,7 @@ private fun WalletDistributionBar(wallets: List<Wallet>) {
                 Box(modifier = Modifier.fillMaxSize().background(OutlineVariant.copy(alpha = 0.3f)))
             } else {
                 wallets.forEachIndexed { i, wallet ->
-                    val fraction = (wallet.balance.coerceAtLeast(0.0) / total).toFloat()
+                    val fraction = (wallet.balanceCents.asUnits.coerceAtLeast(0.0) / total).toFloat()
                     if (fraction > 0f) {
                         Box(
                             modifier = Modifier
@@ -209,9 +210,9 @@ private fun WalletCard(wallet: Wallet, navController: NavController, onLongClick
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    "${"$%,.2f".format(wallet.balance)}",
+                    "${"$%,.2f".format(wallet.balanceCents.asUnits)}",
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (wallet.balance >= 0) OnSurface else Tertiary,
+                    color = if (wallet.balanceCents.asUnits >= 0) OnSurface else Tertiary,
                     fontWeight = FontWeight.Bold
                 )
                 Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))

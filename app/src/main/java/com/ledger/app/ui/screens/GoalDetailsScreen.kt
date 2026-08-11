@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.toCents
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -20,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.GoalImageStore
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -103,7 +105,7 @@ fun GoalDetailsScreen(
                 TextButton(onClick = {
                     val amount = contribAmount.toDoubleOrNull()
                     if (amount != null && amount > 0) {
-                        viewModel.addContribution(goalId, amount, contribNote.ifBlank { null }) {
+                        viewModel.addContribution(goalId, amount.toCents(), contribNote.ifBlank { null }) {
                             showContribDialog = false
                             contribAmount = ""
                             contribNote = ""
@@ -206,17 +208,17 @@ fun GoalDetailsScreen(
                                     style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
                                 )
                                 Text(
-                                    "$${"%.2f".format(goal.currentAmount)}",
+                                    "$${"%.2f".format(goal.currentAmountCents.asUnits)}",
                                     style = MaterialTheme.typography.displaySmall,
                                     color = OnSurface, fontWeight = FontWeight.Bold
                                 )
                                 Text(
-                                    "of $${"%.0f".format(goal.targetAmount)} target",
+                                    "of $${"%.0f".format(goal.targetAmountCents.asUnits)} target",
                                     style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant
                                 )
                             }
                         }
-                        val progress = if (goal.targetAmount > 0) (goal.currentAmount / goal.targetAmount).toFloat().coerceIn(0f, 1f) else 0f
+                        val progress = if (goal.targetAmountCents.asUnits > 0) (goal.currentAmountCents.asUnits / goal.targetAmountCents.asUnits).toFloat().coerceIn(0f, 1f) else 0f
                         LinearProgressIndicator(
                             progress = { progress },
                             modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
@@ -270,21 +272,21 @@ private fun GoalOverviewTab(
     goalColor: Color,
     onAddContribution: () -> Unit
 ) {
-    val remaining = (goal.targetAmount - goal.currentAmount).coerceAtLeast(0.0)
+    val remaining = (goal.targetAmountCents.asUnits - goal.currentAmountCents.asUnits).coerceAtLeast(0.0)
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         LedgerCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Goal Statistics", style = MaterialTheme.typography.titleMedium, color = OnSurface)
                 HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
-                GoalStatRow("Target amount", "$${"%.2f".format(goal.targetAmount)}")
-                GoalStatRow("Current amount", "$${"%.2f".format(goal.currentAmount)}")
+                GoalStatRow("Target amount", "$${"%.2f".format(goal.targetAmountCents.asUnits)}")
+                GoalStatRow("Current amount", "$${"%.2f".format(goal.currentAmountCents.asUnits)}")
                 GoalStatRow("Remaining", "$${"%.2f".format(remaining)}")
                 if (goal.deadline != null) {
                     GoalStatRow("Deadline", goal.deadline!!)
                 }
                 GoalStatRow(
                     "Status",
-                    if (goal.currentAmount >= goal.targetAmount) "Completed ✓" else "In progress"
+                    if (goal.currentAmountCents.asUnits >= goal.targetAmountCents.asUnits) "Completed ✓" else "In progress"
                 )
             }
         }
@@ -319,7 +321,7 @@ private fun GoalHistoryTab(
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
             title = { Text("Remove contribution?") },
-            text = { Text("$${"%.2f".format(c.amount)} will come back off this goal.") },
+            text = { Text("$${"%.2f".format(c.amountCents.asUnits)} will come back off this goal.") },
             confirmButton = {
                 TextButton(onClick = { onDelete(c.id); pendingDelete = null }) { Text("Remove", color = Error) }
             },
@@ -368,7 +370,7 @@ private fun GoalHistoryTab(
                         }
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
-                                "$${"%.2f".format(c.amount)}",
+                                "$${"%.2f".format(c.amountCents.asUnits)}",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = OnSurface, fontWeight = FontWeight.Medium
                             )
@@ -412,8 +414,8 @@ private fun GoalMilestonesTab(goal: SavingsGoal, goalColor: Color) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Text("Milestones", style = MaterialTheme.typography.titleMedium, color = OnSurface)
         milestonePercents.forEachIndexed { i, pct ->
-            val targetAmt = goal.targetAmount * pct
-            val reached   = goal.currentAmount >= targetAmt
+            val targetAmt = goal.targetAmountCents.asUnits * pct
+            val reached   = goal.currentAmountCents.asUnits >= targetAmt
             LedgerCard(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier.padding(16.dp),

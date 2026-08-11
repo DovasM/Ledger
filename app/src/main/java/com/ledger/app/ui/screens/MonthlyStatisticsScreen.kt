@@ -34,6 +34,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.colorHexToColor
 import com.ledger.app.ui.util.iconNameToVector
 import com.ledger.app.ui.util.rememberReportTransactions
@@ -138,7 +139,7 @@ fun MonthlyStatisticsScreen(
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(tx.title, style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                         Text(
-                            "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amount)}",
+                            "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amountCents.asUnits)}",
                             style = MaterialTheme.typography.titleLarge, color = accentColor, fontWeight = FontWeight.Bold
                         )
                     }
@@ -267,13 +268,13 @@ private fun StatsSummaryTab(
     onTxClick: (Transaction) -> Unit,
     onNavigateToMonth: (Int) -> Unit
 ) {
-    val income    = txs.filter {  it.isIncome }.sumOf { it.amount }
-    val expenses  = txs.filter { !it.isIncome }.sumOf { it.amount }
+    val income    = txs.filter {  it.isIncome }.sumOf { it.amountCents.asUnits }
+    val expenses  = txs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
     val net       = income - expenses
     val rate      = if (income > 0) (net / income * 100) else 0.0
     val txCount   = txs.size
     val expTxs    = txs.filter { !it.isIncome }
-    val avgTxSize = if (expTxs.isNotEmpty()) expTxs.sumOf { it.amount } / expTxs.size else 0.0
+    val avgTxSize = if (expTxs.isNotEmpty()) expTxs.sumOf { it.amountCents.asUnits } / expTxs.size else 0.0
 
     // ── Month summary header ──────────────────────────────────────────────────
     if (txs.isNotEmpty()) {
@@ -356,8 +357,8 @@ private fun StatsSummaryTab(
     }
 
     val filteredExpenses = (if (selectedCat != null) expTxs.filter { it.category == selectedCat } else expTxs)
-        .sortedByDescending { it.amount }.take(5)
-    val filteredIncome = txs.filter { it.isIncome }.sortedByDescending { it.amount }.take(5)
+        .sortedByDescending { it.amountCents.asUnits }.take(5)
+    val filteredIncome = txs.filter { it.isIncome }.sortedByDescending { it.amountCents.asUnits }.take(5)
 
     // ── Top expenses ──────────────────────────────────────────────────────────
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
@@ -375,7 +376,7 @@ private fun StatsSummaryTab(
                     TransactionRow(
                         title    = tx.title,
                         subtitle = "${tx.occurredAt.take(10)} · ${tx.category}",
-                        amount   = "-${"$%,.2f".format(tx.amount)}",
+                        amount   = "-${"$%,.2f".format(tx.amountCents.asUnits)}",
                         isIncome = false,
                         onClick  = { onTxClick(tx) }
                     )
@@ -402,7 +403,7 @@ private fun StatsSummaryTab(
                     TransactionRow(
                         title    = tx.title,
                         subtitle = "${tx.occurredAt.take(10)} · ${tx.category}",
-                        amount   = "+${"$%,.2f".format(tx.amount)}",
+                        amount   = "+${"$%,.2f".format(tx.amountCents.asUnits)}",
                         isIncome = true,
                         onClick  = { onTxClick(tx) }
                     )
@@ -422,8 +423,8 @@ private fun StatsTrendsTab(
     categories: List<Category>
 ) {
     val monthLabels   = sixMonths.map { it.third }
-    val incomeValues  = sixMonths.map { (_, txs, _) -> txs.filter {  it.isIncome }.sumOf { it.amount }.toFloat() }
-    val expenseValues = sixMonths.map { (_, txs, _) -> txs.filter { !it.isIncome }.sumOf { it.amount }.toFloat() }
+    val incomeValues  = sixMonths.map { (_, txs, _) -> txs.filter {  it.isIncome }.sumOf { it.amountCents.asUnits }.toFloat() }
+    val expenseValues = sixMonths.map { (_, txs, _) -> txs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }.toFloat() }
 
     // ── Income vs Expenses dual-line chart ────────────────────────────────────
     Text("Income vs Expenses", style = MaterialTheme.typography.headlineSmall, color = OnSurface)
@@ -449,7 +450,7 @@ private fun StatsTrendsTab(
         .filter { it.isNotBlank() }.distinct()
     val topCatNames = allExpenseCats.sortedByDescending { catName ->
         val values = sixMonths.map { (_, txs, _) ->
-            txs.filter { !it.isIncome && it.category.equals(catName, ignoreCase = true) }.sumOf { it.amount }.toFloat()
+            txs.filter { !it.isIncome && it.category.equals(catName, ignoreCase = true) }.sumOf { it.amountCents.asUnits }.toFloat()
         }.filter { it > 0f }
         if (values.size >= 2) values.max() - values.min() else 0f
     }.take(5)
@@ -473,7 +474,7 @@ private fun StatsTrendsTab(
                 val color = cat?.let { runCatching { colorHexToColor(it.colorHex) }.getOrNull() }
                     ?: fallbackColors[index % fallbackColors.size]
                 val values = sixMonths.map { (_, txs, _) ->
-                    txs.filter { !it.isIncome && it.category.equals(catName, ignoreCase = true) }.sumOf { it.amount }.toFloat()
+                    txs.filter { !it.isIncome && it.category.equals(catName, ignoreCase = true) }.sumOf { it.amountCents.asUnits }.toFloat()
                 }
                 val diff = values.last() - values[values.size - 2]
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -613,7 +614,7 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
         DayOfWeek.THURSDAY, DayOfWeek.FRIDAY, DayOfWeek.SATURDAY, DayOfWeek.SUNDAY)
     val byDow   = dowOrder.associateWith { dow ->
         expenses.filter { runCatching { LocalDate.parse(it.occurredAt.take(10)).dayOfWeek == dow }.getOrDefault(false) }
-            .sumOf { it.amount }.toFloat()
+            .sumOf { it.amountCents.asUnits }.toFloat()
     }
     val maxDow  = byDow.values.maxOrNull()?.takeIf { it > 0f } ?: 1f
     val peakDow = byDow.entries.filter { it.value > 0f }.maxByOrNull { it.value }?.key
@@ -654,7 +655,7 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
     val weekLabels    = listOf("Week 1  (1–7)", "Week 2  (8–14)", "Week 3  (15–21)", "Week 4  (22+)")
     val byWeek = weekRanges.map { range ->
         expenses.filter { runCatching { LocalDate.parse(it.occurredAt.take(10)).dayOfMonth in range }.getOrDefault(false) }
-            .sumOf { it.amount }.toFloat()
+            .sumOf { it.amountCents.asUnits }.toFloat()
     }
     // Normalize by days per bucket so W4 (9-10 days) isn't unfairly inflated vs W1-W3 (7 days each)
     val byWeekNorm  = byWeek.zip(weekDayCounts).map { (amt, days) -> amt / days }
@@ -697,7 +698,7 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
         LedgerCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 merchantFreq.forEach { (title, count) ->
-                    val totalSpent = expenses.filter { it.title.trim() == title }.sumOf { it.amount }
+                    val totalSpent = expenses.filter { it.title.trim() == title }.sumOf { it.amountCents.asUnits }
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                         Text(title, style = MaterialTheme.typography.bodySmall, color = OnSurface,
                             modifier = Modifier.weight(1f), maxLines = 1, overflow = TextOverflow.Ellipsis)
@@ -716,7 +717,7 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
     }
 
     // ── Largest single transaction ────────────────────────────────────────────
-    val largest = expenses.maxByOrNull { it.amount }
+    val largest = expenses.maxByOrNull { it.amountCents.asUnits }
     if (largest != null) {
         Text("Largest Transaction", style = MaterialTheme.typography.headlineSmall, color = OnSurface)
         LedgerCard(modifier = Modifier.fillMaxWidth()) {
@@ -728,7 +729,7 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
                     Text(largest.title, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
                     Text("${largest.occurredAt.take(10)} · ${largest.category}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                 }
-                Text("-${"$%,.2f".format(largest.amount)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
+                Text("-${"$%,.2f".format(largest.amountCents.asUnits)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -738,8 +739,8 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
         // Match against actual recurring transactions by title
         val recurringExp     = expenses.filter { it.title.trim().lowercase() in recurringTitles }
         val discretionaryExp = expenses.filter { it.title.trim().lowercase() !in recurringTitles }
-        val recurringTotal     = recurringExp.sumOf { it.amount }
-        val discretionaryTotal = discretionaryExp.sumOf { it.amount }
+        val recurringTotal     = recurringExp.sumOf { it.amountCents.asUnits }
+        val discretionaryTotal = discretionaryExp.sumOf { it.amountCents.asUnits }
         val totalExp           = recurringTotal + discretionaryTotal
         val recurringPct       = if (totalExp > 0) (recurringTotal / totalExp * 100).toFloat() else 0f
 
@@ -786,8 +787,8 @@ private fun StatsSavingsTab(
 ) {
     // rate is null when income == 0 (no income data for that month — not "saved 0%")
     val savingsData: List<Triple<String, Float?, Double>> = sixMonths.map { (_, txs, label) ->
-        val income   = txs.filter { it.isIncome }.sumOf { it.amount }
-        val expenses = txs.filter { !it.isIncome }.sumOf { it.amount }
+        val income   = txs.filter { it.isIncome }.sumOf { it.amountCents.asUnits }
+        val expenses = txs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
         val rate     = if (income > 0) ((income - expenses) / income * 100).toFloat().coerceIn(-100f, 100f) else null
         Triple(label, rate, income - expenses)
     }
@@ -798,8 +799,8 @@ private fun StatsSavingsTab(
 
     // ── Savings streak ────────────────────────────────────────────────────────
     val allRates = allYearMonths.map { (_, txs, _) ->
-        val inc = txs.filter { it.isIncome }.sumOf { it.amount }
-        val exp = txs.filter { !it.isIncome }.sumOf { it.amount }
+        val inc = txs.filter { it.isIncome }.sumOf { it.amountCents.asUnits }
+        val exp = txs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
         if (inc > 0) ((inc - exp) / inc * 100).toFloat() else -1f
     }
     // Drop trailing months with no data (future months in the current year)
@@ -941,14 +942,14 @@ private fun StatsComparisonTab(
     val topCatNames = (selExp + prevExp).map { it.category }.filter { it.isNotBlank() }.distinct()
         .filter { cat -> selExp.any { it.category == cat } || prevExp.any { it.category == cat } }
         .sortedByDescending { cat ->
-            val cur  = selExp.filter  { it.category == cat }.sumOf { it.amount }
-            val prev = prevExp.filter { it.category == cat }.sumOf { it.amount }
+            val cur  = selExp.filter  { it.category == cat }.sumOf { it.amountCents.asUnits }
+            val prev = prevExp.filter { it.category == cat }.sumOf { it.amountCents.asUnits }
             abs(cur - prev)
         }.take(6)
 
     val maxCatVal = topCatNames.maxOfOrNull { cat ->
-        maxOf(selExp.filter { it.category.equals(cat, ignoreCase = true) }.sumOf { it.amount },
-            prevExp.filter { it.category.equals(cat, ignoreCase = true) }.sumOf { it.amount })
+        maxOf(selExp.filter { it.category.equals(cat, ignoreCase = true) }.sumOf { it.amountCents.asUnits },
+            prevExp.filter { it.category.equals(cat, ignoreCase = true) }.sumOf { it.amountCents.asUnits })
     }?.toFloat()?.takeIf { it > 0f } ?: 1f
 
     // ── Category comparison ───────────────────────────────────────────────────
@@ -962,8 +963,8 @@ private fun StatsComparisonTab(
                 }
             } else {
                 topCatNames.forEach { catName ->
-                    val current  = selExp.filter  { it.category.equals(catName, ignoreCase = true) }.sumOf { it.amount }.toFloat()
-                    val previous = prevExp.filter { it.category.equals(catName, ignoreCase = true) }.sumOf { it.amount }.toFloat()
+                    val current  = selExp.filter  { it.category.equals(catName, ignoreCase = true) }.sumOf { it.amountCents.asUnits }.toFloat()
+                    val previous = prevExp.filter { it.category.equals(catName, ignoreCase = true) }.sumOf { it.amountCents.asUnits }.toFloat()
                     CategoryCompareRow(catName, current, previous, maxCatVal)
                 }
             }
@@ -978,7 +979,7 @@ private fun StatsComparisonTab(
         .filter { it.isNotBlank() }.distinct()
         .map { catName ->
             val monthlyAmts = allYearMonths.map { (_, txs, _) ->
-                txs.filter { !it.isIncome && it.category.equals(catName, ignoreCase = true) }.sumOf { it.amount }
+                txs.filter { !it.isIncome && it.category.equals(catName, ignoreCase = true) }.sumOf { it.amountCents.asUnits }
             }.filter { it > 0 }
             val delta = if (monthlyAmts.size >= 2) monthlyAmts.max() - monthlyAmts.min() else 0.0
             catName to delta
@@ -992,7 +993,7 @@ private fun StatsComparisonTab(
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 allYearTopCats.forEach { catName ->
                     val monthlyAmounts = allYearMonths.map { (_, txs, label) ->
-                        val amt = txs.filter { !it.isIncome && it.category.equals(catName, ignoreCase = true) }.sumOf { it.amount }
+                        val amt = txs.filter { !it.isIncome && it.category.equals(catName, ignoreCase = true) }.sumOf { it.amountCents.asUnits }
                         Pair(label, amt)
                     }.filter { it.second > 0 }
 
@@ -1032,7 +1033,7 @@ private fun StatsComparisonTab(
     }
 
     // ── Income stability ──────────────────────────────────────────────────────
-    val incomeValues = allYearMonths.map { (_, txs, _) -> txs.filter { it.isIncome }.sumOf { it.amount }.toFloat() }.filter { it > 0f }
+    val incomeValues = allYearMonths.map { (_, txs, _) -> txs.filter { it.isIncome }.sumOf { it.amountCents.asUnits }.toFloat() }.filter { it > 0f }
     if (incomeValues.size >= 3) {
         val mean   = incomeValues.average().toFloat()
         val stdDev = sqrt(incomeValues.map { (it - mean).let { d -> d * d } }.average()).toFloat()
@@ -1071,8 +1072,8 @@ private fun StatsComparisonTab(
     }
 
     // ── Year-to-date ──────────────────────────────────────────────────────────
-    val ytdIncome   = ytdTxs.filter {  it.isIncome }.sumOf { it.amount }
-    val ytdExpenses = ytdTxs.filter { !it.isIncome }.sumOf { it.amount }
+    val ytdIncome   = ytdTxs.filter {  it.isIncome }.sumOf { it.amountCents.asUnits }
+    val ytdExpenses = ytdTxs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
     val ytdNet      = ytdIncome - ytdExpenses
     val monthsWithYtdData = (1..selectedMonth).count { m ->
         ytdTxs.any { runCatching { LocalDate.parse(it.occurredAt.take(10)).monthValue == m }.getOrDefault(false) }

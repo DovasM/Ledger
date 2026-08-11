@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.asUnits
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -56,7 +57,7 @@ fun ActivityScreen(
         val tx = longPressTx!!
         LedgerActionDialog(
             title = tx.title,
-            subtitle = (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amount)}",
+            subtitle = (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
             onDismiss = { longPressTx = null },
             onEdit = { longPressTx = null; navController.navigate(Screen.EditTransaction.createRoute(tx.id)) },
             onDelete = { viewModel.deleteTransaction(tx.id) {}; longPressTx = null }
@@ -139,8 +140,8 @@ fun ActivityScreen(
     val grouped = visibleTxs.groupBy { it.occurredAt.take(10) }
         .entries.sortedByDescending { it.key }
 
-    val totalIncome = visibleTxs.filter { it.isIncome }.sumOf { it.amount }
-    val totalExpenses = visibleTxs.filter { !it.isIncome }.sumOf { it.amount }
+    val totalIncome = visibleTxs.filter { it.isIncome }.sumOf { it.amountCents.asUnits }
+    val totalExpenses = visibleTxs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
 
     Scaffold(
         topBar = {
@@ -267,8 +268,8 @@ fun ActivityScreen(
                 }
                 grouped.forEach { (date, txns) ->
                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        val dayIncome = txns.filter { it.isIncome }.sumOf { it.amount }
-                        val dayExpenses = txns.filter { !it.isIncome }.sumOf { it.amount }
+                        val dayIncome = txns.filter { it.isIncome }.sumOf { it.amountCents.asUnits }
+                        val dayExpenses = txns.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
                         val dayNet = dayIncome - dayExpenses
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(date, style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant, fontWeight = FontWeight.SemiBold)
@@ -284,7 +285,7 @@ fun ActivityScreen(
                                     TransactionRow(
                                         tx.title,
                                         tx.category,
-                                        (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amount)}",
+                                        (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
                                         isIncome = tx.isIncome,
                                         onClick = { sheetTx = tx },
                                         onLongClick = { longPressTx = tx }
@@ -314,7 +315,7 @@ private fun ActivityTxSheet(tx: Transaction, tags: List<Tag>, onDismiss: () -> U
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(tx.title, style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                 Text(
-                    (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amount)}",
+                    (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
                     style = MaterialTheme.typography.titleLarge,
                     color = accentColor,
                     fontWeight = FontWeight.Bold
