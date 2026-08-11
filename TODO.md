@@ -158,7 +158,7 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 - [ ] **Multi-currency wallets** — each wallet has its own currency; totals on NetWorthScreen and Dashboard convert to base currency using live rates
 
 ### Data Export
-- [ ] **CSV export** — `CsvExport.kt` already exists but is not wired to any UI; connect to CustomReportScreen export button
+- [x] **CSV export** — wired all along, contrary to what this line used to claim: MonthlyReportScreen, QuarterlyReportScreen, CustomReportScreen and NetWorthScreen each have an export button. Which is why the four integer-division crashes fixed above were live rather than latent
 - [ ] **PDF report export** — monthly/annual report as a shareable PDF file (use Android PdfDocument API)
 - [ ] **Excel (.xlsx) export** — for accounting purposes; use Apache POI or a lightweight alternative
 
@@ -219,7 +219,6 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 - [ ] **HelpSupportScreen** — FAQ items are hardcoded; acceptable as static content but could be loaded from remote
 - [x] **EditTransaction date picker** — verified against the device DB. It writes `occurred_at`, and `update_transaction`'s `COALESCE(?, occurred_at, created_at)` means an edit that does not touch the date leaves it alone instead of moving the transaction to today
 - [ ] Seed data utility (`SeedDataUtil.kt`) — decide if this stays for dev only or gets removed before release
-- [ ] CSV export (`CsvExport.kt`) — wire to Custom Report export button
 
 ## Completed
 
