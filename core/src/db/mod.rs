@@ -3,6 +3,18 @@ pub mod models;
 use sqlx::{SqlitePool, sqlite::SqliteConnectOptions};
 use std::str::FromStr;
 
+/// The highest migration this build knows how to run. A backup taken by a newer build carries a
+/// higher number and must be refused rather than half-understood.
+pub const CURRENT_SCHEMA_VERSION: i64 = 9;
+
+/// Every table holding user data, in an order that inserts parents before children. schema_version
+/// is deliberately absent: a restore keeps the running app's own version.
+pub const USER_TABLES: &[&str] = &[
+    "categories", "wallets", "tags", "transactions", "transaction_tags", "transfers",
+    "savings_goals", "goal_contributions", "debts", "debt_payments", "budgets",
+    "recurring_transactions", "price_alerts",
+];
+
 pub async fn open_pool(db_path: &str) -> Result<SqlitePool, sqlx::Error> {
     let options = SqliteConnectOptions::from_str(&format!("sqlite:{}", db_path))?
         .create_if_missing(true);

@@ -89,6 +89,20 @@ dictionary DebtPayment {
     string occurred_at;
 };
 
+// What a backup file contains, so the user can see what they are about to replace.
+dictionary BackupInfo {
+    string path;
+    i64 schema_version;
+    i64 wallets;
+    i64 transactions;
+    i64 categories;
+    i64 budgets;
+    i64 goals;
+    i64 debts;
+    i64 transfers;
+    i64 recurring;
+};
+
 dictionary MonthSummary {
     i64 total_income_cents;
     i64 total_expenses_cents;
@@ -320,6 +334,16 @@ interface LedgerDb {
 
     [Throws=LedgerError]
     sequence<Tag> list_transaction_tags(string transaction_id);
+
+    // ── Backup & restore ──────────────────────────────────────────────────────
+    [Throws=LedgerError]
+    BackupInfo backup_database(string dest_path);
+
+    [Throws=LedgerError]
+    BackupInfo inspect_backup(string path);
+
+    [Throws=LedgerError]
+    BackupInfo restore_backup(string path);
 
     // ── Price Alerts ──────────────────────────────────────────────────────────
     [Throws=LedgerError]

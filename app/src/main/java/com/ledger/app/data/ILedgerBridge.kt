@@ -72,6 +72,11 @@ interface ILedgerBridge {
     fun removeTagFromTransaction(transactionId: String, tagId: String)
     fun listTransactionTags(transactionId: String): List<Tag>
 
+    // ── Backup & restore ──────────────────────────────────────────────────────
+    fun backupDatabase(destPath: String): BackupInfo
+    fun inspectBackup(path: String): BackupInfo
+    fun restoreBackup(path: String): BackupInfo
+
     // ── Price Alerts ──────────────────────────────────────────────────────────
     fun listPriceAlerts(): List<PriceAlert>
     fun createPriceAlert(symbol: String, assetName: String, targetPriceCents: Long, direction: String): PriceAlert

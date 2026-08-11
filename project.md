@@ -881,6 +881,30 @@ When a money type changes, check the *locals* too, not only the fields. `StreakC
 `28.999999999999996`, so a bare `CAST` files 29 cents as 28 and loses a cent on every such row.
 `m8_converts_every_amount_exactly` pins that exact value.
 
+### Backup and restore
+
+`backup_database` uses **`VACUUM INTO`**, which is SQLite's own way of writing a complete,
+non-torn snapshot without stopping the app. Copying `ledger.db` by hand races the write-ahead log
+and can produce a file that looks fine until the day it is needed.
+
+`restore_backup` **migrates the backup forward before restoring it.** The app is still changing
+shape, so a file written two schema versions ago is the normal case rather than the exotic one: the
+staged copy is opened through the same `open_pool` the app uses, runs the same migrations, and only
+then is copied in. The user's own file is never modified — a restore works on a staging copy beside
+it, and `inspect_backup` opens read-only precisely so that looking at a file does not migrate it.
+
+The replacement is one transaction over `USER_TABLES` (deletes in reverse order, inserts forward,
+foreign keys off), so a restore either lands completely or not at all. A half-restored database
+would be a mixture of two, which is worse than either.
+
+A backup whose `schema_version` is *higher* than `CURRENT_SCHEMA_VERSION` is refused rather than
+half-understood. **Bump `CURRENT_SCHEMA_VERSION` in `db/mod.rs` with every new migration**, and add
+new tables to `USER_TABLES` or they will silently not be restored.
+
+On the Android side the file goes through the Storage Access Framework, because a backup inside
+app-private storage disappears with the app. `BackupRepository` stages through the cache directory
+in both directions, since Rust works in paths and SAF works in `content://` URIs.
+
 ### Derived totals: wallet balance, goal balance, debt remaining
 
 `Wallet.balance_cents` is **not a column**. `m9` replaced it with `opening_balance_cents` and the
