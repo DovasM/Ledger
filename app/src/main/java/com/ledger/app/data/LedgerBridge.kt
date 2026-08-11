@@ -105,36 +105,27 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
      * Returns the titles of every transaction that was posted.
      */
     override fun applyDueRecurring(): List<String> {
-        val today = LocalDate.now()
-        val applied = mutableListOf<String>()
-        for (r in listRecurring()) {
-            var nextDate = runCatching { LocalDate.parse(r.nextDate.take(10)) }.getOrNull() ?: continue
-            while (!nextDate.isAfter(today)) {
-                createTransaction(
-                    walletId  = r.walletId,
-                    title     = r.title,
-                    category  = r.category,
-                    amountCents    = r.amountCents,
-                    isIncome  = r.isIncome,
-                    note      = "Auto-posted recurring",
-                    occurredAt = nextDate.toString()
-                )
-                applied.add(r.title)
-                nextDate = advanceDate(nextDate, r.frequency)
-            }
-            updateRecurring(r.id, r.title, r.amountCents, r.category, r.frequency, nextDate.toString())
-        }
-        return applied
-    }
+        val recurring = listRecurring()
+        // The schedule itself lives in RecurringSchedule.kt and is unit-tested there; this half
+        // only writes what it decided.
+        val plan = planDueRecurring(recurring, LocalDate.now())
 
-    private fun advanceDate(date: LocalDate, frequency: String): LocalDate = when (frequency.lowercase()) {
-        "daily"      -> date.plusDays(1)
-        "weekly"     -> date.plusWeeks(1)
-        "biweekly"   -> date.plusWeeks(2)
-        "monthly"    -> date.plusMonths(1)
-        "quarterly"  -> date.plusMonths(3)
-        "yearly"     -> date.plusYears(1)
-        else         -> date.plusMonths(1)
+        for (post in plan.posts) {
+            createTransaction(
+                walletId   = post.walletId,
+                title      = post.title,
+                category   = post.category,
+                amountCents = post.amountCents,
+                isIncome   = post.isIncome,
+                note       = "Auto-posted recurring",
+                occurredAt = post.occurredOn.toString()
+            )
+        }
+        for (r in recurring) {
+            val advanced = plan.advancedTo[r.id] ?: continue
+            updateRecurring(r.id, r.title, r.amountCents, r.category, r.frequency, advanced.toString())
+        }
+        return plan.posts.map { it.title }
     }
 
     // ── Statistics ────────────────────────────────────────────────────────────

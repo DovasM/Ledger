@@ -696,6 +696,33 @@ impl LedgerDb {
                 }
             }
 
+            // The same category capped twice for the same period is two answers to one question,
+            // and StreakCalculator produces a pace per budget — so the screen would show the
+            // category twice and "tightest category" could pick either one.
+            //
+            // idx_budgets_unique cannot enforce this: its other column is NULL for a category
+            // budget, and SQLite treats NULLs as distinct in a unique index, so every row looks
+            // unique to it. The check has to live here.
+            if let Some(ref cat) = category_id {
+                let (existing,): (i64,) = sqlx::query_as(
+                    "SELECT COUNT(*) FROM budgets WHERE category_id = ? AND period = ?"
+                ).bind(cat).bind(&period).fetch_one(&self.pool).await?;
+                if existing > 0 {
+                    return Err(LedgerError::InvalidInput(
+                        "this category already has a budget for that period — edit it instead".into()
+                    ));
+                }
+            } else if let Some(ref wal) = wallet_id {
+                let (existing,): (i64,) = sqlx::query_as(
+                    "SELECT COUNT(*) FROM budgets WHERE wallet_id = ? AND category_id IS NULL AND period = ?"
+                ).bind(wal).bind(&period).fetch_one(&self.pool).await?;
+                if existing > 0 {
+                    return Err(LedgerError::InvalidInput(
+                        "this wallet already has a budget for that period — edit it instead".into()
+                    ));
+                }
+            }
+
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
             sqlx::query(

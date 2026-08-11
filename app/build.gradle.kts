@@ -46,6 +46,10 @@ android {
 }
 
 dependencies {
+    // The budget maths in ui/util is deliberately Compose-free and Android-free so the widgets can
+    // share it — which also means it runs on a plain JVM, no device or emulator needed.
+    testImplementation("junit:junit:4.13.2")
+
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
     implementation(libs.androidx.lifecycle.viewmodel.compose)

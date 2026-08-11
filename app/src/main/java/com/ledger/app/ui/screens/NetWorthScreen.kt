@@ -97,7 +97,7 @@ fun NetWorthScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        val csv = buildNetWorthCsv(totalAssets, totalLiabilities, walletState.wallets, debtState.debts)
+                        val csv = buildNetWorthCsv(walletState.wallets.sumOf { it.balanceCents }, debtState.debts.sumOf { it.remainingAmountCents }, walletState.wallets, debtState.debts)
                         val fileName = "net_worth_${LocalDate.now()}.csv"
                         context.startActivity(Intent.createChooser(shareCsv(context, fileName, csv), "Export CSV"))
                     }) {

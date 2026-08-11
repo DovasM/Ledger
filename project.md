@@ -232,6 +232,37 @@ cd core
 CARGO_TARGET_DIR=C:/lt-host cargo test --tests
 ```
 
+The budget maths has its own suite on the Kotlin side, which needs no device either — `ui/util` is
+deliberately Compose-free and Android-free so the Glance widgets can share it, and that also makes
+it plain JVM code:
+
+```bash
+./gradlew testDebugUnitTest
+```
+
+`app/src/test/.../BudgetFixtures.kt` pins a fixed clock — **2026-03-10, a Tuesday**, in a 31-day
+month whose week runs Mon 03-09 … Sun 03-15, after a 28-day February. Every expected number in
+`OverallBudgetTest`, `CategoryBudgetTest` and `StreakTest` is worked out by hand from those facts,
+so the tests state what the maths *should* be rather than echoing what it currently does.
+
+The transaction side is covered on both sides of the FFI. `RecurringScheduleTest` covers the one
+place the app writes rows on its own; `ReportFilterTest` covers the off-budget rule that eight
+analysis screens depend on; the rest lives in `core/tests/transactions.rs`.
+
+**Scheduling logic was extracted to be testable.** `applyDueRecurring` used to interleave calendar
+arithmetic with FFI writes, so neither half could be tested. `data/RecurringSchedule.kt` now holds
+the pure part — `planDueRecurring(items, today)` returns what to post and where each next date lands
+— and the bridge only executes it. The two halves fail differently: writing rows is ordinary
+database work, deciding *what* to write has to survive missed months, month ends and leap years.
+
+**One caveat about what a cascade test proves.** `transaction_tags` is one of only three columns
+declaring `ON DELETE CASCADE`, and foreign keys are enforced, so its links disappear whether or not
+`delete_transaction` clears them explicitly — deleting that cleanup does not fail
+`tags_attach_to_transactions_and_are_cleaned_up`. The tables *without* a cascade are where the
+explicit deletes earn their place: removing the one in `delete_goal` fails
+`deleting_a_goal_takes_its_contributions_with_it` with SQLITE_CONSTRAINT_FOREIGNKEY. Verified both
+ways.
+
 `common::TestDb` opens a real SQLite **file** in the temp directory through the same
 `open_database` the app calls, so every test replays the full migration chain from empty — a broken
 migration fails the suite. A file rather than `:memory:` on purpose: the pool opens several
@@ -817,6 +848,13 @@ before `m8` converted them.
   `String.toCentsOrNull()` on the way in. That parse is the single rounding step in the system.
 - **`Long.asUnits`** is a *view* for ratios, averages, trends and chart scales, where a real number
   is the honest type. Never add money with it and never store its result.
+- **Rounding is HALF_UP through `BigDecimal`, not `kotlin.math.round`.** Kotlin's `round` takes ties
+  to even, so 12.345 became 12.34 — a rule nobody typing an amount expects. `BigDecimal.valueOf`
+  also rounds the decimal the user typed rather than its binary approximation, which matters because
+  12.345 is really 12.34499999999999886 as a `Double`.
+- **A trailing currency symbol is preceded by a non-breaking space**, and number format 2 groups
+  with one too, so an amount can never be split across two lines. `MoneyFormatTest` asserts the
+  U+00A0 explicitly — a plain space looks identical and would pass review unnoticed.
 
 Where the exactness has to hold end to end — `StreakCalculator` (the daily allowance), `CsvExport`,
 `WidgetUpdater` and the widget snapshot — the value stays `Long` cents the whole way and is
@@ -830,7 +868,12 @@ in `Double`, which is what those screens actually mean.
    `'%[,.0-9]*f"\.format(' ` for arguments that are cents.
 2. **Integer division compiles.** `(spent / limit).toFloat()` on two `Long`s yields 0 or 1 and
    nothing in between — it had already silently flattened a budget progress bar. Grep for `Cents`
-   either side of a `/`. `StreakCalculator`'s two integer divisions are deliberate and commented:
+   either side of a `/`.
+
+Both greps miss the case where the money is held in a plainly-named local. `CsvExport` had
+`val income = ….sumOf { it.amountCents }` and then `net / income * 100`, which is both traps at once
+— and every CSV export threw `IllegalFormatConversionException: f != java.lang.Long` because of it.
+When a money type changes, check the *locals* too, not only the fields. `StreakCalculator`'s two integer divisions are deliberate and commented:
    the daily share is whole cents and rounding down is the conservative direction.
 
 `m8` converts with `CAST(ROUND(x * 100) AS INTEGER)`. The `ROUND` is load-bearing: `0.29 * 100` is
