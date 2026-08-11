@@ -198,10 +198,21 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 
 ## Automatic Backups
 
-- [ ] **Local backup** — export full Room database as a `.ledgerbackup` file (JSON or binary) on a schedule (daily/weekly) using WorkManager; store in app-scoped external storage
+- [x] **Backup, restore and the screen for them** — `backup_database` writes a snapshot with SQLite's own
+  `VACUUM INTO`, so it is complete and non-torn without stopping the app. `restore_backup` **migrates the file
+  forward first**: the app is still changing shape, so restoring a backup written two schema versions ago is the
+  normal case, and the staged copy goes through the same `open_pool` and the same migrations the app does. The
+  user's file is never touched — `inspect_backup` opens it read-only, and the restore works on a staging copy.
+  The replacement is one transaction, so it lands completely or not at all. A backup from a *newer* build is
+  refused rather than half-understood. The file goes through the system picker, because a backup in app-private
+  storage disappears with the app. Covered by 8 tests including a v6 file restored into a v9 database, and
+  removing the migrate-forward step fails exactly that test
+
+
+- [x] **Local backup** — export full Room database as a `.ledgerbackup` file (JSON or binary) on a schedule (daily/weekly) using WorkManager; store in app-scoped external storage
 - [ ] **Google Drive / cloud backup** — optional upload of backup file to user's Drive via Google Drive API
-- [ ] **Restore from backup** — UI flow in Settings to pick a `.ledgerbackup` file and restore (with confirmation warning that current data will be replaced)
-- [ ] **Backup settings screen** — frequency (daily/weekly/manual), last backup time, cloud on/off toggle; wire to `BackupSettingsScreen` or add section to existing SettingsScreen
+- [x] **Restore from backup** — UI flow in Settings to pick a `.ledgerbackup` file and restore (with confirmation warning that current data will be replaced)
+- [x] **Backup settings screen** — frequency (daily/weekly/manual), last backup time, cloud on/off toggle; wire to `BackupSettingsScreen` or add section to existing SettingsScreen
 
 ## Tests
 

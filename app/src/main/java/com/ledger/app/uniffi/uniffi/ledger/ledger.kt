@@ -834,6 +834,12 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -863,6 +869,8 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_add_tag_to_transaction(`ptr`: Pointer,`transactionId`: RustBuffer.ByValue,`tagId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_backup_database(`ptr`: Pointer,`destPath`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_count_transactions_for_category(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Int
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_count_transactions_for_wallet(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -913,6 +921,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_get_month_summary(`ptr`: Pointer,`year`: Int,`month`: Int,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_inspect_backup(`ptr`: Pointer,`path`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_all_transactions(`ptr`: Pointer,`limit`: Int,`offset`: Int,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_budgets(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
@@ -943,6 +953,8 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_remove_tag_from_transaction(`ptr`: Pointer,`transactionId`: RustBuffer.ByValue,`tagId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_restore_backup(`ptr`: Pointer,`path`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_set_price_alert_active(`ptr`: Pointer,`id`: RustBuffer.ByValue,`active`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_budget(`ptr`: Pointer,`id`: RustBuffer.ByValue,`categoryId`: RustBuffer.ByValue,`walletId`: RustBuffer.ByValue,`limitAmountCents`: Long,`period`: RustBuffer.ByValue,`alertThreshold`: Double,`carryOver`: Byte,uniffi_out_err: UniffiRustCallStatus, 
@@ -1101,6 +1113,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_add_tag_to_transaction(
     ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_backup_database(
+    ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_count_transactions_for_category(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_count_transactions_for_wallet(
@@ -1151,6 +1165,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_get_month_summary(
     ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_inspect_backup(
+    ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_all_transactions(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_budgets(
@@ -1180,6 +1196,8 @@ internal interface UniffiLib : Library {
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_wallets(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_remove_tag_from_transaction(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_restore_backup(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_set_price_alert_active(
     ): Short
@@ -1239,6 +1257,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_add_tag_to_transaction() != 47708.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_backup_database() != 15118.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_count_transactions_for_category() != 15542.toShort()) {
@@ -1316,6 +1337,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_get_month_summary() != 2681.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_inspect_backup() != 12197.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_all_transactions() != 15133.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1359,6 +1383,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_remove_tag_from_transaction() != 901.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_restore_backup() != 20866.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_set_price_alert_active() != 45458.toShort()) {
@@ -1815,6 +1842,8 @@ public interface LedgerDbInterface {
     
     fun `addTagToTransaction`(`transactionId`: kotlin.String, `tagId`: kotlin.String)
     
+    fun `backupDatabase`(`destPath`: kotlin.String): BackupInfo
+    
     fun `countTransactionsForCategory`(`id`: kotlin.String): kotlin.UInt
     
     fun `countTransactionsForWallet`(`id`: kotlin.String): kotlin.UInt
@@ -1865,6 +1894,8 @@ public interface LedgerDbInterface {
     
     fun `getMonthSummary`(`year`: kotlin.Int, `month`: kotlin.Int): MonthSummary
     
+    fun `inspectBackup`(`path`: kotlin.String): BackupInfo
+    
     fun `listAllTransactions`(`limit`: kotlin.UInt, `offset`: kotlin.UInt): List<Transaction>
     
     fun `listBudgets`(): List<Budget>
@@ -1894,6 +1925,8 @@ public interface LedgerDbInterface {
     fun `listWallets`(): List<Wallet>
     
     fun `removeTagFromTransaction`(`transactionId`: kotlin.String, `tagId`: kotlin.String)
+    
+    fun `restoreBackup`(`path`: kotlin.String): BackupInfo
     
     fun `setPriceAlertActive`(`id`: kotlin.String, `active`: kotlin.Boolean): PriceAlert
     
@@ -2031,6 +2064,19 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
 }
     }
     
+    
+
+    
+    @Throws(LedgerException::class)override fun `backupDatabase`(`destPath`: kotlin.String): BackupInfo {
+            return FfiConverterTypeBackupInfo.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_backup_database(
+        it, FfiConverterString.lower(`destPath`),_status)
+}
+    }
+    )
+    }
     
 
     
@@ -2349,6 +2395,19 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     
 
     
+    @Throws(LedgerException::class)override fun `inspectBackup`(`path`: kotlin.String): BackupInfo {
+            return FfiConverterTypeBackupInfo.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_inspect_backup(
+        it, FfiConverterString.lower(`path`),_status)
+}
+    }
+    )
+    }
+    
+
+    
     @Throws(LedgerException::class)override fun `listAllTransactions`(`limit`: kotlin.UInt, `offset`: kotlin.UInt): List<Transaction> {
             return FfiConverterSequenceTypeTransaction.lift(
     callWithPointer {
@@ -2540,6 +2599,19 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
 }
     }
     
+    
+
+    
+    @Throws(LedgerException::class)override fun `restoreBackup`(`path`: kotlin.String): BackupInfo {
+            return FfiConverterTypeBackupInfo.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_restore_backup(
+        it, FfiConverterString.lower(`path`),_status)
+}
+    }
+    )
+    }
     
 
     
@@ -2984,6 +3056,70 @@ public object FfiConverterTypeLlamaEngine: FfiConverter<LlamaEngine, Pointer> {
         // The Rust code always expects pointers written as 8 bytes,
         // and will fail to compile if they don't fit.
         buf.putLong(Pointer.nativeValue(lower(value)))
+    }
+}
+
+
+
+data class BackupInfo (
+    var `path`: kotlin.String, 
+    var `schemaVersion`: kotlin.Long, 
+    var `wallets`: kotlin.Long, 
+    var `transactions`: kotlin.Long, 
+    var `categories`: kotlin.Long, 
+    var `budgets`: kotlin.Long, 
+    var `goals`: kotlin.Long, 
+    var `debts`: kotlin.Long, 
+    var `transfers`: kotlin.Long, 
+    var `recurring`: kotlin.Long
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeBackupInfo: FfiConverterRustBuffer<BackupInfo> {
+    override fun read(buf: ByteBuffer): BackupInfo {
+        return BackupInfo(
+            FfiConverterString.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterLong.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: BackupInfo) = (
+            FfiConverterString.allocationSize(value.`path`) +
+            FfiConverterLong.allocationSize(value.`schemaVersion`) +
+            FfiConverterLong.allocationSize(value.`wallets`) +
+            FfiConverterLong.allocationSize(value.`transactions`) +
+            FfiConverterLong.allocationSize(value.`categories`) +
+            FfiConverterLong.allocationSize(value.`budgets`) +
+            FfiConverterLong.allocationSize(value.`goals`) +
+            FfiConverterLong.allocationSize(value.`debts`) +
+            FfiConverterLong.allocationSize(value.`transfers`) +
+            FfiConverterLong.allocationSize(value.`recurring`)
+    )
+
+    override fun write(value: BackupInfo, buf: ByteBuffer) {
+            FfiConverterString.write(value.`path`, buf)
+            FfiConverterLong.write(value.`schemaVersion`, buf)
+            FfiConverterLong.write(value.`wallets`, buf)
+            FfiConverterLong.write(value.`transactions`, buf)
+            FfiConverterLong.write(value.`categories`, buf)
+            FfiConverterLong.write(value.`budgets`, buf)
+            FfiConverterLong.write(value.`goals`, buf)
+            FfiConverterLong.write(value.`debts`, buf)
+            FfiConverterLong.write(value.`transfers`, buf)
+            FfiConverterLong.write(value.`recurring`, buf)
     }
 }
 

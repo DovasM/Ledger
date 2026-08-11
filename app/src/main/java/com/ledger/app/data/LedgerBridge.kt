@@ -194,6 +194,14 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
     override fun listTransactionTags(transactionId: String) =
         db.listTransactionTags(transactionId)
 
+    // ── Backup & restore ──────────────────────────────────────────────────────
+
+    override fun backupDatabase(destPath: String) = db.backupDatabase(destPath)
+
+    override fun inspectBackup(path: String) = db.inspectBackup(path)
+
+    override fun restoreBackup(path: String) = db.restoreBackup(path)
+
     // ── Price Alerts ──────────────────────────────────────────────────────────
 
     override fun listPriceAlerts() = db.listPriceAlerts()

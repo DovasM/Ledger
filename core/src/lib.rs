@@ -100,6 +100,22 @@ pub struct DebtPayment {
     pub occurred_at: String,
 }
 
+/// What a backup file contains. Shown to the user before a restore, because "replace everything"
+/// is not a question anyone should answer blind.
+pub struct BackupInfo {
+    pub path: String,
+    /// The schema the file was written at. Older is fine — it is migrated forward on restore.
+    pub schema_version: i64,
+    pub wallets: i64,
+    pub transactions: i64,
+    pub categories: i64,
+    pub budgets: i64,
+    pub goals: i64,
+    pub debts: i64,
+    pub transfers: i64,
+    pub recurring: i64,
+}
+
 pub struct MonthSummary {
     pub total_income_cents: i64,
     pub total_expenses_cents: i64,
@@ -984,6 +1000,111 @@ impl LedgerDb {
 
     // ── Price Alerts ─────────────────────────────────────────────────────────
 
+    // ── Backup & restore ──────────────────────────────────────────────────────
+
+    /// Writes a consistent snapshot of the whole database to `dest_path`.
+    ///
+    /// `VACUUM INTO` is SQLite's own answer to this: it produces a single, complete, non-torn file
+    /// without stopping the app. Copying `ledger.db` by hand would race the write-ahead log and can
+    /// hand back a file that is subtly incomplete — which is the worst possible outcome for a
+    /// backup, because it looks fine until the day it is needed.
+    pub fn backup_database(&self, dest_path: String) -> Result<BackupInfo, LedgerError> {
+        self.rt.block_on(async {
+            // VACUUM INTO refuses to overwrite, and the caller is often writing over yesterday's.
+            let _ = std::fs::remove_file(&dest_path);
+
+            sqlx::query("VACUUM INTO ?")
+                .bind(&dest_path)
+                .execute(&self.pool)
+                .await?;
+
+            let mut info = count_contents(&self.pool).await?;
+            info.schema_version = current_version(&self.pool).await?;
+            info.path = dest_path;
+            Ok(info)
+        })
+    }
+
+    /// What a backup file holds, without changing it or the live database. This is what the user is
+    /// shown before they agree to overwrite everything they have.
+    pub fn inspect_backup(&self, path: String) -> Result<BackupInfo, LedgerError> {
+        if !std::path::Path::new(&path).exists() {
+            return Err(LedgerError::InvalidInput("backup file not found".into()));
+        }
+        self.rt.block_on(async {
+            // Read-only on purpose: opening it through open_pool would migrate a file the user is
+            // only looking at.
+            let pool = open_readonly(&path).await
+                .map_err(|_| LedgerError::InvalidInput("this file is not a Ledger backup".into()))?;
+            let version = current_version(&pool).await
+                .map_err(|_| LedgerError::InvalidInput("this file is not a Ledger backup".into()))?;
+            if version > db::CURRENT_SCHEMA_VERSION {
+                pool.close().await;
+                return Err(LedgerError::InvalidInput(format!(
+                    "this backup came from a newer version of the app (format {}, this build reads up to {})",
+                    version, db::CURRENT_SCHEMA_VERSION
+                )));
+            }
+            let mut info = count_contents(&pool).await?;
+            pool.close().await;
+            info.schema_version = version;
+            info.path = path;
+            Ok(info)
+        })
+    }
+
+    /// Replaces everything in the live database with the contents of `path`.
+    ///
+    /// **The backup is migrated up to this build's schema first.** The app is still changing shape,
+    /// so a file taken two versions ago is the normal case, not the exotic one — restoring it must
+    /// not fail on columns that did not exist when it was written. The staging copy is run through
+    /// the same `open_pool` the app uses, so it goes through exactly the same migrations, and the
+    /// user's own file is never modified.
+    ///
+    /// The replacement itself is one transaction: either all of it lands or none of it does. A
+    /// restore that failed half-way would leave a mixture of two databases, which is worse than
+    /// either of them.
+    pub fn restore_backup(&self, path: String) -> Result<BackupInfo, LedgerError> {
+        let source = self.inspect_backup(path.clone())?;
+
+        self.rt.block_on(async {
+            let staged = format!("{}.restore-staging", path);
+            let _ = std::fs::remove_file(&staged);
+            std::fs::copy(&path, &staged)
+                .map_err(|e| LedgerError::InvalidInput(format!("could not stage the backup: {}", e)))?;
+
+            // Brings the staged copy from whatever version it was written at up to this one.
+            let staged_pool = open_pool(&staged).await?;
+            staged_pool.close().await;
+
+            let attached = staged.replace('\'', "''");
+            let mut sql = String::from("PRAGMA foreign_keys = OFF;\n");
+            sql.push_str(&format!("ATTACH DATABASE '{}' AS backup;\n", attached));
+            sql.push_str("BEGIN;\n");
+            // Children first so the deletes never trip over a parent that is still referenced.
+            for table in db::USER_TABLES.iter().rev() {
+                sql.push_str(&format!("DELETE FROM {};\n", table));
+            }
+            for table in db::USER_TABLES {
+                sql.push_str(&format!("INSERT INTO {} SELECT * FROM backup.{};\n", table, table));
+            }
+            sql.push_str("COMMIT;\n");
+            sql.push_str("DETACH DATABASE backup;\n");
+            sql.push_str("PRAGMA foreign_keys = ON;");
+
+            let result = sqlx::query(&sql).execute(&self.pool).await;
+            let _ = std::fs::remove_file(&staged);
+            let _ = std::fs::remove_file(format!("{}-wal", staged));
+            let _ = std::fs::remove_file(format!("{}-shm", staged));
+            result?;
+
+            let mut restored = count_contents(&self.pool).await?;
+            restored.schema_version = source.schema_version;
+            restored.path = path;
+            Ok(restored)
+        })
+    }
+
     pub fn list_price_alerts(&self) -> Result<Vec<PriceAlert>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, PriceAlertRow>(
@@ -1038,6 +1159,48 @@ impl LedgerDb {
 }
 
 // ── Category linkage ──────────────────────────────────────────────────────────
+
+
+// ── Backup helpers ───────────────────────────────────────────────────────────
+
+/// Opens a database file without running migrations on it. Inspecting a backup must not alter it.
+async fn open_readonly(path: &str) -> Result<SqlitePool, sqlx::Error> {
+    use std::str::FromStr;
+    let options = sqlx::sqlite::SqliteConnectOptions::from_str(&format!("sqlite:{}", path))?
+        .read_only(true)
+        .create_if_missing(false);
+    SqlitePool::connect_with(options).await
+}
+
+async fn current_version(pool: &SqlitePool) -> Result<i64, sqlx::Error> {
+    let (v,): (i64,) = sqlx::query_as("SELECT COALESCE(MAX(version), 0) FROM schema_version")
+        .fetch_one(pool)
+        .await?;
+    Ok(v)
+}
+
+async fn count_of(pool: &SqlitePool, table: &str) -> Result<i64, sqlx::Error> {
+    // A table can legitimately be missing from an old backup taken before it existed.
+    let row: Result<(i64,), _> = sqlx::query_as(&format!("SELECT COUNT(*) FROM {}", table))
+        .fetch_one(pool)
+        .await;
+    Ok(row.map(|r| r.0).unwrap_or(0))
+}
+
+async fn count_contents(pool: &SqlitePool) -> Result<BackupInfo, LedgerError> {
+    Ok(BackupInfo {
+        path: String::new(),
+        schema_version: 0,
+        wallets: count_of(pool, "wallets").await?,
+        transactions: count_of(pool, "transactions").await?,
+        categories: count_of(pool, "categories").await?,
+        budgets: count_of(pool, "budgets").await?,
+        goals: count_of(pool, "savings_goals").await?,
+        debts: count_of(pool, "debts").await?,
+        transfers: count_of(pool, "transfers").await?,
+        recurring: count_of(pool, "recurring_transactions").await?,
+    })
+}
 
 // Every transaction read resolves its category name through category_id, so a rename is picked up
 // automatically. The stored `category` text is only a fallback for transactions whose category has

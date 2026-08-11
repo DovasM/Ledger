@@ -124,6 +124,7 @@ fun SettingsScreen(
                 SettingsNavItem(Icons.Filled.Notifications, Color(0xFF00513F), "Notifications", "Budget alerts, reminders and summaries") { navController.navigate(Screen.NotificationSettings.route) }
                 SettingsDivider()
                 SettingsNavItem(Icons.Filled.Lock, Color(0xFF1565C0), "Security", "Biometric, PIN and auto-lock settings") { navController.navigate(Screen.SecuritySettings.route) }
+                SettingsNavItem(Icons.Filled.Backup, Color(0xFF00838F), "Backup & Restore", "Save everything to a file, or restore from one") { navController.navigate(Screen.BackupSettings.route) }
                 SettingsDivider()
                 SettingsNavItem(
                     Icons.Filled.AttachMoney, Color(0xFF00513F), "Currency",
