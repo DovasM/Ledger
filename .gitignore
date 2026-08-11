@@ -75,8 +75,10 @@ Desktop.ini
 .claude
 .claude/*
 
-# Test folder
-test/
+# Scratch folder for throwaway experiments at the repo root. Anchored with a leading slash on
+# purpose: as a bare `test/` it also matched app/src/test, so the entire Kotlin unit test source set
+# was invisible to git.
+/test/
 
 # Kotlin 2.x build session data
 .kotlin/

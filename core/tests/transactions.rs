@@ -148,3 +148,87 @@ fn category_links_respect_income_versus_expense() {
     assert_eq!(spent_now.category, "Presents", "the rename must reach the expense transaction");
     assert_eq!(received_now.category, "Gifts", "and must not touch the income one");
 }
+
+/// A wallet's balance is the opening amount plus income minus expenses, however many rows there are.
+#[test]
+fn many_transactions_add_up_to_the_wallet_balance() {
+    let t = TestDb::new();
+    let w = t.db.create_wallet("Checking".into(), String::new(), "EUR".into(), 100_000, false).unwrap().id;
+
+    for i in 0..10 {
+        t.db.create_transaction(w.clone(), format!("expense {i}"), "Groceries".into(), 1_234, false, None, day("2026-03-05")).unwrap();
+    }
+    for i in 0..3 {
+        t.db.create_transaction(w.clone(), format!("income {i}"), "Salary".into(), 5_000, true, None, day("2026-03-06")).unwrap();
+    }
+
+    let balance = t.db.list_wallets().unwrap().into_iter().find(|x| x.id == w).unwrap().balance_cents;
+    assert_eq!(balance, 100_000 - 10 * 1_234 + 3 * 5_000, "integer cents make this exact, not approximate");
+    assert_eq!(t.db.list_transactions(w, 100, 0).unwrap().len(), 13);
+}
+
+/// The monthly summary sums integers, so it is exact — and it only sees its own month.
+#[test]
+fn the_month_summary_covers_its_own_month_exactly() {
+    let t = TestDb::new();
+    let w = t.with_wallet();
+
+    t.db.create_transaction(w.clone(), "march a".into(), "Groceries".into(), 1_999, false, None, day("2026-03-01")).unwrap();
+    t.db.create_transaction(w.clone(), "march b".into(), "Groceries".into(), 2_001, false, None, day("2026-03-31")).unwrap();
+    t.db.create_transaction(w.clone(), "march pay".into(), "Salary".into(), 300_000, true, None, day("2026-03-15")).unwrap();
+    // Neighbouring months must not leak in.
+    t.db.create_transaction(w.clone(), "february".into(), "Groceries".into(), 9_999, false, None, day("2026-02-28")).unwrap();
+    t.db.create_transaction(w, "april".into(), "Groceries".into(), 8_888, false, None, day("2026-04-01")).unwrap();
+
+    let m = t.db.get_month_summary(2026, 3).unwrap();
+    assert_eq!(m.total_expenses_cents, 4_000);
+    assert_eq!(m.total_income_cents, 300_000);
+    assert_eq!(m.net_savings_cents, 296_000);
+    assert_eq!(m.transaction_count, 3);
+
+    let empty = t.db.get_month_summary(2026, 5).unwrap();
+    assert_eq!(empty.total_expenses_cents, 0);
+    assert_eq!(empty.transaction_count, 0);
+}
+
+/// The per-wallet list is scoped to its wallet; the all-wallets list is not.
+#[test]
+fn listing_by_wallet_returns_only_that_wallets_rows() {
+    let t = TestDb::new();
+    let a = t.db.create_wallet("A".into(), String::new(), "EUR".into(), 0, false).unwrap().id;
+    let b = t.db.create_wallet("B".into(), String::new(), "EUR".into(), 0, false).unwrap().id;
+
+    t.db.create_transaction(a.clone(), "in a".into(), "Groceries".into(), 100, false, None, day("2026-03-05")).unwrap();
+    t.db.create_transaction(b.clone(), "in b".into(), "Groceries".into(), 200, false, None, day("2026-03-05")).unwrap();
+
+    let only_a: Vec<_> = t.db.list_transactions(a, 100, 0).unwrap().into_iter().map(|x| x.title).collect();
+    assert_eq!(only_a, vec!["in a"]);
+    assert_eq!(t.db.list_all_transactions(100, 0).unwrap().len(), 2);
+}
+
+/// Rejected at the boundary rather than stored as a row nobody can interpret.
+#[test]
+fn a_transaction_needs_a_title_and_a_positive_amount() {
+    let t = TestDb::new();
+    let w = t.with_wallet();
+    assert!(t.db.create_transaction(w.clone(), String::new(), "Groceries".into(), 100, false, None, None).is_err());
+    assert!(t.db.create_transaction(w.clone(), "x".into(), "Groceries".into(), 0, false, None, None).is_err());
+    assert!(t.db.create_transaction(w, "x".into(), "Groceries".into(), -100, false, None, None).is_err());
+}
+
+/// Deleting one of several transactions leaves the rest and the balance consistent.
+#[test]
+fn deleting_one_transaction_leaves_the_others_alone() {
+    let t = TestDb::new();
+    let w = t.db.create_wallet("Checking".into(), String::new(), "EUR".into(), 10_000, false).unwrap().id;
+    let keep = t.db.create_transaction(w.clone(), "keep".into(), "Groceries".into(), 1_000, false, None, day("2026-03-05")).unwrap();
+    let drop = t.db.create_transaction(w.clone(), "drop".into(), "Groceries".into(), 2_500, false, None, day("2026-03-06")).unwrap();
+
+    t.db.delete_transaction(drop.id).unwrap();
+
+    let left: Vec<_> = t.db.list_all_transactions(100, 0).unwrap();
+    assert_eq!(left.len(), 1);
+    assert_eq!(left[0].id, keep.id);
+    let balance = t.db.list_wallets().unwrap()[0].balance_cents;
+    assert_eq!(balance, 10_000 - 1_000);
+}

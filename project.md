@@ -232,6 +232,19 @@ cd core
 CARGO_TARGET_DIR=C:/lt-host cargo test --tests
 ```
 
+The budget maths has its own suite on the Kotlin side, which needs no device either — `ui/util` is
+deliberately Compose-free and Android-free so the Glance widgets can share it, and that also makes
+it plain JVM code:
+
+```bash
+./gradlew testDebugUnitTest
+```
+
+`app/src/test/.../BudgetFixtures.kt` pins a fixed clock — **2026-03-10, a Tuesday**, in a 31-day
+month whose week runs Mon 03-09 … Sun 03-15, after a 28-day February. Every expected number in
+`OverallBudgetTest`, `CategoryBudgetTest` and `StreakTest` is worked out by hand from those facts,
+so the tests state what the maths *should* be rather than echoing what it currently does.
+
 `common::TestDb` opens a real SQLite **file** in the temp directory through the same
 `open_database` the app calls, so every test replays the full migration chain from empty — a broken
 migration fails the suite. A file rather than `:memory:` on purpose: the pool opens several
