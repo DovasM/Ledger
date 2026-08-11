@@ -136,6 +136,9 @@ async fn build_pre_m8_database(path: &PathBuf) {
         "CREATE TABLE transactions (id TEXT PRIMARY KEY, wallet_id TEXT NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
             title TEXT NOT NULL, category TEXT NOT NULL DEFAULT '', amount REAL NOT NULL, is_income INTEGER NOT NULL DEFAULT 0,
             note TEXT, created_at TEXT NOT NULL, category_id TEXT REFERENCES categories(id), occurred_at TEXT)",
+        "CREATE TABLE transfers (id TEXT PRIMARY KEY, from_wallet_id TEXT NOT NULL REFERENCES wallets(id),
+            to_wallet_id TEXT NOT NULL REFERENCES wallets(id), amount REAL NOT NULL, note TEXT,
+            created_at TEXT NOT NULL)",
         "CREATE TABLE savings_goals (id TEXT PRIMARY KEY, name TEXT NOT NULL, target_amount REAL NOT NULL,
             deadline TEXT, created_at TEXT NOT NULL)",
         "CREATE TABLE goal_contributions (id TEXT PRIMARY KEY, goal_id TEXT NOT NULL REFERENCES savings_goals(id),
@@ -257,5 +260,93 @@ fn a_fresh_database_migrates_all_the_way_and_works() {
     assert_eq!(db.list_debts().unwrap()[0].remaining_amount_cents, 40000);
 
     drop(db);
+    let _ = std::fs::remove_file(&path);
+}
+
+/// A v8 database: money already in cents, the wallet balance still a stored running total that
+/// includes every transaction and transfer.
+async fn build_pre_m9_database(path: &PathBuf) {
+    let opts = SqliteConnectOptions::from_str(&format!("sqlite:{}", path.display()))
+        .unwrap()
+        .create_if_missing(true);
+    let pool = SqlitePool::connect_with(opts).await.unwrap();
+
+    for stmt in [
+        "CREATE TABLE schema_version (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)",
+        "CREATE TABLE categories (id TEXT PRIMARY KEY, name TEXT NOT NULL, icon_name TEXT NOT NULL DEFAULT 'label',
+            color_hex TEXT NOT NULL DEFAULT '#00513F', is_expense INTEGER NOT NULL DEFAULT 1, created_at TEXT NOT NULL)",
+        "CREATE TABLE wallets (id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT NOT NULL DEFAULT '',
+            currency TEXT NOT NULL DEFAULT '', balance_cents INTEGER NOT NULL DEFAULT 0,
+            off_budget INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL)",
+        "CREATE TABLE transactions (id TEXT PRIMARY KEY, wallet_id TEXT NOT NULL REFERENCES wallets(id) ON DELETE CASCADE,
+            title TEXT NOT NULL, category TEXT NOT NULL DEFAULT '', category_id TEXT REFERENCES categories(id),
+            amount_cents INTEGER NOT NULL, is_income INTEGER NOT NULL DEFAULT 0, note TEXT,
+            occurred_at TEXT NOT NULL, created_at TEXT NOT NULL)",
+        "CREATE TABLE transfers (id TEXT PRIMARY KEY, from_wallet_id TEXT NOT NULL REFERENCES wallets(id),
+            to_wallet_id TEXT NOT NULL REFERENCES wallets(id), amount_cents INTEGER NOT NULL, note TEXT,
+            created_at TEXT NOT NULL)",
+
+        // Opened with 100.00, spent 30.00, earned 5.00, sent 20.00 to the savings wallet.
+        "INSERT INTO wallets (id, name, balance_cents, created_at) VALUES ('w1', 'Checking', 5500, '2026-01-01T00:00:00Z')",
+        "INSERT INTO wallets (id, name, balance_cents, created_at) VALUES ('w2', 'Savings', 2000, '2026-01-01T00:00:00Z')",
+        // A wallet that has never been used: its balance is entirely its opening amount.
+        "INSERT INTO wallets (id, name, balance_cents, created_at) VALUES ('w3', 'Untouched', 7777, '2026-01-01T00:00:00Z')",
+
+        "INSERT INTO transactions (id, wallet_id, title, amount_cents, is_income, occurred_at, created_at)
+            VALUES ('t1', 'w1', 'shopping', 3000, 0, '2026-03-01T00:00:00Z', '2026-03-01T00:00:00Z')",
+        "INSERT INTO transactions (id, wallet_id, title, amount_cents, is_income, occurred_at, created_at)
+            VALUES ('t2', 'w1', 'refund', 500, 1, '2026-03-02T00:00:00Z', '2026-03-02T00:00:00Z')",
+        "INSERT INTO transfers (id, from_wallet_id, to_wallet_id, amount_cents, created_at)
+            VALUES ('tr1', 'w1', 'w2', 2000, '2026-03-03T00:00:00Z')",
+    ] {
+        sqlx::query(stmt).execute(&pool).await.unwrap();
+    }
+    for v in 1..=8 {
+        sqlx::query("INSERT INTO schema_version (version, applied_at) VALUES (?, '2026-01-01T00:00:00Z')")
+            .bind(v)
+            .execute(&pool)
+            .await
+            .unwrap();
+    }
+    pool.close().await;
+}
+
+/// The stored total already includes every movement, so the opening balance has to be back-computed.
+/// Copying it across would make each wallet count its own history twice.
+#[test]
+fn m9_derives_the_balance_without_changing_what_it_shows() {
+    let path = temp_path("m9");
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(build_pre_m9_database(&path));
+
+    let db = uniffi_ledger::open_database(path.to_string_lossy().to_string());
+    let wallets = db.list_wallets().unwrap();
+    let bal = |id: &str| wallets.iter().find(|w| w.id == id).unwrap().balance_cents;
+
+    assert_eq!(bal("w1"), 5_500, "the balance the user was looking at must not move");
+    assert_eq!(bal("w2"), 2_000);
+    assert_eq!(bal("w3"), 7_777, "a wallet with no movements is just its opening amount");
+
+    // And it is now a sum, so a new transaction moves it with nothing to keep in step.
+    db.create_transaction("w1".into(), "coffee".into(), "Cafe".into(), 250, false, None, None).unwrap();
+    let after = db.list_wallets().unwrap();
+    assert_eq!(after.iter().find(|w| w.id == "w1").unwrap().balance_cents, 5_250);
+
+    drop(db);
+    let _ = std::fs::remove_file(&path);
+}
+
+#[test]
+fn m9_is_idempotent() {
+    let path = temp_path("m9idem");
+    let rt = tokio::runtime::Runtime::new().unwrap();
+    rt.block_on(build_pre_m9_database(&path));
+
+    let db = uniffi_ledger::open_database(path.to_string_lossy().to_string());
+    drop(db);
+    let reopened = uniffi_ledger::open_database(path.to_string_lossy().to_string());
+    let wallets = reopened.list_wallets().unwrap();
+    assert_eq!(wallets.iter().find(|w| w.id == "w1").unwrap().balance_cents, 5_500);
+    drop(reopened);
     let _ = std::fs::remove_file(&path);
 }

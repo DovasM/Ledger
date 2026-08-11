@@ -635,7 +635,8 @@ runtime (see the cascade note below).
 
 `core/src/db/mod.rs` owns a `schema_version` table and numbered migrations (`m1_baseline_tables`,
 `m2_category_links`, `m3_indexes`, `m4_transfers_currency_budgets`, `m5_off_budget_wallets`,
-`m6_transaction_occurred_at`, `m7_goal_and_debt_history`, `m8_money_as_cents`). Add the next one as `mN_…` plus an
+`m6_transaction_occurred_at`, `m7_goal_and_debt_history`, `m8_money_as_cents`,
+`m9_wallet_opening_balance`). Add the next one as `mN_…` plus an
 `if applied < N` arm.
 
 **Every migration must be idempotent, without exception.** Databases predating the version table
@@ -818,7 +819,7 @@ All monetary fields are integer cents (see *Money is integer cents* above).
 | Entity | Key fields |
 |---|---|
 | `Transaction` | id, wallet_id, title, category, amount_cents, is_income, note, **occurred_at** |
-| `Wallet` | id, name, description, currency, balance_cents, off_budget, created_at |
+| `Wallet` | id, name, description, currency, opening_balance_cents, **balance_cents (derived)**, off_budget, created_at |
 | `Transfer` | id, from_wallet_id, to_wallet_id, amount_cents, note, created_at |
 | `SavingsGoal` | id, name, **current_amount_cents (derived)**, target_amount_cents, deadline, created_at |
 | `GoalContribution` | id, goal_id, amount_cents, note, kind, occurred_at |
@@ -879,6 +880,30 @@ When a money type changes, check the *locals* too, not only the fields. `StreakC
 `m8` converts with `CAST(ROUND(x * 100) AS INTEGER)`. The `ROUND` is load-bearing: `0.29 * 100` is
 `28.999999999999996`, so a bare `CAST` files 29 cents as 28 and loses a cent on every such row.
 `m8_converts_every_amount_exactly` pins that exact value.
+
+### Derived totals: wallet balance, goal balance, debt remaining
+
+`Wallet.balance_cents` is **not a column**. `m9` replaced it with `opening_balance_cents` and the
+balance is now summed on every read: opening balance, plus income, minus expenses, plus transfers
+in, minus transfers out (`WALLET_SELECT`).
+
+It was a stored running total kept in step by hand from **nine** places, and it drifted twice — once
+when `delete_transaction` forgot to reverse the deleted amount, once when `update_transaction` kept
+the old one after an edit. Both were found by someone noticing the number looked wrong, which is the
+only way that class of bug is ever found. All nine updates are gone; `create_transaction`,
+`update_transaction`, `delete_transaction`, `create_transfer` and `delete_transfer` now only write
+the row, and several of them no longer need to read the old values back at all.
+
+**The opening balance had to be back-computed, not copied.** The stored total already included every
+transaction and transfer, so copying it across would have made each wallet count its own history
+twice. `m9` subtracts the movements back out, which keeps the number on screen identical to the
+cent — verified on the real device across four wallets, and pinned by
+`m9_derives_the_balance_without_changing_what_it_shows`. Injecting the naive copy fails that test.
+
+One consequence worth knowing: on a database built by import, the implied opening balance can be a
+large negative number, because the imported history is long while the stored balance was only ever
+the current one. That is arithmetically right and invisible today — nothing surfaces
+`opening_balance_cents` in the UI. It would need a sensible presentation before anything does.
 
 ### Derived totals: goal balance and debt remaining
 

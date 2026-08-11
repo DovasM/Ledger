@@ -141,7 +141,28 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 ### Wallet Operations
 - [x] **Transfer between wallets — data layer** — `transfers` table with its own CRUD; moves balance between both wallets and never touches income or expense totals (folding it into `transactions` would make every report count it twice)
 - [x] **Transfer between wallets — UI** — `AddTransferScreen` + `TransferViewModel`, reached from the swap icon in the WalletsList top bar. From/to pickers, amount, note, and an after-the-move balance preview so an overdrawing transfer is visible before saving; refuses the same wallet on both sides
-- [ ] **Transfers are not listed anywhere** — you can create one but not see or delete it afterwards. `listTransfers` and `deleteTransfer` exist; WalletDetailsScreen is the natural home
+- [ ] **Transfers are not listed anywhere** — you can create a transfer and then never see it again, and never
+  delete it. Everything below it already exists; only the screen is missing.
+
+  *What is already there:* `listTransfers(limit, offset)` and `deleteTransfer(id)` on the bridge, `TransferViewModel`
+  with `load()` / `createTransfer()` / `deleteTransfer()`, `AddTransferScreen` on route `Screen.AddTransfer`, reached
+  from the swap icon in the WalletsList top bar. The Rust side is covered by
+  `a_transfer_moves_money_without_touching_income_or_expenses` and `a_transfer_stays_out_of_the_month_summary`.
+
+  *Where it goes:* `WalletDetailsScreen` already has a "Recent Transactions" section; a "Transfers" section under it
+  is the natural home, showing the transfers on **either** side of this wallet with a direction marker — "→ Savings"
+  for money leaving, "← Checking" for money arriving — the other wallet's name, the amount, the date and the note.
+  A full list belongs on WalletsList or its own screen if one wallet's worth is not enough.
+
+  *Deleting:* confirm first, then call `deleteTransfer`. Since `m9` the balance is derived, so removing the row is
+  the whole operation — there is no money to put back by hand, and the two balances simply stop including it.
+
+  *Watch for:* a transfer is neither income nor expense, so it must not appear in the transactions list, the month
+  summary, the budgets or the streak — it has its own table precisely so no report counts it twice. Any new sum
+  written for this screen has to keep that true.
+
+  *Related:* Money Manager transfers are still not imported (separate item below), so this list will be empty for
+  anyone whose data came from an import until that is fixed.
 - [x] **Overall budget** — a budget with no category caps everything you spend and is now the *only* source of the daily allowance. Category budgets are no longer summed into a total, which had invented a figure nobody chose and hid every unbudgeted purchase from the allowance. `AddEditBudgetScreen` gained an Overall/Category scope selector
 - [x] **`carry_over` wired** — the "Carry unspent amount to next period" switch stored nothing before. It composes with `allowance_rollover` rather than conflicting: carry-over moves the previous period's residual into this period's ceiling, rollover spreads that ceiling across remaining days. One period back, symmetric
 - [x] **Carry-over no longer reaches back before the budget existed** — a 200/month budget created today inherited the previous month's 2644 of spending and opened at minus 2244, shown as "2692 over" on day one. The previous period now only counts if the budget already covered it
@@ -196,6 +217,7 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 - [x] **Wallet balance drifted on edit and delete** — `wallets.balance` is a stored running total, but `delete_transaction` never removed the deleted amount and `update_transaction` kept the old one after an edit. Both now reverse the previous effect before applying the new
 - [x] **Money mutations are atomic** — insert-plus-balance and a transfer's two balance updates now run inside a single DB transaction; previously any of them could half-apply. `create_transfer` also verifies both wallets exist, since nothing enforces the foreign keys at runtime
 - [x] **Warn before deleting a category or wallet that has data** — both dialogs now count the affected rows in the database first and say the real number, instead of a generic warning. The wallet dialog states how many transactions will be permanently deleted; the category dialog says how many keep their label but lose the link, and that the budget goes with it
+- [x] **Wallet balance is derived, not stored** — it was a running total corrected by hand from nine different places, and it drifted twice: `delete_transaction` once forgot to reverse the deleted amount, and `update_transaction` kept the old one after an edit. `m9` replaces it with `opening_balance_cents` and sums the balance on read, the same answer `m7` gave for goals and debts. All nine updates deleted. The opening balance is back-computed rather than copied — the stored total already contained every movement, so copying would double-count — which keeps every displayed balance identical to the cent, verified on the device across four wallets
 - [ ] **Stale `armeabi-v7a` native library** — `app/src/main/jniLibs/armeabi-v7a/libuniffi_ledger.so` is from April and predates the `category_id` schema. Harmless today because `abiFilters` is `arm64-v8a` + `x86_64`, but it would ship a broken build if that ABI is ever re-enabled. Either rebuild it or delete the folder
 - [x] **Money is integer cents** — every amount in the database, across the FFI and through the ViewModels is now a `Long` number of cents. Binary floating point cannot hold 0.10, so a `REAL` column was never the number the user typed, and the device proved it: wallet balances had drifted to 6548.390000000001 and -85.35000000000002. `m8` rebuilds all ten money-carrying tables with `CAST(ROUND(x * 100) AS INTEGER)` — the `ROUND` matters, since 0.29 * 100 is 28.999999999999996 and a bare CAST loses a cent. Columns are named `*_cents` so the compiler had to stop at all 898 Kotlin sites rather than let a Double quietly become a Long. Percentages (`alert_threshold`, `apr`) stay REAL. `occurred_at` also became NOT NULL, which the rebuild made free
 - [x] **Budget progress bar was doing integer division** — found in the audit after the cents conversion, not by the compiler: `(spent / limit).toFloat()` on two Longs is 0 or 1 and never anything between. The exact class of bug the `*Cents` renaming was meant to force into the open

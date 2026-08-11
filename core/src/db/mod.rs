@@ -65,6 +65,52 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         m8_money_as_cents(pool).await?;
         record_version(pool, 8).await?;
     }
+    if applied < 9 {
+        m9_wallet_opening_balance(pool).await?;
+        record_version(pool, 9).await?;
+    }
+
+    Ok(())
+}
+
+// The wallet balance was a stored running total kept in step by hand from nine different places, and
+// it drifted twice: once when delete_transaction forgot to reverse the deleted amount, once when
+// update_transaction kept the old one after an edit. Both were found by a user noticing the number
+// was wrong, which is the only way that class of bug ever gets found.
+//
+// The balance is now derived — opening balance plus every movement — the same answer m7 gave for a
+// goal's balance and a debt's remaining amount. There is nothing left to keep in step.
+//
+// The stored total already includes every transaction and transfer, so the opening balance has to be
+// back-computed rather than copied, or every wallet would double-count its own history.
+async fn m9_wallet_opening_balance(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    if !column_exists(pool, "wallets", "balance_cents").await? {
+        return Ok(());
+    }
+
+    rebuild_table(
+        pool,
+        "wallets",
+        "CREATE TABLE wallets_new (
+            id                    TEXT PRIMARY KEY,
+            name                  TEXT NOT NULL,
+            description           TEXT NOT NULL DEFAULT '',
+            currency              TEXT NOT NULL DEFAULT '',
+            opening_balance_cents INTEGER NOT NULL DEFAULT 0,
+            off_budget            INTEGER NOT NULL DEFAULT 0,
+            created_at            TEXT NOT NULL
+        )",
+        "INSERT INTO wallets_new (id, name, description, currency, opening_balance_cents, off_budget, created_at)
+         SELECT w.id, w.name, w.description, w.currency,
+                w.balance_cents
+                  - COALESCE((SELECT SUM(amount_cents) FROM transactions WHERE wallet_id = w.id AND is_income = 1), 0)
+                  + COALESCE((SELECT SUM(amount_cents) FROM transactions WHERE wallet_id = w.id AND is_income = 0), 0)
+                  - COALESCE((SELECT SUM(amount_cents) FROM transfers WHERE to_wallet_id = w.id), 0)
+                  + COALESCE((SELECT SUM(amount_cents) FROM transfers WHERE from_wallet_id = w.id), 0),
+                w.off_budget, w.created_at
+         FROM wallets w",
+    )
+    .await?;
 
     Ok(())
 }
