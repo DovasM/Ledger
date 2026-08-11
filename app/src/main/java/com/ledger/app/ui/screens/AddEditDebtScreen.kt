@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.toCents
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -39,10 +40,10 @@ fun AddEditDebtScreen(
     var name           by remember(existingDebt) { mutableStateOf(existingDebt?.name ?: "") }
     var selectedType   by remember(existingDebt) { mutableStateOf(existingDebt?.debtType ?: types[0]) }
     var typeMenuExpanded by remember { mutableStateOf(false) }
-    var totalAmount    by remember(existingDebt) { mutableStateOf(existingDebt?.totalAmount?.toString() ?: "") }
-    var remaining      by remember(existingDebt) { mutableStateOf(existingDebt?.remainingAmount?.toString() ?: "") }
+    var totalAmount    by remember(existingDebt) { mutableStateOf(existingDebt?.totalAmountCents?.toString() ?: "") }
+    var remaining      by remember(existingDebt) { mutableStateOf(existingDebt?.remainingAmountCents?.toString() ?: "") }
     var apr            by remember(existingDebt) { mutableStateOf(existingDebt?.apr?.toString() ?: "") }
-    var monthlyPayment by remember(existingDebt) { mutableStateOf(existingDebt?.monthlyPayment?.toString() ?: "") }
+    var monthlyPayment by remember(existingDebt) { mutableStateOf(existingDebt?.monthlyPaymentCents?.toString() ?: "") }
     var showCalc       by remember { mutableStateOf(false) }
     var calcTarget     by remember { mutableStateOf("total") }
     var showErrors     by remember { mutableStateOf(false) }
@@ -185,11 +186,11 @@ fun AddEditDebtScreen(
                     showErrors = true
                     if (isFormValid) {
                         if (isEdit && debtId != null) {
-                            viewModel.updateDebt(debtId, name, selectedType, totalVal!!, remainingVal!!, aprVal!!, paymentVal!!) {
+                            viewModel.updateDebt(debtId, name, selectedType, totalVal!!.toCents(), remainingVal!!.toCents(), aprVal!!, paymentVal!!.toCents()) {
                                 navController.popBackStack()
                             }
                         } else {
-                            viewModel.createDebt(name, selectedType, totalVal!!, remainingVal!!, aprVal!!, paymentVal!!) {
+                            viewModel.createDebt(name, selectedType, totalVal!!.toCents(), remainingVal!!.toCents(), aprVal!!, paymentVal!!.toCents()) {
                                 navController.popBackStack()
                             }
                         }

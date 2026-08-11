@@ -1,5 +1,8 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.asUnits
+
+import com.ledger.app.ui.util.toCents
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -176,7 +179,7 @@ private fun AlertCard(
                         modifier = Modifier.size(12.dp)
                     )
                     Text(
-                        "${alert.direction} \$${"%.2f".format(alert.targetPrice)}",
+                        "${alert.direction} \$${"%.2f".format(alert.targetPriceCents.asUnits)}",
                         style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
                     )
                 }
@@ -269,7 +272,7 @@ private fun AddAlertSheet(viewModel: PriceAlertViewModel, onDismiss: () -> Unit)
                     viewModel.createAlert(
                         symbol = symbol,
                         assetName = assetName,
-                        targetPrice = price,
+                        targetPriceCents = price.toCents(),
                         direction = direction
                     ) { onDismiss() }
                 }

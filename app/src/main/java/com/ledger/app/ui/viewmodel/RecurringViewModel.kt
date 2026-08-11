@@ -47,13 +47,13 @@ class RecurringViewModel @Inject constructor(
     }
 
     fun createRecurring(
-        title: String, amount: Double, category: String,
+        title: String, amountCents: Long, category: String,
         walletId: String, isIncome: Boolean, frequency: String, nextDate: String,
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.createRecurring(title, amount, category, walletId, isIncome, frequency, nextDate)
+                bridge.createRecurring(title, amountCents, category, walletId, isIncome, frequency, nextDate)
                 load()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {
@@ -63,13 +63,13 @@ class RecurringViewModel @Inject constructor(
     }
 
     fun updateRecurring(
-        id: String, title: String, amount: Double,
+        id: String, title: String, amountCents: Long,
         category: String, frequency: String, nextDate: String,
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.updateRecurring(id, title, amount, category, frequency, nextDate)
+                bridge.updateRecurring(id, title, amountCents, category, frequency, nextDate)
                 load()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {

@@ -17,6 +17,9 @@ private fun String.csvField(): String =
 
 private fun Double.currency() = "$%,.2f".format(this)
 
+// Money reaches here as integer cents; this is the one place the export turns them into a decimal.
+private fun Long.currency() = "$%,.2f".format(this / 100.0)
+
 /** Write [content] to cache/exports/[fileName], then return a share Intent. */
 fun shareCsv(context: Context, fileName: String, content: String): Intent {
     val exportDir = File(context.cacheDir, "exports").also { it.mkdirs() }
@@ -38,8 +41,8 @@ fun buildMonthlyCsv(
     transactions: List<Transaction>
 ): String {
     val monthName = YearMonth.of(year, month).format(DateTimeFormatter.ofPattern("MMMM yyyy"))
-    val income   = transactions.filter { it.isIncome }.sumOf { it.amount }
-    val expenses = transactions.filter { !it.isIncome }.sumOf { it.amount }
+    val income   = transactions.filter { it.isIncome }.sumOf { it.amountCents }
+    val expenses = transactions.filter { !it.isIncome }.sumOf { it.amountCents }
     val net      = income - expenses
     val savingsRate = if (income > 0) net / income * 100 else null
 
@@ -48,7 +51,7 @@ fun buildMonthlyCsv(
 
     val categoryTotals = transactions.filter { !it.isIncome }
         .groupBy { it.category }
-        .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+        .mapValues { (_, txs) -> txs.sumOf { it.amountCents } }
         .entries.sortedByDescending { it.value }
 
     return buildString {
@@ -66,7 +69,7 @@ fun buildMonthlyCsv(
         appendLine("SPENDING BY CATEGORY")
         appendLine("Category,Amount,% of Expenses")
         categoryTotals.forEach { (cat, amt) ->
-            val pct = if (expenses > 0) amt / expenses * 100 else 0.0
+            val pct = if (expenses > 0) amt.toDouble() / expenses * 100 else 0.0
             appendLine("${cat.csvField()},${amt.currency()},${"%.1f".format(pct)}%")
         }
         appendLine()
@@ -75,7 +78,7 @@ fun buildMonthlyCsv(
         appendLine("Date,Title,Category,Amount,Type,Note")
         sortedDates.forEach { dateStr ->
             grouped[dateStr]?.forEach { tx ->
-                appendLine("${tx.occurredAt.take(10)},${tx.title.csvField()},${tx.category.csvField()},${tx.amount.currency()},${if (tx.isIncome) "Income" else "Expense"},${(tx.note ?: "").csvField()}")
+                appendLine("${tx.occurredAt.take(10)},${tx.title.csvField()},${tx.category.csvField()},${tx.amountCents.currency()},${if (tx.isIncome) "Income" else "Expense"},${(tx.note ?: "").csvField()}")
             }
         }
     }
@@ -91,12 +94,12 @@ fun buildQuarterlyCsv(
     val quarterStartMonth = (quarter - 1) * 3 + 1
     val quarterMonths = quarterStartMonth..(quarterStartMonth + 2)
 
-    data class MonthStats(val month: Int, val income: Double, val expenses: Double) {
+    data class MonthStats(val month: Int, val income: Long, val expenses: Long) {
         val net get() = income - expenses
     }
     val monthStats = quarterMonths.map { m ->
         val txs = transactions.filter { LocalDate.parse(it.occurredAt.take(10)).monthValue == m }
-        MonthStats(m, txs.filter { it.isIncome }.sumOf { it.amount }, txs.filter { !it.isIncome }.sumOf { it.amount })
+        MonthStats(m, txs.filter { it.isIncome }.sumOf { it.amountCents }, txs.filter { !it.isIncome }.sumOf { it.amountCents })
     }
 
     val totalIncome   = monthStats.sumOf { it.income }
@@ -105,7 +108,7 @@ fun buildQuarterlyCsv(
 
     val categoryTotals = transactions.filter { !it.isIncome }
         .groupBy { it.category }
-        .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+        .mapValues { (_, txs) -> txs.sumOf { it.amountCents } }
         .entries.sortedByDescending { it.value }
 
     return buildString {
@@ -139,7 +142,7 @@ fun buildQuarterlyCsv(
         appendLine("TRANSACTIONS")
         appendLine("Date,Title,Category,Amount,Type,Note")
         transactions.sortedByDescending { it.occurredAt }.forEach { tx ->
-            appendLine("${tx.occurredAt.take(10)},${tx.title.csvField()},${tx.category.csvField()},${tx.amount.currency()},${if (tx.isIncome) "Income" else "Expense"},${(tx.note ?: "").csvField()}")
+            appendLine("${tx.occurredAt.take(10)},${tx.title.csvField()},${tx.category.csvField()},${tx.amountCents.currency()},${if (tx.isIncome) "Income" else "Expense"},${(tx.note ?: "").csvField()}")
         }
     }
 }
@@ -165,14 +168,14 @@ fun buildNetWorthCsv(
         appendLine("ASSETS")
         appendLine("Wallet,Balance,Description")
         wallets.forEach { w ->
-            appendLine("${w.name.csvField()},${w.balance.currency()},${w.description.csvField()}")
+            appendLine("${w.name.csvField()},${w.balanceCents.currency()},${w.description.csvField()}")
         }
         appendLine()
 
         appendLine("LIABILITIES")
         appendLine("Name,Type,Remaining,Total,APR,Monthly Payment")
         debts.forEach { d ->
-            appendLine("${d.name.csvField()},${d.debtType.csvField()},${d.remainingAmount.currency()},${d.totalAmount.currency()},${d.apr}%,${d.monthlyPayment.currency()}")
+            appendLine("${d.name.csvField()},${d.debtType.csvField()},${d.remainingAmountCents.currency()},${d.totalAmountCents.currency()},${d.apr}%,${d.monthlyPaymentCents.currency()}")
         }
     }
 }
@@ -185,8 +188,8 @@ fun buildCustomCsv(
     grouping: String
 ): String {
     val ymFmt = DateTimeFormatter.ofPattern("MMM yyyy")
-    val income   = transactions.filter { it.isIncome }.sumOf { it.amount }
-    val expenses = transactions.filter { !it.isIncome }.sumOf { it.amount }
+    val income   = transactions.filter { it.isIncome }.sumOf { it.amountCents }
+    val expenses = transactions.filter { !it.isIncome }.sumOf { it.amountCents }
     val net      = income - expenses
 
     return buildString {
@@ -210,8 +213,8 @@ fun buildCustomCsv(
                     .forEach { (key, txs) ->
                         val (yr, mo) = key.split("-").map { it.toInt() }
                         val label = YearMonth.of(yr, mo).format(ymFmt)
-                        val mInc = txs.filter { it.isIncome }.sumOf { it.amount }
-                        val mExp = txs.filter { !it.isIncome }.sumOf { it.amount }
+                        val mInc = txs.filter { it.isIncome }.sumOf { it.amountCents }
+                        val mExp = txs.filter { !it.isIncome }.sumOf { it.amountCents }
                         appendLine("$label,${mInc.currency()},${mExp.currency()},${(mInc - mExp).currency()}")
                     }
             }
@@ -220,10 +223,10 @@ fun buildCustomCsv(
                 appendLine("Category,Amount,% of Expenses")
                 transactions.filter { !it.isIncome }
                     .groupBy { it.category }
-                    .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+                    .mapValues { (_, txs) -> txs.sumOf { it.amountCents } }
                     .entries.sortedByDescending { it.value }
                     .forEach { (cat, amt) ->
-                        val pct = if (expenses > 0) amt / expenses * 100 else 0.0
+                        val pct = if (expenses > 0) amt.toDouble() / expenses * 100 else 0.0
                         appendLine("${cat.csvField()},${amt.currency()},${"%.1f".format(pct)}%")
                     }
             }
@@ -239,8 +242,8 @@ fun buildCustomCsv(
                         val label = runCatching {
                             LocalDate.parse(weekStart).format(DateTimeFormatter.ofPattern("MMM d, yyyy"))
                         }.getOrElse { weekStart }
-                        val wInc = txs.filter { it.isIncome }.sumOf { it.amount }
-                        val wExp = txs.filter { !it.isIncome }.sumOf { it.amount }
+                        val wInc = txs.filter { it.isIncome }.sumOf { it.amountCents }
+                        val wExp = txs.filter { !it.isIncome }.sumOf { it.amountCents }
                         appendLine("$label,${wInc.currency()},${wExp.currency()},${(wInc - wExp).currency()}")
                     }
             }
@@ -250,8 +253,8 @@ fun buildCustomCsv(
                 transactions.groupBy { it.occurredAt.take(10) }
                     .entries.sortedByDescending { it.key }
                     .forEach { (date, txs) ->
-                        val dInc = txs.filter { it.isIncome }.sumOf { it.amount }
-                        val dExp = txs.filter { !it.isIncome }.sumOf { it.amount }
+                        val dInc = txs.filter { it.isIncome }.sumOf { it.amountCents }
+                        val dExp = txs.filter { !it.isIncome }.sumOf { it.amountCents }
                         appendLine("$date,${dInc.currency()},${dExp.currency()},${(dInc - dExp).currency()}")
                     }
             }
@@ -261,7 +264,7 @@ fun buildCustomCsv(
         appendLine("TRANSACTIONS")
         appendLine("Date,Title,Category,Amount,Type,Note")
         transactions.sortedByDescending { it.occurredAt }.forEach { tx ->
-            appendLine("${tx.occurredAt.take(10)},${tx.title.csvField()},${tx.category.csvField()},${tx.amount.currency()},${if (tx.isIncome) "Income" else "Expense"},${(tx.note ?: "").csvField()}")
+            appendLine("${tx.occurredAt.take(10)},${tx.title.csvField()},${tx.category.csvField()},${tx.amountCents.currency()},${if (tx.isIncome) "Income" else "Expense"},${(tx.note ?: "").csvField()}")
         }
     }
 }

@@ -46,14 +46,14 @@ class TransferViewModel @Inject constructor(
     fun createTransfer(
         fromWalletId: String,
         toWalletId: String,
-        amount: Double,
+        amountCents: Long,
         note: String?,
         createdAt: String? = null,
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.createTransfer(fromWalletId, toWalletId, amount, note, createdAt)
+                bridge.createTransfer(fromWalletId, toWalletId, amountCents, note, createdAt)
                 load()
                 // Wallet balances moved, so the home-screen figures are stale.
                 widgetUpdater.refresh()

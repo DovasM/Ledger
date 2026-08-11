@@ -19,6 +19,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.LedgerCard
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.buildCustomCsv
 import com.ledger.app.ui.util.shareCsv
 import com.ledger.app.ui.util.rememberReportTransactions
@@ -85,12 +86,12 @@ fun CustomReportScreen(
             inRange && inCategory && inType
         }
 
-        val income   = filtered.filter { it.isIncome }.sumOf { it.amount }
-        val expenses = filtered.filter { !it.isIncome }.sumOf { it.amount }
+        val income   = filtered.filter { it.isIncome }.sumOf { it.amountCents.asUnits }
+        val expenses = filtered.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
 
         val byMonth = filtered
             .groupBy { it.occurredAt.take(7) } // "yyyy-MM"
-            .mapValues { (_, txs) -> txs.sumOf { if (it.isIncome) it.amount else -it.amount } }
+            .mapValues { (_, txs) -> txs.sumOf { if (it.isIncome) it.amountCents.asUnits else -it.amountCents.asUnits } }
             .entries.sortedBy { it.key }
             .map { (key, net) ->
                 val (yr, mo) = key.split("-").map { it.toInt() }
@@ -100,7 +101,7 @@ fun CustomReportScreen(
 
         val byCategory = filtered.filter { !it.isIncome }
             .groupBy { it.category }
-            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+            .mapValues { (_, txs) -> txs.sumOf { it.amountCents.asUnits } }
             .entries.sortedByDescending { it.value }
             .map { Pair(it.key, it.value) }
 
@@ -110,7 +111,7 @@ fun CustomReportScreen(
                 val weekStart = d.with(DayOfWeek.MONDAY)
                 weekStart.toString()
             }
-            .mapValues { (_, txs) -> txs.sumOf { if (it.isIncome) it.amount else -it.amount } }
+            .mapValues { (_, txs) -> txs.sumOf { if (it.isIncome) it.amountCents.asUnits else -it.amountCents.asUnits } }
             .entries.sortedBy { it.key }
             .map { (key, net) ->
                 val d = runCatching { LocalDate.parse(key) }.getOrNull()
@@ -120,7 +121,7 @@ fun CustomReportScreen(
 
         val byDay = filtered
             .groupBy { it.occurredAt.take(10) }
-            .mapValues { (_, txs) -> txs.sumOf { if (it.isIncome) it.amount else -it.amount } }
+            .mapValues { (_, txs) -> txs.sumOf { if (it.isIncome) it.amountCents.asUnits else -it.amountCents.asUnits } }
             .entries.sortedByDescending { it.value }
             .take(15)
             .map { (key, net) ->

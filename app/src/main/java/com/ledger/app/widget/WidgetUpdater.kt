@@ -58,9 +58,9 @@ class WidgetUpdater @Inject constructor(
         )
 
         val monthPrefix = "%04d-%02d".format(today.year, today.monthValue)
-        val monthSpent = transactions
+        val monthSpentCents = transactions
             .filter { !it.isIncome && it.occurredAt.startsWith(monthPrefix) }
-            .sumOf { it.amount }
+            .sumOf { it.amountCents }
         val tightest = stats.tightestCategory
 
         val iconByName = categories.associateBy({ it.name.lowercase() }, { it.iconName })
@@ -92,21 +92,21 @@ class WidgetUpdater @Inject constructor(
             numberFormat   = prefs.numberFormatIndex.first(),
             hideAmounts    = snapshotRepo.hideAmounts.first(),
             aiEnabled      = prefs.aiEnabled.first(),
-            totalBalance   = wallets.sumOf { it.balance },
-            spentToday     = stats.spentToday,
-            todayAllowance = stats.todayAllowance,
-            monthSpent     = monthSpent,
-            unbudgetedToday   = stats.unbudgetedToday,
-            baseDaily         = stats.dailyAllowance,
+            totalBalanceCents   = wallets.sumOf { it.balanceCents },
+            spentTodayCents     = stats.spentTodayCents,
+            todayAllowanceCents = stats.todayAllowanceCents,
+            monthSpentCents     = monthSpentCents,
+            unbudgetedTodayCents   = stats.unbudgetedTodayCents,
+            baseDailyCents         = stats.dailyAllowanceCents,
             tightestCategory  = tightest?.name,
-            tightestRemaining = tightest?.remaining ?: 0.0,
+            tightestRemainingCents = tightest?.remainingCents ?: 0L,
             tightestAlerting  = tightest?.isAlerting ?: false,
             categoryAllowances = stats.categoryPaces.map {
                 CategoryAllowance(
                     name = it.name,
-                    todayAllowance = it.todayDaily,
-                    spentToday = it.spentToday,
-                    periodRemaining = it.remaining,
+                    todayAllowanceCents = it.todayDailyCents,
+                    spentTodayCents = it.spentTodayCents,
+                    periodRemainingCents = it.remainingCents,
                     periodLabel = it.period.label.lowercase().removeSuffix("ly")
                 )
             },

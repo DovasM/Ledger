@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.toCents
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -148,7 +149,7 @@ fun AddWalletScreen(
                 onClick = {
                     showErrors = true
                     if (isNameValid && isBalanceValid) {
-                        viewModel.createWallet(name, description.ifBlank { selectedType }, baseCurrency, balance.toDouble(), offBudget) {
+                        viewModel.createWallet(name, description.ifBlank { selectedType }, baseCurrency, balance.toDouble().toCents(), offBudget) {
                             navController.popBackStack()
                         }
                     }

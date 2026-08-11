@@ -47,10 +47,10 @@ class WalletViewModel @Inject constructor(
         runCatching { bridge.countTransactionsForWallet(walletId).toInt() }.getOrDefault(0)
     }
 
-    fun createWallet(name: String, description: String, currency: String, initialBalance: Double, offBudget: Boolean = false, onSuccess: () -> Unit = {}) {
+    fun createWallet(name: String, description: String, currency: String, initialBalanceCents: Long, offBudget: Boolean = false, onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.createWallet(name, description, currency, initialBalance, offBudget)
+                bridge.createWallet(name, description, currency, initialBalanceCents, offBudget)
                 load()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {

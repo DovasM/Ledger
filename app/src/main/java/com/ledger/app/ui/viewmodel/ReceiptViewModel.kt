@@ -42,7 +42,7 @@ class ReceiptViewModel @Inject constructor(
     }
 
     // One product the user is about to turn into a transaction.
-    data class NewItem(val name: String, val amount: Double, val category: String)
+    data class NewItem(val name: String, val amountCents: Long, val category: String)
 
     private val _state = MutableStateFlow<State>(State.Idle)
     val state: StateFlow<State> = _state.asStateFlow()
@@ -94,7 +94,7 @@ class ReceiptViewModel @Inject constructor(
         items: List<NewItem>,
         onDone: () -> Unit
     ) {
-        val valid = items.filter { it.amount > 0 }
+        val valid = items.filter { it.amountCents > 0 }
         if (valid.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -121,7 +121,7 @@ class ReceiptViewModel @Inject constructor(
                         walletId = walletId,
                         title = item.name.trim().ifBlank { canonical },
                         category = canonical,
-                        amount = item.amount,
+                        amountCents = item.amountCents,
                         isIncome = false,
                         note = note,
                         occurredAt = dateIso

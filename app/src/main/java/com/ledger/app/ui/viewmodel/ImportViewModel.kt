@@ -1,5 +1,6 @@
 package com.ledger.app.ui.viewmodel
 
+import com.ledger.app.ui.util.toCents
 import android.content.Context
 import android.database.sqlite.SQLiteDatabase
 import android.net.Uri
@@ -35,7 +36,7 @@ data class MmCategory(
 data class MmTransaction(
     val uid: String,
     val isIncome: Boolean,
-    val amount: Double,
+    val amountCents: Long,
     val date: String,
     val comment: String,
     val accountUid: String,
@@ -190,7 +191,7 @@ class ImportViewModel @Inject constructor(
                     if (acc.uid !in selected) continue
                     // The currency used to be passed as the wallet *description*, which is why every
                     // imported wallet was described as "EUR". It now goes in its own column.
-                    val w = bridge.createWallet(acc.title, "", acc.currencyCode, acc.balance)
+                    val w = bridge.createWallet(acc.title, "", acc.currencyCode, acc.balance.toCents())
                     walletIdMap[acc.uid] = w.id
                 }
 
@@ -214,7 +215,7 @@ class ImportViewModel @Inject constructor(
                         walletId = walletId,
                         title = tx.comment.takeIf { it.isNotBlank() } ?: if (tx.isIncome) "Income" else "Expense",
                         category = categoryName,
-                        amount = tx.amount,
+                        amountCents = tx.amountCents,
                         isIncome = tx.isIncome,
                         note = null,
                         occurredAt = tx.date
@@ -269,7 +270,7 @@ class ImportViewModel @Inject constructor(
 
     private fun parseAccounts(db: SQLiteDatabase): List<MmAccount> {
         // account_balance stores the balance AT BACKUP TIME (current balance).
-        // Since Ledger computes wallet balance as initialBalance + transaction net,
+        // Since Ledger computes wallet balance as initialBalanceCents + transaction net,
         // we must derive the opening balance as: current - net_transactions,
         // so that after importing all transactions the final balance matches MM.
         val currentBalances = mutableMapOf<String, Long>()
@@ -360,7 +361,7 @@ class ImportViewModel @Inject constructor(
                     MmTransaction(
                         uid = c.getString(0),
                         isIncome = c.getString(1)?.equals("Income", ignoreCase = true) ?: false,
-                        amount = c.getLong(2) / 100.0,
+                        amountCents = c.getLong(2),
                         date = c.getString(3) ?: "",
                         comment = c.getString(4) ?: "",
                         accountUid = c.getString(5) ?: "",

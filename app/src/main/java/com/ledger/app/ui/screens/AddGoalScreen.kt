@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.toCents
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -290,7 +291,7 @@ fun AddGoalScreen(
                         val capturedName = name
                         viewModel.createGoal(
                             name = capturedName,
-                            targetAmount = amount,
+                            targetAmountCents = amount.toCents(),
                             deadline = selectedDeadline.ifBlank { null }
                         ) {
                             if (capturedUri != null) GoalImageStore.save(context, capturedName, capturedUri)

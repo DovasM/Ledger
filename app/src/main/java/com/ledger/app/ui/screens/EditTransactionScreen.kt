@@ -1,5 +1,7 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.asUnits
+
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -170,7 +172,7 @@ fun EditTransactionScreen(
                     Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Amount", style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant)
                         Text(
-                            (if (isIncome) "+" else "-") + "${"$%,.2f".format(tx.amount)}",
+                            (if (isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
                             style = MaterialTheme.typography.titleMedium,
                             color = accentColor
                         )
@@ -286,7 +288,7 @@ fun EditTransactionScreen(
                     if (tx != null) {
                         val dateStr = selectedDate.atStartOfDay().atOffset(ZoneOffset.UTC).format(DateTimeFormatter.ISO_OFFSET_DATE_TIME)
                         val effectiveTitle = title.ifBlank { category }
-                        viewModel.updateTransaction(transactionId, effectiveTitle, category, tx.amount, isIncome, note.ifBlank { null }, dateStr) {}
+                        viewModel.updateTransaction(transactionId, effectiveTitle, category, tx.amountCents, isIncome, note.ifBlank { null }, dateStr) {}
                         // Sync tags async via TagViewModel
                         val allDbTags = tagState.tags
                         val currentTagNames = tagState.transactionTags.map { it.name }.toSet()

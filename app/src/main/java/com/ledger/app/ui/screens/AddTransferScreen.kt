@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.toCents
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -139,8 +140,8 @@ fun AddTransferScreen(
                 LedgerCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text("After this transfer", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        BalancePreviewRow(from.name, from.balance - parsed, currency, numberFormat)
-                        BalancePreviewRow(to.name, to.balance + parsed, currency, numberFormat)
+                        BalancePreviewRow(from.name, from.balanceCents - parsed, currency, numberFormat)
+                        BalancePreviewRow(to.name, to.balanceCents + parsed, currency, numberFormat)
                     }
                 }
             }
@@ -156,7 +157,7 @@ fun AddTransferScreen(
                         transferViewModel.createTransfer(
                             fromWalletId = from.id,
                             toWalletId = to.id,
-                            amount = parsed,
+                            amountCents = parsed.toCents(),
                             note = note.ifBlank { null }
                         ) {
                             walletViewModel.load()

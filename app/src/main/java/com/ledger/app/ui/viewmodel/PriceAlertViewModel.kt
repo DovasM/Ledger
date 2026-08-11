@@ -40,10 +40,10 @@ class PriceAlertViewModel @Inject constructor(
         }
     }
 
-    fun createAlert(symbol: String, assetName: String, targetPrice: Double, direction: String, onSuccess: () -> Unit = {}) {
+    fun createAlert(symbol: String, assetName: String, targetPriceCents: Long, direction: String, onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.createPriceAlert(symbol, assetName, targetPrice, direction)
+                bridge.createPriceAlert(symbol, assetName, targetPriceCents, direction)
                 load()
                 launch(Dispatchers.Main) { onSuccess() }
             } catch (e: Exception) {

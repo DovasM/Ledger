@@ -28,7 +28,7 @@ impl TestDb {
     /// A wallet plus the expense category, which is all most tests need.
     pub fn with_wallet(&self) -> String {
         self.db
-            .create_wallet("Checking".into(), String::new(), "EUR".into(), 0.0, false)
+            .create_wallet("Checking".into(), String::new(), "EUR".into(), 0, false)
             .expect("create wallet")
             .id
     }

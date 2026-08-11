@@ -27,6 +27,7 @@ import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.colorHexToColor
 import com.ledger.app.ui.util.iconNameToVector
 import com.ledger.app.ui.viewmodel.*
@@ -72,7 +73,7 @@ fun GlobalSearchScreen(
             val matchesQuery = tx.title.contains(query, ignoreCase = true) ||
                 tx.category.contains(query, ignoreCase = true) ||
                 (!tx.note.isNullOrBlank() && tx.note!!.contains(query, ignoreCase = true)) ||
-                "%.2f".format(tx.amount).contains(query)
+                "%.2f".format(tx.amountCents.asUnits).contains(query)
             val matchesType = when (typeFilter) {
                 TxFilter.ALL     -> true
                 TxFilter.INCOME  -> tx.isIncome
@@ -90,22 +91,22 @@ fun GlobalSearchScreen(
         val q = query.trim()
         buildList {
             walletState.wallets.filter { it.name.contains(q, ignoreCase = true) }.take(2).forEach { w ->
-                add(QuickResult(w.name, "${"$%,.2f".format(w.balance)} · Wallet", Icons.Filled.AccountBalanceWallet, Primary) {
+                add(QuickResult(w.name, "${"$%,.2f".format(w.balanceCents.asUnits)} · Wallet", Icons.Filled.AccountBalanceWallet, Primary) {
                     navController.navigate(Screen.WalletDetails.createRoute(w.id))
                 })
             }
             goalState.goals.filter { it.name.contains(q, ignoreCase = true) }.take(2).forEach { g ->
-                add(QuickResult(g.name, "${"$%,.0f".format(g.currentAmount)} / ${"$%,.0f".format(g.targetAmount)} · Goal", Icons.Filled.Flag, Color(0xFF1565C0)) {
+                add(QuickResult(g.name, "${"$%,.0f".format(g.currentAmountCents.asUnits)} / ${"$%,.0f".format(g.targetAmountCents.asUnits)} · Goal", Icons.Filled.Flag, Color(0xFF1565C0)) {
                     navController.navigate(Screen.GoalDetails.createRoute(g.id))
                 })
             }
             debtState.debts.filter { it.name.contains(q, ignoreCase = true) }.take(2).forEach { d ->
-                add(QuickResult(d.name, "${"$%,.2f".format(d.remainingAmount)} remaining · Debt", Icons.Filled.CreditCard, Tertiary) {
+                add(QuickResult(d.name, "${"$%,.2f".format(d.remainingAmountCents.asUnits)} remaining · Debt", Icons.Filled.CreditCard, Tertiary) {
                     navController.navigate(Screen.EditDebt.createRoute(d.id))
                 })
             }
             recurringState.recurring.filter { it.title.contains(q, ignoreCase = true) }.take(2).forEach { r ->
-                add(QuickResult(r.title, "${"$%,.2f".format(r.amount)} · ${r.frequency.replaceFirstChar { it.uppercase() }}", Icons.Filled.Repeat, Color(0xFF6A1B9A)) {
+                add(QuickResult(r.title, "${"$%,.2f".format(r.amountCents.asUnits)} · ${r.frequency.replaceFirstChar { it.uppercase() }}", Icons.Filled.Repeat, Color(0xFF6A1B9A)) {
                     navController.navigate(Screen.RecurringTransactions.route)
                 })
             }
@@ -330,7 +331,7 @@ fun GlobalSearchScreen(
                                                 Text("${tx.category} · $displayDate", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                                             }
                                             Text(
-                                                "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amount)}",
+                                                "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amountCents.asUnits)}",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = if (tx.isIncome) Primary else Tertiary,
                                                 fontWeight = FontWeight.SemiBold
@@ -379,7 +380,7 @@ private fun SearchTxSheet(
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(tx.title, style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                 Text(
-                    "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amount)}",
+                    "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amountCents.asUnits)}",
                     style = MaterialTheme.typography.titleLarge,
                     color = if (tx.isIncome) Primary else Tertiary,
                     fontWeight = FontWeight.Bold

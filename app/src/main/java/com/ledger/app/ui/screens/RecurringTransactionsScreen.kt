@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.toCents
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -25,6 +26,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.iconNameToVector
 import com.ledger.app.ui.viewmodel.CategoryViewModel
 import com.ledger.app.ui.viewmodel.RecurringViewModel
@@ -46,8 +48,8 @@ fun RecurringTransactionsScreen(
     LaunchedEffect(currentEntry?.destination?.route) { viewModel.load() }
 
     val recurring = state.recurring
-    val income    = recurring.filter { it.isIncome }.sumOf { it.amount }
-    val expenses  = recurring.filter { !it.isIncome }.sumOf { it.amount }
+    val income    = recurring.filter { it.isIncome }.sumOf { it.amountCents.asUnits }
+    val expenses  = recurring.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
     val net       = income - expenses
 
     fun walletName(id: String) = walletState.wallets.find { it.id == id }?.name ?: id
@@ -180,7 +182,7 @@ private fun RecurringRow(
     var showDatePicker by remember { mutableStateOf(false) }
 
     var editTitle by remember { mutableStateOf(tx.title) }
-    var editAmount by remember { mutableStateOf(tx.amount.toString()) }
+    var editAmount by remember { mutableStateOf(tx.amountCents.asUnits.toString()) }
     var editFrequency by remember { mutableStateOf(tx.frequency) }
     var editNextDate by remember { mutableStateOf(tx.nextDate) }
 
@@ -196,7 +198,7 @@ private fun RecurringRow(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("${tx.frequency.replaceFirstChar { it.uppercase() }} · Next: ${tx.nextDate}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
-                    Text("${if (tx.isIncome) "+" else "-"}\$${"%.2f".format(tx.amount)}", style = MaterialTheme.typography.bodyMedium, color = accentColor)
+                    Text("${if (tx.isIncome) "+" else "-"}\$${"%.2f".format(tx.amountCents.asUnits)}", style = MaterialTheme.typography.bodyMedium, color = accentColor)
                 }
             },
             confirmButton = {
@@ -208,7 +210,7 @@ private fun RecurringRow(
                 Row {
                     TextButton(onClick = { showOptionsDialog = false }) { Text("Cancel", color = OnSurfaceVariant) }
                     TextButton(onClick = {
-                        editTitle = tx.title; editAmount = tx.amount.toString()
+                        editTitle = tx.title; editAmount = tx.amountCents.asUnits.toString()
                         editFrequency = tx.frequency; editNextDate = tx.nextDate
                         showOptionsDialog = false; showEditDialog = true
                     }) { Text("Edit", color = accentColor) }
@@ -297,7 +299,7 @@ private fun RecurringRow(
                 TextButton(onClick = {
                     val amt = editAmount.toDoubleOrNull()
                     if (editTitle.isNotBlank() && amt != null && amt > 0) {
-                        viewModel.updateRecurring(tx.id, editTitle, amt, tx.category, editFrequency, editNextDate)
+                        viewModel.updateRecurring(tx.id, editTitle, amt.toCents(), tx.category, editFrequency, editNextDate)
                         showEditDialog = false
                     }
                 }) { Text("Save", color = accentColor) }
@@ -347,7 +349,7 @@ private fun RecurringRow(
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    "${if (tx.isIncome) "+" else "-"}\$${"%.2f".format(tx.amount)}",
+                    "${if (tx.isIncome) "+" else "-"}\$${"%.2f".format(tx.amountCents.asUnits)}",
                     style = MaterialTheme.typography.titleSmall,
                     color = accentColor,
                     fontWeight = FontWeight.SemiBold

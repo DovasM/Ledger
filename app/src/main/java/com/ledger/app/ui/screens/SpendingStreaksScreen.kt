@@ -23,6 +23,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.AllowanceSettings
 import com.ledger.app.ui.util.DayState
 import com.ledger.app.ui.util.STREAK_LOOKBACK_DAYS
@@ -74,7 +75,7 @@ fun SpendingStreaksScreen(
             offBudgetWalletIds = walletState.wallets.filter { it.offBudget }.map { it.id }.toSet()
         )
     }
-    val dailyAllowance = stats.dailyAllowance
+    val dailyAllowance = stats.dailyAllowanceCents
     val currentStreak  = stats.currentStreak
     val bestStreak     = stats.bestStreak
     val daysWithData   = stats.daysWithData
@@ -96,13 +97,13 @@ fun SpendingStreaksScreen(
             }.getOrDefault(false)
         }
     }
-    val weekIncome   = remember(weekTxs) { weekTxs.filter {  it.isIncome }.sumOf { it.amount } }
-    val weekExpenses = remember(weekTxs) { weekTxs.filter { !it.isIncome }.sumOf { it.amount } }
+    val weekIncome   = remember(weekTxs) { weekTxs.filter {  it.isIncome }.sumOf { it.amountCents.asUnits } }
+    val weekExpenses = remember(weekTxs) { weekTxs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits } }
     val weeklyBudgetShare = dailyAllowance * 7.0
     val weekBudgetPct = if (weeklyBudgetShare > 0) (weekExpenses / weeklyBudgetShare).coerceIn(0.0, 1.5).toFloat() else 0f
 
-    val todayExpenses = stats.spentToday
-    val todayPct = if (dailyAllowance > 0) (todayExpenses / dailyAllowance).coerceIn(0.0, 1.5).toFloat() else 0f
+    val todayExpenses = stats.spentTodayCents
+    val todayPct = if (stats.dailyAllowanceCents > 0) (todayExpenses.toDouble() / stats.dailyAllowanceCents).coerceIn(0.0, 1.5).toFloat() else 0f
 
     // ── Achievements ──────────────────────────────────────────────────────────
 
@@ -125,8 +126,8 @@ fun SpendingStreaksScreen(
         // Saver: any month in last 6 with savings rate ≥20%
         val isSaver = (0..5).any { off ->
             val m = today.minusMonths(off.toLong())
-            val inc = txState.transactions.filter { it.isIncome && inMonth(it.occurredAt, m.year, m.monthValue) }.sumOf { it.amount }
-            val exp = txState.transactions.filter { !it.isIncome && inMonth(it.occurredAt, m.year, m.monthValue) }.sumOf { it.amount }
+            val inc = txState.transactions.filter { it.isIncome && inMonth(it.occurredAt, m.year, m.monthValue) }.sumOf { it.amountCents.asUnits }
+            val exp = txState.transactions.filter { !it.isIncome && inMonth(it.occurredAt, m.year, m.monthValue) }.sumOf { it.amountCents.asUnits }
             inc > 0 && (inc - exp) / inc >= 0.20
         }
 
@@ -136,10 +137,10 @@ fun SpendingStreaksScreen(
             val spentByCat = txState.transactions
                 .filter { !it.isIncome && inMonth(it.occurredAt, m.year, m.monthValue) }
                 .groupBy { it.category }
-                .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+                .mapValues { (_, txs) -> txs.sumOf { it.amountCents.asUnits } }
             budgetState.budgets.all { b ->
                 val cn = catState.categories.find { it.id == b.categoryId }?.name ?: return@all true
-                (spentByCat[cn] ?: 0.0) <= b.limitAmount
+                (spentByCat[cn] ?: 0.0) <= b.limitAmountCents.asUnits
             }
         }
 

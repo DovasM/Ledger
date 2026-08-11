@@ -1,5 +1,7 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.toCents
+
 import android.Manifest
 import android.content.Context
 import android.graphics.Bitmap
@@ -473,7 +475,7 @@ fun ReceiptScanScreen(
 
                     val newItems = items.mapNotNull { ei ->
                         val amt = ei.amount.replace(',', '.').toDoubleOrNull()
-                        if (amt != null && amt > 0) ReceiptViewModel.NewItem(ei.name, amt, ei.category) else null
+                        if (amt != null && amt > 0) ReceiptViewModel.NewItem(ei.name, amt.toCents(), ei.category) else null
                     }
                     val walletId = walletState.wallets.getOrNull(selectedWalletIndex)?.id
                     Button(

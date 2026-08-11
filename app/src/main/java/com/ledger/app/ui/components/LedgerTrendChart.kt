@@ -1,5 +1,6 @@
 package com.ledger.app.ui.components
 
+import com.ledger.app.ui.util.asUnits
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -73,7 +74,7 @@ fun LedgerTrendChart(
                 ?.let { it.format(DateTimeFormatter.ISO_LOCAL_DATE) to tx }
         }
         .groupBy({ it.first }, { it.second })
-        .mapValues { (_, txs) -> txs.sumOf { if (it.isIncome) it.amount else -it.amount } }
+        .mapValues { (_, txs) -> txs.sumOf { if (it.isIncome) it.amountCents.asUnits else -it.amountCents.asUnits } }
 
     val netAfterByDay = mutableMapOf<LocalDate, Double>()
     var cumulativeAfter = 0.0

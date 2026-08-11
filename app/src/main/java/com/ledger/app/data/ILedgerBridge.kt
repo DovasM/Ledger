@@ -7,35 +7,35 @@ interface ILedgerBridge {
     // ── Transactions ──────────────────────────────────────────────────────────
     fun listTransactions(walletId: String, limit: UInt = 50u, offset: UInt = 0u): List<Transaction>
     fun listAllTransactions(limit: UInt = 100u, offset: UInt = 0u): List<Transaction>
-    fun createTransaction(walletId: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, occurredAt: String? = null): Transaction
-    fun updateTransaction(id: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, occurredAt: String? = null): Transaction
+    fun createTransaction(walletId: String, title: String, category: String, amountCents: Long, isIncome: Boolean, note: String?, occurredAt: String? = null): Transaction
+    fun updateTransaction(id: String, title: String, category: String, amountCents: Long, isIncome: Boolean, note: String?, occurredAt: String? = null): Transaction
     fun deleteTransaction(id: String)
 
     // ── Wallets ───────────────────────────────────────────────────────────────
     fun listWallets(): List<Wallet>
-    fun createWallet(name: String, description: String, currency: String, initialBalance: Double, offBudget: Boolean = false): Wallet
+    fun createWallet(name: String, description: String, currency: String, initialBalanceCents: Long, offBudget: Boolean = false): Wallet
     fun updateWallet(id: String, name: String, description: String, currency: String, offBudget: Boolean = false): Wallet
     fun deleteWallet(id: String)
     fun countTransactionsForWallet(id: String): UInt
 
     // ── Transfers ─────────────────────────────────────────────────────────────
     fun listTransfers(limit: UInt = 500u, offset: UInt = 0u): List<Transfer>
-    fun createTransfer(fromWalletId: String, toWalletId: String, amount: Double, note: String?, createdAt: String? = null): Transfer
+    fun createTransfer(fromWalletId: String, toWalletId: String, amountCents: Long, note: String?, createdAt: String? = null): Transfer
     fun deleteTransfer(id: String)
 
     // ── Savings Goals ─────────────────────────────────────────────────────────
     fun listGoals(): List<SavingsGoal>
-    fun createGoal(name: String, targetAmount: Double, deadline: String?): SavingsGoal
-    fun updateGoal(id: String, name: String, targetAmount: Double, deadline: String?): SavingsGoal
-    fun addContribution(goalId: String, amount: Double, note: String? = null, occurredAt: String? = null): SavingsGoal
+    fun createGoal(name: String, targetAmountCents: Long, deadline: String?): SavingsGoal
+    fun updateGoal(id: String, name: String, targetAmountCents: Long, deadline: String?): SavingsGoal
+    fun addContribution(goalId: String, amountCents: Long, note: String? = null, occurredAt: String? = null): SavingsGoal
     fun listGoalContributions(goalId: String): List<GoalContribution>
     fun deleteContribution(id: String): SavingsGoal
     fun deleteGoal(id: String)
 
     // ── Recurring Transactions ────────────────────────────────────────────────
     fun listRecurring(): List<RecurringTransaction>
-    fun createRecurring(title: String, amount: Double, category: String, walletId: String, isIncome: Boolean, frequency: String, nextDate: String): RecurringTransaction
-    fun updateRecurring(id: String, title: String, amount: Double, category: String, frequency: String, nextDate: String): RecurringTransaction
+    fun createRecurring(title: String, amountCents: Long, category: String, walletId: String, isIncome: Boolean, frequency: String, nextDate: String): RecurringTransaction
+    fun updateRecurring(id: String, title: String, amountCents: Long, category: String, frequency: String, nextDate: String): RecurringTransaction
     fun deleteRecurring(id: String)
     fun applyDueRecurring(): List<String>
 
@@ -51,17 +51,17 @@ interface ILedgerBridge {
 
     // ── Budgets ───────────────────────────────────────────────────────────────
     fun listBudgets(): List<Budget>
-    fun createBudget(categoryId: String?, walletId: String?, limitAmount: Double, period: String, alertThreshold: Double, carryOver: Boolean = false): Budget
-    fun updateBudget(id: String, categoryId: String?, walletId: String?, limitAmount: Double, period: String, alertThreshold: Double, carryOver: Boolean = false): Budget
+    fun createBudget(categoryId: String?, walletId: String?, limitAmountCents: Long, period: String, alertThreshold: Double, carryOver: Boolean = false): Budget
+    fun updateBudget(id: String, categoryId: String?, walletId: String?, limitAmountCents: Long, period: String, alertThreshold: Double, carryOver: Boolean = false): Budget
     fun deleteBudget(id: String)
 
     // ── Debts ─────────────────────────────────────────────────────────────────
     fun listDebts(): List<Debt>
-    fun createDebt(name: String, debtType: String, totalAmount: Double, remainingAmount: Double, apr: Double, monthlyPayment: Double): Debt
-    fun updateDebt(id: String, name: String, debtType: String, totalAmount: Double, remainingAmount: Double, apr: Double, monthlyPayment: Double): Debt
+    fun createDebt(name: String, debtType: String, totalAmountCents: Long, remainingAmountCents: Long, apr: Double, monthlyPaymentCents: Long): Debt
+    fun updateDebt(id: String, name: String, debtType: String, totalAmountCents: Long, remainingAmountCents: Long, apr: Double, monthlyPaymentCents: Long): Debt
     fun deleteDebt(id: String)
     fun listDebtPayments(debtId: String): List<DebtPayment>
-    fun addDebtPayment(debtId: String, amount: Double, note: String? = null, occurredAt: String? = null): Debt
+    fun addDebtPayment(debtId: String, amountCents: Long, note: String? = null, occurredAt: String? = null): Debt
     fun deleteDebtPayment(id: String): Debt
 
     // ── Tags ──────────────────────────────────────────────────────────────────
@@ -74,7 +74,7 @@ interface ILedgerBridge {
 
     // ── Price Alerts ──────────────────────────────────────────────────────────
     fun listPriceAlerts(): List<PriceAlert>
-    fun createPriceAlert(symbol: String, assetName: String, targetPrice: Double, direction: String): PriceAlert
+    fun createPriceAlert(symbol: String, assetName: String, targetPriceCents: Long, direction: String): PriceAlert
     fun setPriceAlertActive(id: String, active: Boolean): PriceAlert
     fun deletePriceAlert(id: String)
 }

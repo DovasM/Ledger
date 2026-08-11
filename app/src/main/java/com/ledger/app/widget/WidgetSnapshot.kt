@@ -26,12 +26,12 @@ data class CategoryShortcut(val name: String, val iconName: String)
 // which one a given widget shows is per-instance state the snapshot can't know.
 data class CategoryAllowance(
     val name: String,
-    val todayAllowance: Double,
-    val spentToday: Double,
-    val periodRemaining: Double,
+    val todayAllowanceCents: Long,
+    val spentTodayCents: Long,
+    val periodRemainingCents: Long,
     val periodLabel: String
 ) {
-    val remainingToday: Double get() = todayAllowance - spentToday
+    val remainingTodayCents: Long get() = todayAllowanceCents - spentTodayCents
 }
 
 data class WidgetSnapshot(
@@ -39,19 +39,19 @@ data class WidgetSnapshot(
     val numberFormat: Int = 0,
     val hideAmounts: Boolean = false,
     val aiEnabled: Boolean = true,
-    val totalBalance: Double = 0.0,
-    val spentToday: Double = 0.0,
-    val todayAllowance: Double = 0.0,
-    val monthSpent: Double = 0.0,
-    val unbudgetedToday: Double = 0.0,
+    val totalBalanceCents: Long = 0L,
+    val spentTodayCents: Long = 0L,
+    val todayAllowanceCents: Long = 0L,
+    val monthSpentCents: Long = 0L,
+    val unbudgetedTodayCents: Long = 0L,
 
     // The plain daily share, before any carried surplus/deficit. The widget shows the difference
-    // against todayAllowance, which is the per-day effect a user can act on.
-    val baseDaily: Double = 0.0,
+    // against todayAllowanceCents, which is the per-day effect a user can act on.
+    val baseDailyCents: Long = 0L,
     // The budgeted category furthest through its limit — shown on the all-budgets widget regardless
     // of whether it is alerting yet; tightestAlerting only drives the colour.
     val tightestCategory: String? = null,
-    val tightestRemaining: Double = 0.0,
+    val tightestRemainingCents: Long = 0L,
     val tightestAlerting: Boolean = false,
     val categoryAllowances: List<CategoryAllowance> = emptyList(),
     val streakCurrent: Int = 0,
@@ -60,8 +60,8 @@ data class WidgetSnapshot(
     val topCategories: List<CategoryShortcut> = emptyList(),
     val hasData: Boolean = false
 ) {
-    val hasAllowance: Boolean get() = todayAllowance > 0
-    val remainingToday: Double get() = todayAllowance - spentToday
+    val hasAllowance: Boolean get() = todayAllowanceCents > 0
+    val remainingTodayCents: Long get() = todayAllowanceCents - spentTodayCents
 }
 
 @Singleton
@@ -75,14 +75,14 @@ class WidgetSnapshotRepository @Inject constructor(
         private val KEY_NUMBER_FORMAT  = intPreferencesKey("w_number_format")
         private val KEY_HIDE_AMOUNTS   = booleanPreferencesKey("w_hide_amounts")
         private val KEY_AI_ENABLED     = booleanPreferencesKey("w_ai_enabled")
-        private val KEY_TOTAL_BALANCE  = doublePreferencesKey("w_total_balance")
-        private val KEY_SPENT_TODAY    = doublePreferencesKey("w_spent_today")
-        private val KEY_TODAY_ALLOW    = doublePreferencesKey("w_today_allowance")
-        private val KEY_MONTH_SPENT    = doublePreferencesKey("w_month_spent")
-        private val KEY_UNBUDGETED     = doublePreferencesKey("w_unbudgeted_today")
-        private val KEY_BASE_DAILY     = doublePreferencesKey("w_base_daily")
+        private val KEY_TOTAL_BALANCE  = longPreferencesKey("w_total_balance_cents")
+        private val KEY_SPENT_TODAY    = longPreferencesKey("w_spent_today_cents")
+        private val KEY_TODAY_ALLOW    = longPreferencesKey("w_today_allowance_cents")
+        private val KEY_MONTH_SPENT    = longPreferencesKey("w_month_spent_cents")
+        private val KEY_UNBUDGETED     = longPreferencesKey("w_unbudgeted_today_cents")
+        private val KEY_BASE_DAILY     = longPreferencesKey("w_base_daily_cents")
         private val KEY_TIGHT_NAME     = stringPreferencesKey("w_tightest_name")
-        private val KEY_TIGHT_LEFT     = doublePreferencesKey("w_tightest_remaining")
+        private val KEY_TIGHT_LEFT     = longPreferencesKey("w_tightest_remaining_cents")
         private val KEY_TIGHT_ALERT    = booleanPreferencesKey("w_tightest_alerting")
         private val KEY_CAT_ALLOWANCES = stringPreferencesKey("w_category_allowances")
         private val KEY_STREAK_CURRENT = intPreferencesKey("w_streak_current")
@@ -122,17 +122,17 @@ class WidgetSnapshotRepository @Inject constructor(
             p[KEY_CURRENCY]       = snapshot.currency
             p[KEY_NUMBER_FORMAT]  = snapshot.numberFormat
             p[KEY_AI_ENABLED]     = snapshot.aiEnabled
-            p[KEY_TOTAL_BALANCE]  = snapshot.totalBalance
-            p[KEY_SPENT_TODAY]    = snapshot.spentToday
-            p[KEY_TODAY_ALLOW]    = snapshot.todayAllowance
-            p[KEY_MONTH_SPENT]    = snapshot.monthSpent
-            p[KEY_UNBUDGETED]     = snapshot.unbudgetedToday
-            p[KEY_BASE_DAILY]     = snapshot.baseDaily
+            p[KEY_TOTAL_BALANCE]  = snapshot.totalBalanceCents
+            p[KEY_SPENT_TODAY]    = snapshot.spentTodayCents
+            p[KEY_TODAY_ALLOW]    = snapshot.todayAllowanceCents
+            p[KEY_MONTH_SPENT]    = snapshot.monthSpentCents
+            p[KEY_UNBUDGETED]     = snapshot.unbudgetedTodayCents
+            p[KEY_BASE_DAILY]     = snapshot.baseDailyCents
             p[KEY_TIGHT_NAME]     = snapshot.tightestCategory ?: ""
-            p[KEY_TIGHT_LEFT]     = snapshot.tightestRemaining
+            p[KEY_TIGHT_LEFT]     = snapshot.tightestRemainingCents
             p[KEY_TIGHT_ALERT]    = snapshot.tightestAlerting
             p[KEY_CAT_ALLOWANCES] = snapshot.categoryAllowances.joinToString(RECORD_SEP.toString()) {
-                listOf(it.name, it.todayAllowance, it.spentToday, it.periodRemaining, it.periodLabel)
+                listOf(it.name, it.todayAllowanceCents, it.spentTodayCents, it.periodRemainingCents, it.periodLabel)
                     .joinToString(FIELD_SEP.toString())
             }
             p[KEY_STREAK_CURRENT] = snapshot.streakCurrent
@@ -159,14 +159,14 @@ class WidgetSnapshotRepository @Inject constructor(
             numberFormat   = this[KEY_NUMBER_FORMAT]  ?: 0,
             hideAmounts    = this[KEY_HIDE_AMOUNTS]   ?: false,
             aiEnabled      = this[KEY_AI_ENABLED]     ?: true,
-            totalBalance   = this[KEY_TOTAL_BALANCE]  ?: 0.0,
-            spentToday     = this[KEY_SPENT_TODAY]    ?: 0.0,
-            todayAllowance = this[KEY_TODAY_ALLOW]    ?: 0.0,
-            monthSpent     = this[KEY_MONTH_SPENT]    ?: 0.0,
-            unbudgetedToday = this[KEY_UNBUDGETED]    ?: 0.0,
-            baseDaily       = this[KEY_BASE_DAILY]     ?: 0.0,
+            totalBalanceCents   = this[KEY_TOTAL_BALANCE]  ?: 0L,
+            spentTodayCents     = this[KEY_SPENT_TODAY]    ?: 0L,
+            todayAllowanceCents = this[KEY_TODAY_ALLOW]    ?: 0L,
+            monthSpentCents     = this[KEY_MONTH_SPENT]    ?: 0L,
+            unbudgetedTodayCents = this[KEY_UNBUDGETED]    ?: 0L,
+            baseDailyCents       = this[KEY_BASE_DAILY]     ?: 0L,
             tightestCategory = this[KEY_TIGHT_NAME]?.takeIf { it.isNotBlank() },
-            tightestRemaining = this[KEY_TIGHT_LEFT]  ?: 0.0,
+            tightestRemainingCents = this[KEY_TIGHT_LEFT]  ?: 0L,
             tightestAlerting = this[KEY_TIGHT_ALERT]  ?: false,
             categoryAllowances = (this[KEY_CAT_ALLOWANCES] ?: "")
                 .split(RECORD_SEP)
@@ -176,9 +176,9 @@ class WidgetSnapshotRepository @Inject constructor(
                     if (f.size != 5) return@mapNotNull null
                     CategoryAllowance(
                         name = f[0],
-                        todayAllowance = f[1].toDoubleOrNull() ?: return@mapNotNull null,
-                        spentToday = f[2].toDoubleOrNull() ?: 0.0,
-                        periodRemaining = f[3].toDoubleOrNull() ?: 0.0,
+                        todayAllowanceCents = f[1].toLongOrNull() ?: return@mapNotNull null,
+                        spentTodayCents = f[2].toLongOrNull() ?: 0L,
+                        periodRemainingCents = f[3].toLongOrNull() ?: 0L,
                         periodLabel = f[4]
                     )
                 },

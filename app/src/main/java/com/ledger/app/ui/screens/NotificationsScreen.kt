@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.asUnits
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -75,7 +76,7 @@ fun NotificationsScreen(
     val spentByCategory = remember(thisMonthTxs) {
         thisMonthTxs.filter { !it.isIncome }
             .groupBy { it.category }
-            .mapValues { (_, txs) -> txs.sumOf { it.amount } }
+            .mapValues { (_, txs) -> txs.sumOf { it.amountCents.asUnits } }
     }
 
     val notifications = remember(
@@ -89,7 +90,7 @@ fun NotificationsScreen(
         budgetState.budgets.forEach { budget ->
             val catName = catState.categories.find { it.id == budget.categoryId }?.name ?: return@forEach
             val spent = spentByCategory[catName] ?: 0.0
-            val pct = if (budget.limitAmount > 0) spent / budget.limitAmount else 0.0
+            val pct = if (budget.limitAmountCents.asUnits > 0) spent / budget.limitAmountCents.asUnits else 0.0
             val alertFraction = budget.alertThreshold / 100.0
             when {
                 pct >= 1.0 -> list += NotifItem(
@@ -97,7 +98,7 @@ fun NotificationsScreen(
                     icon = Icons.Filled.Warning,
                     iconColor = Color(0xFF920009),
                     title = "Over budget — $catName",
-                    body = "${"$%,.2f".format(spent)} spent of ${"$%,.2f".format(budget.limitAmount)} limit (${"%.0f".format(pct * 100)}%).",
+                    body = "${"$%,.2f".format(spent)} spent of ${"$%,.2f".format(budget.limitAmountCents.asUnits)} limit (${"%.0f".format(pct * 100)}%).",
                     isAlert = true
                 )
                 pct >= alertFraction -> list += NotifItem(
@@ -105,20 +106,20 @@ fun NotificationsScreen(
                     icon = Icons.Filled.NotificationsActive,
                     iconColor = Color(0xFFE65100),
                     title = "Budget alert — $catName",
-                    body = "${"%.0f".format(pct * 100)}% of ${"$%,.2f".format(budget.limitAmount)} used · ${"$%,.2f".format(budget.limitAmount - spent)} remaining.",
+                    body = "${"%.0f".format(pct * 100)}% of ${"$%,.2f".format(budget.limitAmountCents.asUnits)} used · ${"$%,.2f".format(budget.limitAmountCents.asUnits - spent)} remaining.",
                     isAlert = true
                 )
             }
         }
 
         // ── Low wallet balance ────────────────────────────────────────────────
-        walletState.wallets.filter { it.balance in 0.01..99.99 }.forEach { wallet ->
+        walletState.wallets.filter { it.balanceCents.asUnits in 0.01..99.99 }.forEach { wallet ->
             list += NotifItem(
                 key = "low_balance_${wallet.id}",
                 icon = Icons.Filled.AccountBalanceWallet,
                 iconColor = Tertiary,
                 title = "Low balance — ${wallet.name}",
-                body = "${wallet.name} has only ${"$%,.2f".format(wallet.balance)} remaining.",
+                body = "${wallet.name} has only ${"$%,.2f".format(wallet.balanceCents.asUnits)} remaining.",
                 isAlert = true
             )
         }
@@ -135,15 +136,15 @@ fun NotificationsScreen(
                     icon = if (r.isIncome) Icons.Filled.TrendingUp else Icons.Filled.Schedule,
                     iconColor = if (r.isIncome) Primary else Color(0xFF1565C0),
                     title = "${r.title} due $whenStr",
-                    body = "${if (r.isIncome) "+" else "-"}${"$%,.2f".format(r.amount)} · ${r.category}",
+                    body = "${if (r.isIncome) "+" else "-"}${"$%,.2f".format(r.amountCents.asUnits)} · ${r.category}",
                     isAlert = true
                 )
             }
         }
 
         // ── Spending exceeds income ───────────────────────────────────────────
-        val thisMonthIncome   = thisMonthTxs.filter {  it.isIncome }.sumOf { it.amount }
-        val thisMonthExpenses = thisMonthTxs.filter { !it.isIncome }.sumOf { it.amount }
+        val thisMonthIncome   = thisMonthTxs.filter {  it.isIncome }.sumOf { it.amountCents.asUnits }
+        val thisMonthExpenses = thisMonthTxs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
         if (thisMonthIncome > 0 && thisMonthExpenses > thisMonthIncome) {
             list += NotifItem(
                 key = "spending_over_income",
@@ -160,7 +161,7 @@ fun NotificationsScreen(
         if (daysLeft in 1L..5L) {
             val overCount = budgetState.budgets.count { b ->
                 val cn = catState.categories.find { it.id == b.categoryId }?.name ?: return@count false
-                (spentByCategory[cn] ?: 0.0) > b.limitAmount
+                (spentByCategory[cn] ?: 0.0) > b.limitAmountCents.asUnits
             }
             if (overCount > 0) {
                 list += NotifItem(
@@ -182,8 +183,8 @@ fun NotificationsScreen(
                 d.year == prevMonth.year && d.monthValue == prevMonth.monthValue
             }.getOrDefault(false)
         }
-        val prevIncome   = prevMonthTxs.filter {  it.isIncome }.sumOf { it.amount }
-        val prevExpenses = prevMonthTxs.filter { !it.isIncome }.sumOf { it.amount }
+        val prevIncome   = prevMonthTxs.filter {  it.isIncome }.sumOf { it.amountCents.asUnits }
+        val prevExpenses = prevMonthTxs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
         val prevRate     = if (prevIncome > 0) (prevIncome - prevExpenses) / prevIncome * 100 else 0.0
         if (prevRate >= 20.0 && prevIncome > 0) {
             val monthName = prevMonth.month.getDisplayName(java.time.format.TextStyle.FULL, java.util.Locale.getDefault())
@@ -195,13 +196,13 @@ fun NotificationsScreen(
                         val d = LocalDate.parse(tx.occurredAt.take(10))
                         d.year == m.year && d.monthValue == m.monthValue && tx.isIncome
                     }.getOrDefault(false)
-                }.sumOf { it.amount }
+                }.sumOf { it.amountCents.asUnits }
                 val exp = txState.transactions.filter { tx ->
                     runCatching {
                         val d = LocalDate.parse(tx.occurredAt.take(10))
                         d.year == m.year && d.monthValue == m.monthValue && !tx.isIncome
                     }.getOrDefault(false)
-                }.sumOf { it.amount }
+                }.sumOf { it.amountCents.asUnits }
                 val r = if (inc > 0) (inc - exp) / inc * 100 else 0.0
                 prevRate >= r
             }
@@ -217,7 +218,7 @@ fun NotificationsScreen(
 
         // ── Goal milestones (insights) ────────────────────────────────────────
         goalState.goals.forEach { goal ->
-            val pct = if (goal.targetAmount > 0) goal.currentAmount / goal.targetAmount else 0.0
+            val pct = if (goal.targetAmountCents.asUnits > 0) goal.currentAmountCents.asUnits / goal.targetAmountCents.asUnits else 0.0
             val milestone = when {
                 pct >= 1.0  -> 100
                 pct >= 0.75 -> 75
@@ -231,7 +232,7 @@ fun NotificationsScreen(
                     icon = if (milestone == 100) Icons.Filled.EmojiEvents else Icons.Filled.Savings,
                     iconColor = if (milestone == 100) Color(0xFFF9A825) else Color(0xFF1565C0),
                     title = if (milestone == 100) "${goal.name} — Goal reached!" else "${goal.name} — $milestone% funded",
-                    body = "${"$%,.2f".format(goal.currentAmount)} saved of ${"$%,.2f".format(goal.targetAmount)} target.",
+                    body = "${"$%,.2f".format(goal.currentAmountCents.asUnits)} saved of ${"$%,.2f".format(goal.targetAmountCents.asUnits)} target.",
                     isAlert = false
                 )
             }
@@ -253,8 +254,8 @@ fun NotificationsScreen(
         }
 
         // ── Largest expense vs recent average (insight) ───────────────────────
-        val largest = thisMonthTxs.filter { !it.isIncome }.maxByOrNull { it.amount }
-        if (largest != null && largest.amount > 200.0) {
+        val largest = thisMonthTxs.filter { !it.isIncome }.maxByOrNull { it.amountCents.asUnits }
+        if (largest != null && largest.amountCents.asUnits > 200.0) {
             val avg3MonthLargest = (1..3).mapNotNull { off ->
                 val m = today.minusMonths(off.toLong())
                 txState.transactions.filter { tx ->
@@ -262,16 +263,16 @@ fun NotificationsScreen(
                         val d = LocalDate.parse(tx.occurredAt.take(10))
                         d.year == m.year && d.monthValue == m.monthValue
                     }.getOrDefault(false)
-                }.maxByOrNull { it.amount }?.amount
+                }.maxByOrNull { it.amountCents }?.amountCents?.asUnits
             }.let { if (it.isEmpty()) null else it.average() }
 
-            if (avg3MonthLargest != null && avg3MonthLargest > 0 && largest.amount > avg3MonthLargest * 1.5) {
+            if (avg3MonthLargest != null && avg3MonthLargest > 0 && largest.amountCents.asUnits > avg3MonthLargest * 1.5) {
                 list += NotifItem(
                     key = "large_expense_${largest.id}",
                     icon = Icons.Filled.Receipt,
                     iconColor = Color(0xFFE65100),
                     title = "Large expense — ${largest.title}",
-                    body = "${"$%,.2f".format(largest.amount)} in ${largest.category} · ${"%.0f".format(largest.amount / avg3MonthLargest * 100 - 100)}% above your usual largest expense.",
+                    body = "${"$%,.2f".format(largest.amountCents.asUnits)} in ${largest.category} · ${"%.0f".format(largest.amountCents.asUnits / avg3MonthLargest * 100 - 100)}% above your usual largest expense.",
                     isAlert = false
                 )
             }

@@ -22,6 +22,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.colorHexToColor
 import com.ledger.app.ui.util.iconNameToVector
 import com.ledger.app.ui.viewmodel.CategoryViewModel
@@ -64,8 +65,8 @@ fun CategoryTransactionsScreen(
             .sortedByDescending { it.occurredAt }
     }
 
-    val totalSpent  = allTxs.filter { !it.isIncome }.sumOf { it.amount }
-    val totalEarned = allTxs.filter { it.isIncome }.sumOf { it.amount }
+    val totalSpent  = allTxs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
+    val totalEarned = allTxs.filter { it.isIncome }.sumOf { it.amountCents.asUnits }
 
     // Group by year-month label, newest month first
     val monthFmt = DateTimeFormatter.ofPattern("MMMM yyyy")
@@ -206,7 +207,7 @@ fun CategoryTransactionsScreen(
                                                 )
                                             }
                                             Text(
-                                                "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amount)}",
+                                                "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amountCents.asUnits)}",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = if (tx.isIncome) Primary else Tertiary,
                                                 fontWeight = FontWeight.SemiBold
@@ -257,7 +258,7 @@ private fun CatTxDetailSheet(
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(tx.title, style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                 Text(
-                    "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amount)}",
+                    "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amountCents.asUnits)}",
                     style = MaterialTheme.typography.titleLarge,
                     color = if (tx.isIncome) Primary else Tertiary,
                     fontWeight = FontWeight.Bold

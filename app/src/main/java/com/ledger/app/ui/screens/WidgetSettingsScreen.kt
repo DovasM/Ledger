@@ -31,7 +31,7 @@ import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.util.DayState
-import com.ledger.app.ui.util.formatAmountCompact
+import com.ledger.app.ui.util.formatCentsCompact
 import com.ledger.app.ui.viewmodel.SettingsViewModel
 import com.ledger.app.ui.viewmodel.WidgetSettingsViewModel
 import com.ledger.app.widget.DailyAllowanceWidgetReceiver
@@ -276,8 +276,8 @@ private fun CategoryShortcutPicker(
 // lands on the home screen — no mock figures.
 @Composable
 private fun WidgetPreview(entry: WidgetEntry, snapshot: WidgetSnapshot) {
-    fun money(amount: Double) =
-        if (snapshot.hideAmounts) "•••" else formatAmountCompact(amount, snapshot.currency, snapshot.numberFormat)
+    fun money(amountCents: Long) =
+        if (snapshot.hideAmounts) "•••" else formatCentsCompact(amountCents, snapshot.currency, snapshot.numberFormat)
 
     Box(
         modifier = Modifier.fillMaxWidth().height(88.dp).clip(RoundedCornerShape(16.dp)).background(SurfaceContainerLowest),
@@ -316,33 +316,33 @@ private fun WidgetPreview(entry: WidgetEntry, snapshot: WidgetSnapshot) {
                 if (snapshot.hasAllowance) {
                     Text("LEFT TODAY", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     Text(
-                        money(snapshot.remainingToday),
+                        money(snapshot.remainingTodayCents),
                         style = MaterialTheme.typography.headlineSmall,
-                        color = if (snapshot.remainingToday < 0) Tertiary else Primary,
+                        color = if (snapshot.remainingTodayCents < 0) Tertiary else Primary,
                         fontWeight = FontWeight.Bold
                     )
-                    val carryDelta = snapshot.todayAllowance - snapshot.baseDaily
+                    val carryDelta = snapshot.todayAllowanceCents - snapshot.baseDailyCents
                     when {
                         carryDelta >= 0.5 ->
                             Text("+${money(carryDelta)}/day carried", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                         carryDelta <= -0.5 ->
                             Text("${money(carryDelta)}/day carried", style = MaterialTheme.typography.labelSmall, color = Tertiary)
-                        snapshot.unbudgetedToday > 0 ->
-                            Text("+${money(snapshot.unbudgetedToday)} unbudgeted", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                        snapshot.unbudgetedTodayCents > 0 ->
+                            Text("+${money(snapshot.unbudgetedTodayCents)} unbudgeted", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                         else ->
-                            Text("of ${money(snapshot.todayAllowance)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                            Text("of ${money(snapshot.todayAllowanceCents)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     }
                     snapshot.tightestCategory?.let { tight ->
                         Text(
-                            if (snapshot.tightestRemaining < 0) "$tight over ${money(-snapshot.tightestRemaining)}"
-                            else "$tight ${money(snapshot.tightestRemaining)} left",
+                            if (snapshot.tightestRemainingCents < 0) "$tight over ${money(-snapshot.tightestRemainingCents)}"
+                            else "$tight ${money(snapshot.tightestRemainingCents)} left",
                             style = MaterialTheme.typography.labelSmall,
                             color = if (snapshot.tightestAlerting) Tertiary else OnSurface
                         )
                     }
                 } else {
                     Text("BALANCE", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                    Text(money(snapshot.totalBalance), style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
+                    Text(money(snapshot.totalBalanceCents), style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                     Text("set a budget for a daily figure", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                 }
             }

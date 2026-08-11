@@ -50,7 +50,7 @@ class TransactionViewModel @Inject constructor(
     private val inferenceMutex = Mutex()
 
     // One product line the user is turning into its own transaction (split mode).
-    data class LineItem(val title: String, val amount: Double, val category: String)
+    data class LineItem(val title: String, val amountCents: Long, val category: String)
 
     // Colors for auto-created categories (mirrors ReceiptViewModel / CategoryIcons hexes).
     private val palette = listOf(
@@ -94,14 +94,14 @@ class TransactionViewModel @Inject constructor(
 
     fun createTransaction(
         walletId: String, title: String, category: String,
-        amount: Double, isIncome: Boolean, note: String?,
+        amountCents: Long, isIncome: Boolean, note: String?,
         occurredAt: String? = null,
         tagNames: List<String> = emptyList(),
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                val tx = bridge.createTransaction(walletId, title, category, amount, isIncome, note, occurredAt)
+                val tx = bridge.createTransaction(walletId, title, category, amountCents, isIncome, note, occurredAt)
                 for (name in tagNames) {
                     val tag = bridge.createTag(name)
                     bridge.addTagToTransaction(tx.id, tag.id)
@@ -127,7 +127,7 @@ class TransactionViewModel @Inject constructor(
         tagNames: List<String> = emptyList(),
         onSuccess: () -> Unit = {}
     ) {
-        val valid = items.filter { it.amount > 0 }
+        val valid = items.filter { it.amountCents > 0 }
         if (valid.isEmpty()) return
         viewModelScope.launch(Dispatchers.IO) {
             try {
@@ -152,7 +152,7 @@ class TransactionViewModel @Inject constructor(
                         walletId = walletId,
                         title = item.title.trim().ifBlank { canonical },
                         category = canonical,
-                        amount = item.amount,
+                        amountCents = item.amountCents,
                         isIncome = isIncome,
                         note = note,
                         occurredAt = occurredAt
@@ -173,13 +173,13 @@ class TransactionViewModel @Inject constructor(
 
     fun updateTransaction(
         id: String, title: String, category: String,
-        amount: Double, isIncome: Boolean, note: String?,
+        amountCents: Long, isIncome: Boolean, note: String?,
         occurredAt: String? = null,
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.updateTransaction(id, title, category, amount, isIncome, note, occurredAt)
+                bridge.updateTransaction(id, title, category, amountCents, isIncome, note, occurredAt)
                 loadAll()
                 widgetUpdater.refresh()
                 launch(Dispatchers.Main) { onSuccess() }

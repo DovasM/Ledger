@@ -26,11 +26,11 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
     override fun listAllTransactions(limit: UInt, offset: UInt) =
         db.listAllTransactions(limit, offset)
 
-    override fun createTransaction(walletId: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, occurredAt: String?) =
-        db.createTransaction(walletId, title, category, amount, isIncome, note, occurredAt)
+    override fun createTransaction(walletId: String, title: String, category: String, amountCents: Long, isIncome: Boolean, note: String?, occurredAt: String?) =
+        db.createTransaction(walletId, title, category, amountCents, isIncome, note, occurredAt)
 
-    override fun updateTransaction(id: String, title: String, category: String, amount: Double, isIncome: Boolean, note: String?, occurredAt: String?) =
-        db.updateTransaction(id, title, category, amount, isIncome, note, occurredAt)
+    override fun updateTransaction(id: String, title: String, category: String, amountCents: Long, isIncome: Boolean, note: String?, occurredAt: String?) =
+        db.updateTransaction(id, title, category, amountCents, isIncome, note, occurredAt)
 
     override fun deleteTransaction(id: String) = db.deleteTransaction(id)
 
@@ -38,8 +38,8 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
 
     override fun listWallets() = db.listWallets()
 
-    override fun createWallet(name: String, description: String, currency: String, initialBalance: Double, offBudget: Boolean) =
-        db.createWallet(name, description, currency, initialBalance, offBudget)
+    override fun createWallet(name: String, description: String, currency: String, initialBalanceCents: Long, offBudget: Boolean) =
+        db.createWallet(name, description, currency, initialBalanceCents, offBudget)
 
     override fun updateWallet(id: String, name: String, description: String, currency: String, offBudget: Boolean) =
         db.updateWallet(id, name, description, currency, offBudget)
@@ -52,8 +52,8 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
 
     override fun listTransfers(limit: UInt, offset: UInt) = db.listTransfers(limit, offset)
 
-    override fun createTransfer(fromWalletId: String, toWalletId: String, amount: Double, note: String?, createdAt: String?) =
-        db.createTransfer(fromWalletId, toWalletId, amount, note, createdAt)
+    override fun createTransfer(fromWalletId: String, toWalletId: String, amountCents: Long, note: String?, createdAt: String?) =
+        db.createTransfer(fromWalletId, toWalletId, amountCents, note, createdAt)
 
     override fun deleteTransfer(id: String) = db.deleteTransfer(id)
 
@@ -61,24 +61,24 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
 
     override fun listGoals() = db.listGoals()
 
-    override fun createGoal(name: String, targetAmount: Double, deadline: String?) =
-        db.createGoal(name, targetAmount, deadline)
+    override fun createGoal(name: String, targetAmountCents: Long, deadline: String?) =
+        db.createGoal(name, targetAmountCents, deadline)
 
-    override fun updateGoal(id: String, name: String, targetAmount: Double, deadline: String?) =
+    override fun updateGoal(id: String, name: String, targetAmountCents: Long, deadline: String?) =
         try {
-            db.updateGoal(id, name, targetAmount, deadline)
+            db.updateGoal(id, name, targetAmountCents, deadline)
         } catch (_: UnsatisfiedLinkError) {
             // Rust .so not yet rebuilt — fallback: delete and recreate preserving currentAmount
             val existing = db.listGoals().find { it.id == id }
-            val savedAmount = existing?.currentAmount ?: 0.0
+            val savedAmount = existing?.currentAmountCents ?: 0L
             db.deleteGoal(id)
-            val newGoal = db.createGoal(name, targetAmount, deadline)
-            if (savedAmount > 0.0) db.addContribution(newGoal.id, savedAmount, null, null)
+            val newGoal = db.createGoal(name, targetAmountCents, deadline)
+            if (savedAmount > 0) db.addContribution(newGoal.id, savedAmount, null, null)
             newGoal
         }
 
-    override fun addContribution(goalId: String, amount: Double, note: String?, occurredAt: String?) =
-        db.addContribution(goalId, amount, note, occurredAt)
+    override fun addContribution(goalId: String, amountCents: Long, note: String?, occurredAt: String?) =
+        db.addContribution(goalId, amountCents, note, occurredAt)
 
     override fun listGoalContributions(goalId: String) = db.listGoalContributions(goalId)
 
@@ -90,11 +90,11 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
 
     override fun listRecurring() = db.listRecurring()
 
-    override fun createRecurring(title: String, amount: Double, category: String, walletId: String, isIncome: Boolean, frequency: String, nextDate: String) =
-        db.createRecurring(title, amount, category, walletId, isIncome, frequency, nextDate)
+    override fun createRecurring(title: String, amountCents: Long, category: String, walletId: String, isIncome: Boolean, frequency: String, nextDate: String) =
+        db.createRecurring(title, amountCents, category, walletId, isIncome, frequency, nextDate)
 
-    override fun updateRecurring(id: String, title: String, amount: Double, category: String, frequency: String, nextDate: String) =
-        db.updateRecurring(id, title, amount, category, frequency, nextDate)
+    override fun updateRecurring(id: String, title: String, amountCents: Long, category: String, frequency: String, nextDate: String) =
+        db.updateRecurring(id, title, amountCents, category, frequency, nextDate)
 
     override fun deleteRecurring(id: String) = db.deleteRecurring(id)
 
@@ -114,7 +114,7 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
                     walletId  = r.walletId,
                     title     = r.title,
                     category  = r.category,
-                    amount    = r.amount,
+                    amountCents    = r.amountCents,
                     isIncome  = r.isIncome,
                     note      = "Auto-posted recurring",
                     occurredAt = nextDate.toString()
@@ -122,7 +122,7 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
                 applied.add(r.title)
                 nextDate = advanceDate(nextDate, r.frequency)
             }
-            updateRecurring(r.id, r.title, r.amount, r.category, r.frequency, nextDate.toString())
+            updateRecurring(r.id, r.title, r.amountCents, r.category, r.frequency, nextDate.toString())
         }
         return applied
     }
@@ -159,11 +159,11 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
 
     override fun listBudgets() = db.listBudgets()
 
-    override fun createBudget(categoryId: String?, walletId: String?, limitAmount: Double, period: String, alertThreshold: Double, carryOver: Boolean) =
-        db.createBudget(categoryId, walletId, limitAmount, period, alertThreshold, carryOver)
+    override fun createBudget(categoryId: String?, walletId: String?, limitAmountCents: Long, period: String, alertThreshold: Double, carryOver: Boolean) =
+        db.createBudget(categoryId, walletId, limitAmountCents, period, alertThreshold, carryOver)
 
-    override fun updateBudget(id: String, categoryId: String?, walletId: String?, limitAmount: Double, period: String, alertThreshold: Double, carryOver: Boolean) =
-        db.updateBudget(id, categoryId, walletId, limitAmount, period, alertThreshold, carryOver)
+    override fun updateBudget(id: String, categoryId: String?, walletId: String?, limitAmountCents: Long, period: String, alertThreshold: Double, carryOver: Boolean) =
+        db.updateBudget(id, categoryId, walletId, limitAmountCents, period, alertThreshold, carryOver)
 
     override fun deleteBudget(id: String) = db.deleteBudget(id)
 
@@ -171,18 +171,18 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
 
     override fun listDebts() = db.listDebts()
 
-    override fun createDebt(name: String, debtType: String, totalAmount: Double, remainingAmount: Double, apr: Double, monthlyPayment: Double) =
-        db.createDebt(name, debtType, totalAmount, remainingAmount, apr, monthlyPayment)
+    override fun createDebt(name: String, debtType: String, totalAmountCents: Long, remainingAmountCents: Long, apr: Double, monthlyPaymentCents: Long) =
+        db.createDebt(name, debtType, totalAmountCents, remainingAmountCents, apr, monthlyPaymentCents)
 
-    override fun updateDebt(id: String, name: String, debtType: String, totalAmount: Double, remainingAmount: Double, apr: Double, monthlyPayment: Double) =
-        db.updateDebt(id, name, debtType, totalAmount, remainingAmount, apr, monthlyPayment)
+    override fun updateDebt(id: String, name: String, debtType: String, totalAmountCents: Long, remainingAmountCents: Long, apr: Double, monthlyPaymentCents: Long) =
+        db.updateDebt(id, name, debtType, totalAmountCents, remainingAmountCents, apr, monthlyPaymentCents)
 
     override fun deleteDebt(id: String) = db.deleteDebt(id)
 
     override fun listDebtPayments(debtId: String) = db.listDebtPayments(debtId)
 
-    override fun addDebtPayment(debtId: String, amount: Double, note: String?, occurredAt: String?) =
-        db.addDebtPayment(debtId, amount, note, occurredAt)
+    override fun addDebtPayment(debtId: String, amountCents: Long, note: String?, occurredAt: String?) =
+        db.addDebtPayment(debtId, amountCents, note, occurredAt)
 
     override fun deleteDebtPayment(id: String) = db.deleteDebtPayment(id)
 
@@ -207,8 +207,8 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
 
     override fun listPriceAlerts() = db.listPriceAlerts()
 
-    override fun createPriceAlert(symbol: String, assetName: String, targetPrice: Double, direction: String) =
-        db.createPriceAlert(symbol, assetName, targetPrice, direction)
+    override fun createPriceAlert(symbol: String, assetName: String, targetPriceCents: Long, direction: String) =
+        db.createPriceAlert(symbol, assetName, targetPriceCents, direction)
 
     override fun setPriceAlertActive(id: String, active: Boolean) =
         db.setPriceAlertActive(id, active)

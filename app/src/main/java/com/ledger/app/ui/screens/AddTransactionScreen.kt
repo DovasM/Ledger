@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.toCents
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -431,7 +432,7 @@ fun AddTransactionScreen(
 
             val splitItems = lineItems.mapNotNull { li ->
                 val amt = li.amount.replace(',', '.').toDoubleOrNull()
-                if (amt != null && amt > 0) TransactionViewModel.LineItem(li.name, amt, li.category) else null
+                if (amt != null && amt > 0) TransactionViewModel.LineItem(li.name, amt.toCents(), li.category) else null
             }
 
             Spacer(Modifier.height(8.dp))
@@ -459,7 +460,7 @@ fun AddTransactionScreen(
                             walletId = walletId,
                             title = title.ifBlank { selectedCategory },
                             category = selectedCategory,
-                            amount = amountValue!!,
+                            amountCents = amountValue!!.toCents(),
                             isIncome = !isExpense,
                             note = note.ifBlank { null },
                             occurredAt = iso,

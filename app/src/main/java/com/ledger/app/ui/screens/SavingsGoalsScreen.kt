@@ -21,6 +21,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.ledger.app.ui.util.asUnits
 import com.ledger.app.ui.util.GoalImageStore
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
@@ -58,8 +59,8 @@ fun SavingsGoalsScreen(
     LaunchedEffect(currentEntry?.destination?.route) { viewModel.load() }
     val goals = state.goals
 
-    val totalSaved  = goals.sumOf { it.currentAmount }
-    val totalTarget = goals.sumOf { it.targetAmount }
+    val totalSaved  = goals.sumOf { it.currentAmountCents.asUnits }
+    val totalTarget = goals.sumOf { it.targetAmountCents.asUnits }
 
     Scaffold(
         topBar = {
@@ -177,7 +178,7 @@ fun SavingsGoalsScreen(
 
 @Composable
 private fun GoalCard(goal: SavingsGoal, navController: NavController) {
-    val progress = if (goal.targetAmount > 0) (goal.currentAmount / goal.targetAmount).toFloat().coerceIn(0f, 1f) else 0f
+    val progress = if (goal.targetAmountCents.asUnits > 0) (goal.currentAmountCents.asUnits / goal.targetAmountCents.asUnits).toFloat().coerceIn(0f, 1f) else 0f
     val color = goalColor(goal)
     val icon  = goalIcon(goal)
     val context = LocalContext.current
@@ -216,12 +217,12 @@ private fun GoalCard(goal: SavingsGoal, navController: NavController) {
                 }
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(
-                        "$${"%.0f".format(goal.currentAmount)}",
+                        "$${"%.0f".format(goal.currentAmountCents.asUnits)}",
                         style = MaterialTheme.typography.headlineSmall,
                         color = OnSurface, fontWeight = FontWeight.Bold
                     )
                     Text(
-                        "of $${"%.0f".format(goal.targetAmount)}",
+                        "of $${"%.0f".format(goal.targetAmountCents.asUnits)}",
                         style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant
                     )
                 }
