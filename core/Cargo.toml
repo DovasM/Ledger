@@ -43,3 +43,7 @@ cmake   = "0.1"
 
 [dev-dependencies]
 uniffi = { version = "0.28", features = ["bindgen-tests"] }
+# Used only by tests/migration.rs, which hand-builds a pre-m7 database to prove the upgrade path
+# carries real money forward. Same versions as above, so no extra crate is compiled.
+sqlx = { version = "0.8", features = ["sqlite", "runtime-tokio", "macros"] }
+tokio = { version = "1", features = ["full"] }

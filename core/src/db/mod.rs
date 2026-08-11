@@ -57,7 +57,150 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         m6_transaction_occurred_at(pool).await?;
         record_version(pool, 6).await?;
     }
+    if applied < 7 {
+        m7_goal_and_debt_history(pool).await?;
+        record_version(pool, 7).await?;
+    }
 
+    Ok(())
+}
+
+async fn column_exists(pool: &SqlitePool, table: &str, column: &str) -> Result<bool, sqlx::Error> {
+    let cols: Vec<(i64, String, String, i64, Option<String>, i64)> =
+        sqlx::query_as(&format!("PRAGMA table_info({table})"))
+            .fetch_all(pool)
+            .await?;
+    Ok(cols.iter().any(|c| c.1 == column))
+}
+
+// A savings goal recorded only how much was in it, and a debt only how much was left. Both were
+// mutated in place, so "I put 50 in last Tuesday" and "I paid 200 in March" existed nowhere: there
+// was no history to show, nothing to correct, and a mistyped contribution could only be fixed by
+// typing over the total.
+//
+// Contributions and payments now get their own tables and the two totals become derived, the same
+// answer this project already needed for wallets.balance — a stored running total that drifted the
+// moment one code path forgot to update it. The columns are dropped rather than kept in sync,
+// because a second source of truth is the thing that goes wrong.
+async fn m7_goal_and_debt_history(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS goal_contributions (
+            id          TEXT PRIMARY KEY,
+            goal_id     TEXT NOT NULL REFERENCES savings_goals(id),
+            amount      REAL NOT NULL,
+            note        TEXT,
+            kind        TEXT NOT NULL DEFAULT 'contribution',
+            occurred_at TEXT NOT NULL,
+            created_at  TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_contrib_goal ON goal_contributions(goal_id);
+        CREATE TABLE IF NOT EXISTS debt_payments (
+            id          TEXT PRIMARY KEY,
+            debt_id     TEXT NOT NULL REFERENCES debts(id),
+            amount      REAL NOT NULL,
+            note        TEXT,
+            kind        TEXT NOT NULL DEFAULT 'payment',
+            occurred_at TEXT NOT NULL,
+            created_at  TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_payment_debt ON debt_payments(debt_id);
+        "#,
+    )
+    .execute(pool)
+    .await?;
+
+    let now = chrono::Utc::now().to_rfc3339();
+
+    // The existing totals are real money and the only record of it, so each becomes one opening
+    // entry before the column carrying it goes away. Both halves are guarded on the column still
+    // existing, which is what makes re-running this on a bootstrapped database a no-op.
+    if column_exists(pool, "savings_goals", "current_amount").await? {
+        sqlx::query(
+            "INSERT INTO goal_contributions (id, goal_id, amount, note, kind, occurred_at, created_at)
+             SELECT lower(hex(randomblob(16))), id, current_amount, 'Balance before contributions were itemised', 'opening', created_at, ?
+             FROM savings_goals WHERE current_amount > 0",
+        )
+        .bind(&now)
+        .execute(pool)
+        .await?;
+
+        rebuild_table(
+            pool,
+            "savings_goals",
+            "CREATE TABLE savings_goals_new (
+                id            TEXT PRIMARY KEY,
+                name          TEXT NOT NULL,
+                target_amount REAL NOT NULL,
+                deadline      TEXT,
+                created_at    TEXT NOT NULL
+            )",
+            "INSERT INTO savings_goals_new (id, name, target_amount, deadline, created_at)
+             SELECT id, name, target_amount, deadline, created_at FROM savings_goals",
+        )
+        .await?;
+    }
+
+    if column_exists(pool, "debts", "remaining_amount").await? {
+        sqlx::query(
+            "INSERT INTO debt_payments (id, debt_id, amount, note, kind, occurred_at, created_at)
+             SELECT lower(hex(randomblob(16))), id, total_amount - remaining_amount, 'Paid off before payments were itemised', 'opening', created_at, ?
+             FROM debts WHERE total_amount - remaining_amount > 0",
+        )
+        .bind(&now)
+        .execute(pool)
+        .await?;
+
+        rebuild_table(
+            pool,
+            "debts",
+            "CREATE TABLE debts_new (
+                id              TEXT PRIMARY KEY,
+                name            TEXT NOT NULL,
+                debt_type       TEXT NOT NULL,
+                total_amount    REAL NOT NULL,
+                apr             REAL NOT NULL,
+                monthly_payment REAL NOT NULL,
+                created_at      TEXT NOT NULL
+            )",
+            "INSERT INTO debts_new (id, name, debt_type, total_amount, apr, monthly_payment, created_at)
+             SELECT id, name, debt_type, total_amount, apr, monthly_payment, created_at FROM debts",
+        )
+        .await?;
+    }
+
+    Ok(())
+}
+
+// SQLite cannot drop a column on the old versions this app has to run against, so the table is
+// rebuilt: create the new shape, copy, drop, rename. The caller guards the call on the current
+// shape, which is what keeps it idempotent.
+// Every statement goes in **one** query on purpose. Split across separate `execute` calls they are
+// handed out to different pool connections, and the rename then runs against a connection whose
+// cached schema still lists the dropped table — it fails with "there is already another table or
+// index with this name". One string, one connection, one consistent view of the schema.
+//
+// Foreign keys are switched off across the rebuild, which is SQLite's own prescribed procedure for
+// altering a table: rows already seeded into goal_contributions reference savings_goals, so dropping
+// it with enforcement on fails with "FOREIGN KEY constraint failed" — and a migration that fails is
+// an app that cannot open its database at all. The pragma is a no-op inside a transaction, which is
+// why these statements are not wrapped in one.
+async fn rebuild_table(
+    pool: &SqlitePool,
+    table: &str,
+    create_new: &str,
+    copy_rows: &str,
+) -> Result<(), sqlx::Error> {
+    sqlx::query(&format!(
+        "PRAGMA foreign_keys = OFF;
+         {create_new};
+         {copy_rows};
+         DROP TABLE {table};
+         ALTER TABLE {table}_new RENAME TO {table};
+         PRAGMA foreign_keys = ON;"
+    ))
+    .execute(pool)
+    .await?;
     Ok(())
 }
 
@@ -351,11 +494,17 @@ async fn m2_category_links(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     Ok(())
 }
 
-// Every ON DELETE CASCADE in this schema is inert: SQLite honours foreign keys only under
-// PRAGMA foreign_keys=ON and this pool does not set it. The delete_* functions now clean up
-// explicitly, which is deterministic and needs no pragma — this sweeps whatever earlier builds
-// already stranded. Enabling the pragma instead was considered and rejected: it would turn loose
-// historical rows into hard write failures at runtime.
+// Correction, established while writing m7: foreign keys ARE enforced here. `DROP TABLE
+// savings_goals` with child rows present failed with SQLITE_CONSTRAINT_FOREIGNKEY (787), and
+// DROP TABLE only runs that check under PRAGMA foreign_keys=ON — sqlx's SqliteConnectOptions
+// turns it on by default, which nothing in this file asks for or disables. An earlier comment
+// here claimed the opposite and concluded every ON DELETE CASCADE was inert; that reasoning was
+// wrong, and any new code relying on it would be too.
+//
+// The explicit cleanup in each delete_* stays, and matters more rather than less: only
+// transactions.wallet_id and the two transaction_tags columns declare ON DELETE CASCADE, so
+// without it deleting a goal, debt, wallet or category would be a hard runtime failure on the
+// tables that do not. This sweep clears rows stranded before those deletes existed.
 async fn clean_orphans(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     for stmt in [
         "DELETE FROM transaction_tags WHERE transaction_id NOT IN (SELECT id FROM transactions)",
@@ -363,6 +512,9 @@ async fn clean_orphans(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         "DELETE FROM transactions WHERE wallet_id NOT IN (SELECT id FROM wallets)",
         "DELETE FROM recurring_transactions WHERE wallet_id NOT IN (SELECT id FROM wallets)",
         "DELETE FROM budgets WHERE category_id NOT IN (SELECT id FROM categories)",
+        // goal_contributions and debt_payments are deliberately not swept here: this runs inside
+        // m2, before m7 creates them, so a fresh install would fail on "no such table". Their
+        // cleanup lives in delete_goal and delete_debt, which is where it belongs anyway.
     ] {
         sqlx::query(stmt).execute(pool).await?;
     }

@@ -67,6 +67,28 @@ dictionary SavingsGoal {
     string created_at;
 };
 
+// A goal's balance and a debt's remaining amount are summed from these on every read rather than
+// stored, so there is no second number that can disagree with the history.
+dictionary GoalContribution {
+    string id;
+    string goal_id;
+    f64 amount;
+    string? note;
+    // "contribution", or "opening" for the row m7 wrote to carry the pre-history balance.
+    string kind;
+    string occurred_at;
+};
+
+dictionary DebtPayment {
+    string id;
+    string debt_id;
+    f64 amount;
+    string? note;
+    // "payment", "opening", or "adjustment" when the remaining amount was typed over by hand.
+    string kind;
+    string occurred_at;
+};
+
 dictionary MonthSummary {
     f64 total_income;
     f64 total_expenses;
@@ -197,7 +219,13 @@ interface LedgerDb {
     SavingsGoal create_goal(string name, f64 target_amount, string? deadline);
 
     [Throws=LedgerError]
-    SavingsGoal add_contribution(string goal_id, f64 amount);
+    sequence<GoalContribution> list_goal_contributions(string goal_id);
+
+    [Throws=LedgerError]
+    SavingsGoal add_contribution(string goal_id, f64 amount, string? note, string? occurred_at);
+
+    [Throws=LedgerError]
+    SavingsGoal delete_contribution(string id);
 
     [Throws=LedgerError]
     SavingsGoal update_goal(string id, string name, f64 target_amount, string? deadline);
@@ -251,6 +279,15 @@ interface LedgerDb {
 
     [Throws=LedgerError]
     void delete_debt(string id);
+
+    [Throws=LedgerError]
+    sequence<DebtPayment> list_debt_payments(string debt_id);
+
+    [Throws=LedgerError]
+    Debt add_debt_payment(string debt_id, f64 amount, string? note, string? occurred_at);
+
+    [Throws=LedgerError]
+    Debt delete_debt_payment(string id);
 
     // ── Recurring Transactions ────────────────────────────────────────────────
     [Throws=LedgerError]

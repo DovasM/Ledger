@@ -20,6 +20,10 @@ abstract class LedgerWidgetReceiver : GlanceAppWidgetReceiver() {
         appWidgetIds: IntArray
     ) {
         super.onUpdate(context, appWidgetManager, appWidgetIds)
+        // goAsync() hands out the pending result once and nulls it, and GlanceAppWidgetReceiver has
+        // usually claimed it already by the time super.onUpdate returns. Calling finish() on that
+        // null crashed the whole app process on every widget update — the type is platform-typed,
+        // so Kotlin did not force the check.
         val pending = goAsync()
         CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
             try {
@@ -29,7 +33,7 @@ abstract class LedgerWidgetReceiver : GlanceAppWidgetReceiver() {
                     .refresh()
             } catch (_: Exception) {
             } finally {
-                pending.finish()
+                pending?.finish()
             }
         }
     }

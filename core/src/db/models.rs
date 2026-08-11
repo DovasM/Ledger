@@ -108,3 +108,23 @@ pub struct PriceAlertRow {
     pub active: bool,
     pub created_at: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GoalContributionRow {
+    pub id: String,
+    pub goal_id: String,
+    pub amount: f64,
+    pub note: Option<String>,
+    pub kind: String,
+    pub occurred_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct DebtPaymentRow {
+    pub id: String,
+    pub debt_id: String,
+    pub amount: f64,
+    pub note: Option<String>,
+    pub kind: String,
+    pub occurred_at: String,
+}

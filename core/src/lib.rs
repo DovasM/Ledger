@@ -11,7 +11,7 @@ pub fn llama_create(model_path: String, n_ctx: u32) -> Result<Arc<LlamaEngine>, 
 
 use db::open_pool;
 use db::models::{
-    TransactionRow, WalletRow, TransferRow, SavingsGoalRow,
+    TransactionRow, WalletRow, TransferRow, SavingsGoalRow, GoalContributionRow, DebtPaymentRow,
     CategoryRow, BudgetRow, DebtRow, RecurringTransactionRow, TagRow, PriceAlertRow,
 };
 use sqlx::SqlitePool;
@@ -76,6 +76,28 @@ pub struct SavingsGoal {
     pub target_amount: f64,
     pub deadline: Option<String>,
     pub created_at: String,
+}
+
+pub struct GoalContribution {
+    pub id: String,
+    pub goal_id: String,
+    pub amount: f64,
+    pub note: Option<String>,
+    // "contribution" for money the user put in, "opening" for the single row m7 wrote to carry the
+    // balance that existed before contributions were itemised.
+    pub kind: String,
+    pub occurred_at: String,
+}
+
+pub struct DebtPayment {
+    pub id: String,
+    pub debt_id: String,
+    pub amount: f64,
+    pub note: Option<String>,
+    // "payment", "opening", or "adjustment" — the last one is written when the remaining amount is
+    // typed over directly, so the total still reconciles against the history.
+    pub kind: String,
+    pub occurred_at: String,
 }
 
 pub struct MonthSummary {
@@ -432,7 +454,7 @@ impl LedgerDb {
     pub fn list_goals(&self) -> Result<Vec<SavingsGoal>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, SavingsGoalRow>(
-                "SELECT id, name, current_amount, target_amount, deadline, created_at FROM savings_goals ORDER BY created_at ASC"
+                &format!("{GOAL_SELECT} ORDER BY g.created_at ASC")
             )
             .fetch_all(&self.pool).await?;
             Ok(rows.into_iter().map(row_to_goal).collect())
@@ -446,32 +468,56 @@ impl LedgerDb {
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
             sqlx::query(
-                "INSERT INTO savings_goals (id, name, current_amount, target_amount, deadline, created_at) VALUES (?,?,0.0,?,?,?)"
+                "INSERT INTO savings_goals (id, name, target_amount, deadline, created_at) VALUES (?,?,?,?,?)"
             )
             .bind(&id).bind(&name).bind(target_amount).bind(&deadline).bind(&now)
             .execute(&self.pool).await?;
 
-            let row = sqlx::query_as::<_, SavingsGoalRow>(
-                "SELECT id, name, current_amount, target_amount, deadline, created_at FROM savings_goals WHERE id=?"
-            )
-            .bind(&id).fetch_one(&self.pool).await?;
-            Ok(row_to_goal(row))
+            self.goal_by_id(&id).await
         })
     }
 
-    pub fn add_contribution(&self, goal_id: String, amount: f64) -> Result<SavingsGoal, LedgerError> {
+    pub fn list_goal_contributions(&self, goal_id: String) -> Result<Vec<GoalContribution>, LedgerError> {
+        self.rt.block_on(async {
+            let rows = sqlx::query_as::<_, GoalContributionRow>(
+                &format!("SELECT id, goal_id, amount, note, kind, occurred_at FROM goal_contributions WHERE goal_id = ? {HISTORY_ORDER}")
+            )
+            .bind(&goal_id).fetch_all(&self.pool).await?;
+            Ok(rows.into_iter().map(row_to_contribution).collect())
+        })
+    }
+
+    pub fn add_contribution(&self, goal_id: String, amount: f64, note: Option<String>, occurred_at: Option<String>) -> Result<SavingsGoal, LedgerError> {
         if amount <= 0.0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
         self.rt.block_on(async {
-            sqlx::query("UPDATE savings_goals SET current_amount = current_amount + ? WHERE id=?")
-                .bind(amount).bind(&goal_id)
-                .execute(&self.pool).await?;
+            let (exists,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM savings_goals WHERE id=?")
+                .bind(&goal_id).fetch_one(&self.pool).await?;
+            if exists == 0 { return Err(LedgerError::NotFound); }
 
-            let row = sqlx::query_as::<_, SavingsGoalRow>(
-                "SELECT id, name, current_amount, target_amount, deadline, created_at FROM savings_goals WHERE id=?"
+            let now = Utc::now().to_rfc3339();
+            sqlx::query(
+                "INSERT INTO goal_contributions (id, goal_id, amount, note, kind, occurred_at, created_at) VALUES (?,?,?,?,'contribution',?,?)"
             )
-            .bind(&goal_id).fetch_optional(&self.pool).await?
-            .ok_or(LedgerError::NotFound)?;
-            Ok(row_to_goal(row))
+            .bind(Uuid::new_v4().to_string()).bind(&goal_id).bind(amount).bind(&note)
+            .bind(occurred_at.unwrap_or_else(|| now.clone())).bind(&now)
+            .execute(&self.pool).await?;
+
+            self.goal_by_id(&goal_id).await
+        })
+    }
+
+    /// Removing a contribution is how a mistyped one gets fixed. Before the history existed the
+    /// only remedy was to type over the total, which lost the record of what really went in.
+    pub fn delete_contribution(&self, id: String) -> Result<SavingsGoal, LedgerError> {
+        self.rt.block_on(async {
+            let goal_id: Option<(String,)> = sqlx::query_as("SELECT goal_id FROM goal_contributions WHERE id=?")
+                .bind(&id).fetch_optional(&self.pool).await?;
+            let (goal_id,) = goal_id.ok_or(LedgerError::NotFound)?;
+
+            sqlx::query("DELETE FROM goal_contributions WHERE id=?")
+                .bind(&id).execute(&self.pool).await?;
+
+            self.goal_by_id(&goal_id).await
         })
     }
 
@@ -482,16 +528,26 @@ impl LedgerDb {
             sqlx::query("UPDATE savings_goals SET name=?, target_amount=?, deadline=? WHERE id=?")
                 .bind(&name).bind(target_amount).bind(&deadline).bind(&id)
                 .execute(&self.pool).await?;
-            let row = sqlx::query_as::<_, SavingsGoalRow>(
-                "SELECT id, name, current_amount, target_amount, deadline, created_at FROM savings_goals WHERE id=?"
-            ).bind(&id).fetch_one(&self.pool).await?;
-            Ok(row_to_goal(row))
+            self.goal_by_id(&id).await
         })
+    }
+
+    async fn goal_by_id(&self, id: &str) -> Result<SavingsGoal, LedgerError> {
+        let row = sqlx::query_as::<_, SavingsGoalRow>(&format!("{GOAL_SELECT} WHERE g.id = ?"))
+            .bind(id).fetch_optional(&self.pool).await?
+            .ok_or(LedgerError::NotFound)?;
+        Ok(row_to_goal(row))
     }
 
     pub fn delete_goal(&self, id: String) -> Result<(), LedgerError> {
         self.rt.block_on(async {
-            sqlx::query("DELETE FROM savings_goals WHERE id=?").bind(&id).execute(&self.pool).await?;
+            // The foreign key declaration does nothing without PRAGMA foreign_keys=ON, which this
+            // pool does not set, so the contributions have to be removed here or they outlive the
+            // goal and are unreachable forever.
+            let mut tx = self.pool.begin().await?;
+            sqlx::query("DELETE FROM goal_contributions WHERE goal_id=?").bind(&id).execute(&mut *tx).await?;
+            sqlx::query("DELETE FROM savings_goals WHERE id=?").bind(&id).execute(&mut *tx).await?;
+            tx.commit().await?;
             Ok(())
         })
     }
@@ -681,10 +737,8 @@ impl LedgerDb {
 
     pub fn list_debts(&self) -> Result<Vec<Debt>, LedgerError> {
         self.rt.block_on(async {
-            let rows = sqlx::query_as::<_, DebtRow>(
-                "SELECT id, name, debt_type, total_amount, remaining_amount, apr, monthly_payment, created_at FROM debts ORDER BY created_at ASC"
-            )
-            .fetch_all(&self.pool).await?;
+            let rows = sqlx::query_as::<_, DebtRow>(&format!("{DEBT_SELECT} ORDER BY d.created_at ASC"))
+                .fetch_all(&self.pool).await?;
             Ok(rows.into_iter().map(row_to_debt).collect())
         })
     }
@@ -696,39 +750,117 @@ impl LedgerDb {
         self.rt.block_on(async {
             let id = Uuid::new_v4().to_string();
             let now = Utc::now().to_rfc3339();
+            let mut tx = self.pool.begin().await?;
             sqlx::query(
-                "INSERT INTO debts (id, name, debt_type, total_amount, remaining_amount, apr, monthly_payment, created_at) VALUES (?,?,?,?,?,?,?,?)"
+                "INSERT INTO debts (id, name, debt_type, total_amount, apr, monthly_payment, created_at) VALUES (?,?,?,?,?,?,?)"
             )
-            .bind(&id).bind(&name).bind(&debt_type).bind(total_amount).bind(remaining_amount).bind(apr).bind(monthly_payment).bind(&now)
+            .bind(&id).bind(&name).bind(&debt_type).bind(total_amount).bind(apr).bind(monthly_payment).bind(&now)
+            .execute(&mut *tx).await?;
+
+            // "I owe 3400 of an original 5000" is the normal way to enter an existing debt. The
+            // 1600 already paid is real and has to be recorded, or the derived remaining would
+            // report the full 5000.
+            let already_paid = total_amount - remaining_amount;
+            if already_paid > 0.0 {
+                sqlx::query(
+                    "INSERT INTO debt_payments (id, debt_id, amount, note, kind, occurred_at, created_at) VALUES (?,?,?,?,'opening',?,?)"
+                )
+                .bind(Uuid::new_v4().to_string()).bind(&id).bind(already_paid)
+                .bind("Paid before this debt was tracked").bind(&now).bind(&now)
+                .execute(&mut *tx).await?;
+            }
+            tx.commit().await?;
+
+            self.debt_by_id(&id).await
+        })
+    }
+
+    pub fn list_debt_payments(&self, debt_id: String) -> Result<Vec<DebtPayment>, LedgerError> {
+        self.rt.block_on(async {
+            let rows = sqlx::query_as::<_, DebtPaymentRow>(
+                &format!("SELECT id, debt_id, amount, note, kind, occurred_at FROM debt_payments WHERE debt_id = ? {HISTORY_ORDER}")
+            )
+            .bind(&debt_id).fetch_all(&self.pool).await?;
+            Ok(rows.into_iter().map(row_to_payment).collect())
+        })
+    }
+
+    pub fn add_debt_payment(&self, debt_id: String, amount: f64, note: Option<String>, occurred_at: Option<String>) -> Result<Debt, LedgerError> {
+        if amount <= 0.0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
+        self.rt.block_on(async {
+            let (exists,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM debts WHERE id=?")
+                .bind(&debt_id).fetch_one(&self.pool).await?;
+            if exists == 0 { return Err(LedgerError::NotFound); }
+
+            let now = Utc::now().to_rfc3339();
+            sqlx::query(
+                "INSERT INTO debt_payments (id, debt_id, amount, note, kind, occurred_at, created_at) VALUES (?,?,?,?,'payment',?,?)"
+            )
+            .bind(Uuid::new_v4().to_string()).bind(&debt_id).bind(amount).bind(&note)
+            .bind(occurred_at.unwrap_or_else(|| now.clone())).bind(&now)
             .execute(&self.pool).await?;
 
-            let row = sqlx::query_as::<_, DebtRow>(
-                "SELECT id, name, debt_type, total_amount, remaining_amount, apr, monthly_payment, created_at FROM debts WHERE id=?"
-            )
-            .bind(&id).fetch_one(&self.pool).await?;
-            Ok(row_to_debt(row))
+            self.debt_by_id(&debt_id).await
+        })
+    }
+
+    pub fn delete_debt_payment(&self, id: String) -> Result<Debt, LedgerError> {
+        self.rt.block_on(async {
+            let debt_id: Option<(String,)> = sqlx::query_as("SELECT debt_id FROM debt_payments WHERE id=?")
+                .bind(&id).fetch_optional(&self.pool).await?;
+            let (debt_id,) = debt_id.ok_or(LedgerError::NotFound)?;
+
+            sqlx::query("DELETE FROM debt_payments WHERE id=?").bind(&id).execute(&self.pool).await?;
+
+            self.debt_by_id(&debt_id).await
         })
     }
 
     pub fn update_debt(&self, id: String, name: String, debt_type: String, total_amount: f64, remaining_amount: f64, apr: f64, monthly_payment: f64) -> Result<Debt, LedgerError> {
         if name.is_empty() { return Err(LedgerError::InvalidInput("name is required".into())); }
         self.rt.block_on(async {
-            sqlx::query("UPDATE debts SET name=?, debt_type=?, total_amount=?, remaining_amount=?, apr=?, monthly_payment=? WHERE id=?")
-                .bind(&name).bind(&debt_type).bind(total_amount).bind(remaining_amount).bind(apr).bind(monthly_payment).bind(&id)
-                .execute(&self.pool).await?;
+            let mut tx = self.pool.begin().await?;
+            let changed = sqlx::query("UPDATE debts SET name=?, debt_type=?, total_amount=?, apr=?, monthly_payment=? WHERE id=?")
+                .bind(&name).bind(&debt_type).bind(total_amount).bind(apr).bind(monthly_payment).bind(&id)
+                .execute(&mut *tx).await?;
+            if changed.rows_affected() == 0 { return Err(LedgerError::NotFound); }
 
-            let row = sqlx::query_as::<_, DebtRow>(
-                "SELECT id, name, debt_type, total_amount, remaining_amount, apr, monthly_payment, created_at FROM debts WHERE id=?"
-            )
-            .bind(&id).fetch_optional(&self.pool).await?
-            .ok_or(LedgerError::NotFound)?;
-            Ok(row_to_debt(row))
+            // The edit screen still lets the remaining amount be typed over directly. It is no
+            // longer a column, so honouring that means writing the difference as an adjustment —
+            // the number the user asked for, with the history still adding up to it.
+            let (paid,): (f64,) = sqlx::query_as(
+                "SELECT COALESCE(SUM(amount), 0.0) FROM debt_payments WHERE debt_id=?"
+            ).bind(&id).fetch_one(&mut *tx).await?;
+            let delta = (total_amount - remaining_amount) - paid;
+            if delta.abs() > 0.005 {
+                let now = Utc::now().to_rfc3339();
+                sqlx::query(
+                    "INSERT INTO debt_payments (id, debt_id, amount, note, kind, occurred_at, created_at) VALUES (?,?,?,?,'adjustment',?,?)"
+                )
+                .bind(Uuid::new_v4().to_string()).bind(&id).bind(delta)
+                .bind("Remaining amount corrected by hand").bind(&now).bind(&now)
+                .execute(&mut *tx).await?;
+            }
+            tx.commit().await?;
+
+            self.debt_by_id(&id).await
         })
+    }
+
+    async fn debt_by_id(&self, id: &str) -> Result<Debt, LedgerError> {
+        let row = sqlx::query_as::<_, DebtRow>(&format!("{DEBT_SELECT} WHERE d.id = ?"))
+            .bind(id).fetch_optional(&self.pool).await?
+            .ok_or(LedgerError::NotFound)?;
+        Ok(row_to_debt(row))
     }
 
     pub fn delete_debt(&self, id: String) -> Result<(), LedgerError> {
         self.rt.block_on(async {
-            sqlx::query("DELETE FROM debts WHERE id=?").bind(&id).execute(&self.pool).await?;
+            // Same inert foreign key as everywhere else in this schema.
+            let mut tx = self.pool.begin().await?;
+            sqlx::query("DELETE FROM debt_payments WHERE debt_id=?").bind(&id).execute(&mut *tx).await?;
+            sqlx::query("DELETE FROM debts WHERE id=?").bind(&id).execute(&mut *tx).await?;
+            tx.commit().await?;
             Ok(())
         })
     }
@@ -936,6 +1068,23 @@ const TX_SELECT: &str = "SELECT t.id, t.wallet_id, t.title, \
 // didn't save it". Never order by `occurred_at` alone.
 const TX_ORDER: &str = "ORDER BY COALESCE(t.occurred_at, t.created_at) DESC, t.created_at DESC, t.id DESC";
 
+// current_amount and remaining_amount are no longer columns. They are summed from the history on
+// every read, which costs nothing at these row counts and removes the second source of truth that
+// let wallets.balance drift twice.
+const GOAL_SELECT: &str = "SELECT g.id, g.name, \
+     COALESCE((SELECT SUM(amount) FROM goal_contributions WHERE goal_id = g.id), 0.0) AS current_amount, \
+     g.target_amount, g.deadline, g.created_at \
+     FROM savings_goals g";
+
+const DEBT_SELECT: &str = "SELECT d.id, d.name, d.debt_type, d.total_amount, \
+     d.total_amount - COALESCE((SELECT SUM(amount) FROM debt_payments WHERE debt_id = d.id), 0.0) AS remaining_amount, \
+     d.apr, d.monthly_payment, d.created_at \
+     FROM debts d";
+
+// Same reasoning as TX_ORDER: occurred_at is a date, so entries made on one day tie and a
+// just-added one would surface in an arbitrary position in its own history.
+const HISTORY_ORDER: &str = "ORDER BY occurred_at DESC, created_at DESC, id DESC";
+
 // Recurring transactions had the same name-only storage, so a rename skipped them too.
 const RECURRING_SELECT: &str = "SELECT r.id, r.title, r.amount, \
      COALESCE(c.name, r.category) AS category, \
@@ -1001,6 +1150,14 @@ fn row_to_transfer(r: TransferRow) -> Transfer {
 
 fn row_to_goal(r: SavingsGoalRow) -> SavingsGoal {
     SavingsGoal { id: r.id, name: r.name, current_amount: r.current_amount, target_amount: r.target_amount, deadline: r.deadline, created_at: r.created_at }
+}
+
+fn row_to_contribution(r: GoalContributionRow) -> GoalContribution {
+    GoalContribution { id: r.id, goal_id: r.goal_id, amount: r.amount, note: r.note, kind: r.kind, occurred_at: r.occurred_at }
+}
+
+fn row_to_payment(r: DebtPaymentRow) -> DebtPayment {
+    DebtPayment { id: r.id, debt_id: r.debt_id, amount: r.amount, note: r.note, kind: r.kind, occurred_at: r.occurred_at }
 }
 
 fn row_to_category(r: CategoryRow) -> Category {

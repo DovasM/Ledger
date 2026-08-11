@@ -9,11 +9,14 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import uniffi.ledger.GoalContribution
 import uniffi.ledger.SavingsGoal
 import javax.inject.Inject
 
 data class GoalUiState(
     val goals: List<SavingsGoal> = emptyList(),
+    // Keyed by goal id and loaded on demand, so opening one goal does not read every goal's history.
+    val contributions: Map<String, List<GoalContribution>> = emptyMap(),
     val isLoading: Boolean = false,
     val error: String? = null
 )
@@ -64,12 +67,37 @@ class GoalViewModel @Inject constructor(
         }
     }
 
-    fun addContribution(goalId: String, amount: Double, onSuccess: () -> Unit = {}) {
+    fun addContribution(goalId: String, amount: Double, note: String? = null, occurredAt: String? = null, onSuccess: () -> Unit = {}) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
-                bridge.addContribution(goalId, amount)
+                bridge.addContribution(goalId, amount, note, occurredAt)
                 load()
+                loadContributions(goalId)
                 launch(Dispatchers.Main) { onSuccess() }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message)
+            }
+        }
+    }
+
+    fun loadContributions(goalId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val rows = bridge.listGoalContributions(goalId)
+                _state.value = _state.value.copy(contributions = _state.value.contributions + (goalId to rows))
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message)
+            }
+        }
+    }
+
+    /** Removing a mistyped contribution is the whole reason the history exists. */
+    fun deleteContribution(id: String, goalId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                bridge.deleteContribution(id)
+                load()
+                loadContributions(goalId)
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message)
             }

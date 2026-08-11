@@ -27,7 +27,9 @@ interface ILedgerBridge {
     fun listGoals(): List<SavingsGoal>
     fun createGoal(name: String, targetAmount: Double, deadline: String?): SavingsGoal
     fun updateGoal(id: String, name: String, targetAmount: Double, deadline: String?): SavingsGoal
-    fun addContribution(goalId: String, amount: Double): SavingsGoal
+    fun addContribution(goalId: String, amount: Double, note: String? = null, occurredAt: String? = null): SavingsGoal
+    fun listGoalContributions(goalId: String): List<GoalContribution>
+    fun deleteContribution(id: String): SavingsGoal
     fun deleteGoal(id: String)
 
     // ── Recurring Transactions ────────────────────────────────────────────────
@@ -58,6 +60,9 @@ interface ILedgerBridge {
     fun createDebt(name: String, debtType: String, totalAmount: Double, remainingAmount: Double, apr: Double, monthlyPayment: Double): Debt
     fun updateDebt(id: String, name: String, debtType: String, totalAmount: Double, remainingAmount: Double, apr: Double, monthlyPayment: Double): Debt
     fun deleteDebt(id: String)
+    fun listDebtPayments(debtId: String): List<DebtPayment>
+    fun addDebtPayment(debtId: String, amount: Double, note: String? = null, occurredAt: String? = null): Debt
+    fun deleteDebtPayment(id: String): Debt
 
     // ── Tags ──────────────────────────────────────────────────────────────────
     fun listTags(): List<Tag>
