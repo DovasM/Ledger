@@ -905,6 +905,34 @@ On the Android side the file goes through the Storage Access Framework, because 
 app-private storage disappears with the app. `BackupRepository` stages through the cache directory
 in both directions, since Rust works in paths and SAF works in `content://` URIs.
 
+### Automatic backups
+
+`AutoBackupWorker` is a daily `PeriodicWorkRequest`, the app's only use of WorkManager. It reaches
+Hilt through an entry point rather than `@HiltWorker`, the same way the widgets do — that avoids
+adding hilt-work and a custom Application configuration for one worker.
+
+The destination is a folder the user grants **persistable** access to
+(`ACTION_OPEN_DOCUMENT_TREE` + `takePersistableUriPermission`). Without taking the permission the
+grant dies at the next reboot and the daily backup stops silently, which is the worst way for a
+backup to fail. Files are created through `DocumentsContract` directly, so no `documentfile`
+dependency is needed.
+
+**Pruning is the dangerous part and lives in `BackupRetention`, away from anything Android.** The
+folder may well be Documents, with years of the user's own files in it, and the app has write access
+to all of it. So the decision about what to delete is a pure function over file names, tested on its
+own: it filters to `ledger-backup-YYYY-MM-DD[-HHMMSS].ledgerdb` **before** the keep-count is
+applied, and a `keep` of zero or less deletes nothing rather than everything. Anything not matching
+that exact pattern — including `my-ledger-backup-…` and `….ledgerdb.bak` — is somebody else's file
+and is never a candidate.
+
+The names are most-significant-first, so sorting them as text sorts them by time; that is the only
+reason the pruning can be this simple, and there is a test asserting it stays true.
+
+A failed run returns `Result.retry()` rather than failing outright: the folder may simply be
+unavailable right now — an SD card removed, a cloud provider signed out. The last result, good or
+bad, is written to preferences and shown on the backup screen, because a backup that has been
+quietly failing for a month is worse than no backup at all.
+
 ### Derived totals: wallet balance, goal balance, debt remaining
 
 `Wallet.balance_cents` is **not a column**. `m9` replaced it with `opening_balance_cents` and the

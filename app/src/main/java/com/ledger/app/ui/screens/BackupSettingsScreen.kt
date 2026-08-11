@@ -12,6 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -33,6 +34,17 @@ fun BackupSettingsScreen(
     viewModel: BackupViewModel = hiltViewModel()
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+
+    val autoEnabled by viewModel.autoEnabled.collectAsStateWithLifecycle(initialValue = false)
+    val autoFolder by viewModel.autoFolder.collectAsStateWithLifecycle(initialValue = "")
+    val autoKeep by viewModel.autoKeep.collectAsStateWithLifecycle(initialValue = "7")
+    val autoLastAt by viewModel.autoLastAt.collectAsStateWithLifecycle(initialValue = "")
+    val autoLastError by viewModel.autoLastError.collectAsStateWithLifecycle(initialValue = "")
+
+    val folderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree()
+    ) { uri -> uri?.let { viewModel.setAutoFolder(context, it) } }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/octet-stream")
@@ -129,6 +141,79 @@ fun BackupSettingsScreen(
             }
 
             LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Back up automatically", style = MaterialTheme.typography.titleMedium, color = OnSurface)
+                            Text(
+                                "Once a day, into a folder you choose. A backup you have to remember to take is one you will not have.",
+                                style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                            )
+                        }
+                        Switch(
+                            checked = autoEnabled,
+                            onCheckedChange = { viewModel.setAutoEnabled(context, it) }
+                        )
+                    }
+
+                    HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
+
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Folder", style = MaterialTheme.typography.bodyMedium, color = OnSurface)
+                            Text(
+                                if (autoFolder.isBlank()) "Not chosen yet" else prettyFolder(autoFolder),
+                                style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                            )
+                        }
+                        TextButton(onClick = { folderLauncher.launch(null) }) {
+                            Text(if (autoFolder.isBlank()) "Choose" else "Change", color = Primary)
+                        }
+                    }
+
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Keep the most recent", style = MaterialTheme.typography.bodyMedium, color = OnSurface)
+                            Text(
+                                "Older ones this app wrote are removed. Nothing else in the folder is touched.",
+                                style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                            )
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            listOf("3", "7", "30").forEach { option ->
+                                FilterChip(
+                                    selected = autoKeep == option,
+                                    onClick = { viewModel.setAutoKeep(option) },
+                                    label = { Text(option, style = MaterialTheme.typography.labelSmall) },
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = Primary, selectedLabelColor = OnPrimary
+                                    )
+                                )
+                            }
+                        }
+                    }
+
+                    if (autoLastAt.isNotBlank() || autoLastError.isNotBlank()) {
+                        HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Icon(
+                                if (autoLastError.isBlank()) Icons.Filled.CheckCircle else Icons.Filled.ErrorOutline,
+                                null,
+                                tint = if (autoLastError.isBlank()) Primary else Tertiary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                if (autoLastError.isBlank()) "Last backup ${autoLastAt.take(16).replace('T', ' ')}"
+                                else autoLastError,
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (autoLastError.isBlank()) OnSurfaceVariant else Tertiary
+                            )
+                        }
+                    }
+                }
+            }
+
+            LedgerCard(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text("Restore from a backup", style = MaterialTheme.typography.titleMedium, color = OnSurface)
                     Text(
@@ -188,6 +273,10 @@ fun BackupSettingsScreen(
         }
     }
 }
+
+/** A tree URI is unreadable as-is; show the part a person can recognise. */
+private fun prettyFolder(uri: String): String =
+    java.net.URLDecoder.decode(uri, "UTF-8").substringAfterLast(':').ifBlank { uri }
 
 /** The bump this build writes; an older number on a file means it needs migrating on the way in. */
 private const val CURRENT_BACKUP_FORMAT = 9

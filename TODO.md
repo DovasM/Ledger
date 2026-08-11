@@ -198,6 +198,14 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 
 ## Automatic Backups
 
+- [x] **Automatic daily backups** — `AutoBackupWorker`, a daily WorkManager job into a folder the user grants
+  persistable access to; without taking that permission the grant would die at the next reboot and the backup
+  would stop silently. Keeps the 3, 7 or 30 most recent and prunes the rest. The pruning decision lives in
+  `BackupRetention` as a pure function precisely because it is the dangerous part: the folder may be Documents
+  with years of the user's own files in it, so it filters to this app's exact naming *before* applying the count,
+  and a keep-count of zero deletes nothing rather than everything. 9 tests on that alone. A failed run retries
+  rather than giving up — the folder may be temporarily unavailable — and the last result is shown on the screen,
+  because a backup silently failing for a month is worse than none
 - [x] **Backup, restore and the screen for them** — `backup_database` writes a snapshot with SQLite's own
   `VACUUM INTO`, so it is complete and non-torn without stopping the app. `restore_backup` **migrates the file
   forward first**: the app is still changing shape, so restoring a backup written two schema versions ago is the
@@ -210,7 +218,7 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 
 
 - [x] **Local backup** — export full Room database as a `.ledgerbackup` file (JSON or binary) on a schedule (daily/weekly) using WorkManager; store in app-scoped external storage
-- [ ] **Google Drive / cloud backup** — optional upload of backup file to user's Drive via Google Drive API
+- [ ] **Google Drive / cloud backup** — the daily job already writes to any folder the system picker offers, which includes a Drive or OneDrive folder if that provider is installed. A dedicated integration would only add sign-in and quota handling. Original note: — optional upload of backup file to user's Drive via Google Drive API
 - [x] **Restore from backup** — UI flow in Settings to pick a `.ledgerbackup` file and restore (with confirmation warning that current data will be replaced)
 - [x] **Backup settings screen** — frequency (daily/weekly/manual), last backup time, cloud on/off toggle; wire to `BackupSettingsScreen` or add section to existing SettingsScreen
 
