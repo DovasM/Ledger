@@ -848,6 +848,13 @@ before `m8` converted them.
   `String.toCentsOrNull()` on the way in. That parse is the single rounding step in the system.
 - **`Long.asUnits`** is a *view* for ratios, averages, trends and chart scales, where a real number
   is the honest type. Never add money with it and never store its result.
+- **Rounding is HALF_UP through `BigDecimal`, not `kotlin.math.round`.** Kotlin's `round` takes ties
+  to even, so 12.345 became 12.34 — a rule nobody typing an amount expects. `BigDecimal.valueOf`
+  also rounds the decimal the user typed rather than its binary approximation, which matters because
+  12.345 is really 12.34499999999999886 as a `Double`.
+- **A trailing currency symbol is preceded by a non-breaking space**, and number format 2 groups
+  with one too, so an amount can never be split across two lines. `MoneyFormatTest` asserts the
+  U+00A0 explicitly — a plain space looks identical and would pass review unnoticed.
 
 Where the exactness has to hold end to end — `StreakCalculator` (the daily allowance), `CsvExport`,
 `WidgetUpdater` and the widget snapshot — the value stays `Long` cents the whole way and is
@@ -861,7 +868,12 @@ in `Double`, which is what those screens actually mean.
    `'%[,.0-9]*f"\.format(' ` for arguments that are cents.
 2. **Integer division compiles.** `(spent / limit).toFloat()` on two `Long`s yields 0 or 1 and
    nothing in between — it had already silently flattened a budget progress bar. Grep for `Cents`
-   either side of a `/`. `StreakCalculator`'s two integer divisions are deliberate and commented:
+   either side of a `/`.
+
+Both greps miss the case where the money is held in a plainly-named local. `CsvExport` had
+`val income = ….sumOf { it.amountCents }` and then `net / income * 100`, which is both traps at once
+— and every CSV export threw `IllegalFormatConversionException: f != java.lang.Long` because of it.
+When a money type changes, check the *locals* too, not only the fields. `StreakCalculator`'s two integer divisions are deliberate and commented:
    the daily share is whole cents and rounding down is the conservative direction.
 
 `m8` converts with `CAST(ROUND(x * 100) AS INTEGER)`. The `ROUND` is load-bearing: `0.29 * 100` is

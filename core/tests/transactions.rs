@@ -351,3 +351,117 @@ fn editing_one_of_many_transactions_leaves_the_rest_untouched() {
     assert_eq!(rows.len(), 3);
     assert_eq!(rows.iter().find(|r| r.title == "b").unwrap().amount_cents, 2_000);
 }
+
+/// Two wallets used on the same day keep separate balances.
+#[test]
+fn wallets_keep_their_own_balances() {
+    let t = TestDb::new();
+    let a = t.db.create_wallet("A".into(), String::new(), "EUR".into(), 50_000, false).unwrap().id;
+    let b = t.db.create_wallet("B".into(), String::new(), "EUR".into(), 20_000, false).unwrap().id;
+
+    t.db.create_transaction(a.clone(), "a1".into(), "Groceries".into(), 1_000, false, None, day("2026-03-05")).unwrap();
+    t.db.create_transaction(a.clone(), "a2".into(), "Groceries".into(), 2_000, false, None, day("2026-03-05")).unwrap();
+    t.db.create_transaction(b.clone(), "b1".into(), "Groceries".into(), 500, false, None, day("2026-03-05")).unwrap();
+    t.db.create_transaction(b.clone(), "b2".into(), "Salary".into(), 7_000, true, None, day("2026-03-05")).unwrap();
+
+    let bal = |id: &str| t.db.list_wallets().unwrap().into_iter().find(|x| x.id == id).unwrap().balance_cents;
+    assert_eq!(bal(&a), 50_000 - 3_000);
+    assert_eq!(bal(&b), 20_000 - 500 + 7_000);
+}
+
+/// Buying the same thing twice in one day is two transactions, not one that failed to save.
+#[test]
+fn identical_transactions_both_survive() {
+    let t = TestDb::new();
+    let w = t.db.create_wallet("Checking".into(), String::new(), "EUR".into(), 10_000, false).unwrap().id;
+
+    let first = t.db.create_transaction(w.clone(), "coffee".into(), "Cafe".into(), 250, false, None, day("2026-03-05")).unwrap();
+    let second = t.db.create_transaction(w, "coffee".into(), "Cafe".into(), 250, false, None, day("2026-03-05")).unwrap();
+
+    assert_ne!(first.id, second.id);
+    assert_eq!(t.db.list_all_transactions(10, 0).unwrap().len(), 2);
+    assert_eq!(t.db.list_wallets().unwrap()[0].balance_cents, 10_000 - 500);
+
+    // Deleting one leaves the other and takes exactly its own amount back off the balance.
+    t.db.delete_transaction(first.id).unwrap();
+    assert_eq!(t.db.list_all_transactions(10, 0).unwrap().len(), 1);
+    assert_eq!(t.db.list_wallets().unwrap()[0].balance_cents, 10_000 - 250);
+}
+
+/// Acting on a transaction that is not there is an error, not a silent no-op that looks like success.
+#[test]
+fn editing_a_transaction_that_does_not_exist_fails() {
+    let t = TestDb::new();
+    let missing = t.db.update_transaction(
+        "no-such-id".into(), "x".into(), "Groceries".into(), 100, false, None, None,
+    );
+    assert!(missing.is_err());
+}
+
+/// A year of transactions across every month: the totals hold and each month sees only its own.
+#[test]
+fn a_year_of_transactions_stays_consistent_month_by_month() {
+    let t = TestDb::new();
+    let w = t.db.create_wallet("Checking".into(), String::new(), "EUR".into(), 0, false).unwrap().id;
+
+    for month in 1..=12 {
+        for i in 0..5 {
+            t.db.create_transaction(
+                w.clone(),
+                format!("m{month} n{i}"),
+                "Groceries".into(),
+                100 * month as i64,
+                false,
+                None,
+                day(&format!("2026-{month:02}-1{i}")),
+            ).unwrap();
+        }
+    }
+
+    assert_eq!(t.db.list_all_transactions(1000, 0).unwrap().len(), 60);
+    for month in 1..=12 {
+        let m = t.db.get_month_summary(2026, month).unwrap();
+        assert_eq!(m.transaction_count, 5, "month {month}");
+        assert_eq!(m.total_expenses_cents, 5 * 100 * month as i64, "month {month}");
+    }
+
+    let total: i64 = (1..=12).map(|m: i64| 5 * 100 * m).sum();
+    assert_eq!(t.db.list_wallets().unwrap()[0].balance_cents, -total);
+
+    // Newest month first, and every page of the list is in the same order.
+    let listed = t.db.list_all_transactions(1000, 0).unwrap();
+    assert!(listed.first().unwrap().occurred_at.starts_with("2026-12"));
+    assert!(listed.last().unwrap().occurred_at.starts_with("2026-01"));
+}
+
+/// A transfer moves money between wallets; it is not income anywhere and not an expense anywhere.
+#[test]
+fn a_transfer_stays_out_of_the_month_summary() {
+    let t = TestDb::new();
+    let a = t.db.create_wallet("A".into(), String::new(), "EUR".into(), 50_000, false).unwrap().id;
+    let b = t.db.create_wallet("B".into(), String::new(), "EUR".into(), 0, false).unwrap().id;
+
+    t.db.create_transaction(a.clone(), "shopping".into(), "Groceries".into(), 2_000, false, None, day("2026-03-05")).unwrap();
+    t.db.create_transfer(a, b, 10_000, None, None).unwrap();
+
+    let m = t.db.get_month_summary(2026, 3).unwrap();
+    assert_eq!(m.total_expenses_cents, 2_000, "the transfer must not read as spending");
+    assert_eq!(m.total_income_cents, 0, "nor as income on the other side");
+    assert_eq!(m.transaction_count, 1);
+}
+
+/// Pins today's behaviour rather than assuming it: the month summary is database-wide and does not
+/// know about off-budget wallets. The reports exclude them through `forReports` in Kotlin instead.
+#[test]
+fn the_month_summary_counts_every_wallet_including_off_budget() {
+    let t = TestDb::new();
+    let personal = t.db.create_wallet("Personal".into(), String::new(), "EUR".into(), 0, false).unwrap().id;
+    let work = t.db.create_wallet("Work".into(), String::new(), "EUR".into(), 0, true).unwrap().id;
+
+    t.db.create_transaction(personal, "lunch".into(), "Groceries".into(), 1_000, false, None, day("2026-03-05")).unwrap();
+    t.db.create_transaction(work, "supplies".into(), "Groceries".into(), 90_000, false, None, day("2026-03-05")).unwrap();
+
+    let m = t.db.get_month_summary(2026, 3).unwrap();
+    assert_eq!(m.total_expenses_cents, 91_000);
+    assert_eq!(m.transaction_count, 2);
+}

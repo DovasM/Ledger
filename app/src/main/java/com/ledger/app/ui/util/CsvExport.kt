@@ -15,10 +15,13 @@ private const val AUTHORITY = "com.ledger.app.fileprovider"
 private fun String.csvField(): String =
     if (contains(',') || contains('"') || contains('\n')) "\"${replace("\"", "\"\"")}\"" else this
 
-private fun Double.currency() = "$%,.2f".format(this)
-
 // Money reaches here as integer cents; this is the one place the export turns them into a decimal.
-private fun Long.currency() = "$%,.2f".format(this / 100.0)
+// The sign goes before the symbol, the same way formatAmount writes it — "$%,.2f" on its own
+// produces "$-200.00", which is not how the rest of the app shows a negative figure.
+private fun Long.currency(): String {
+    val body = "$%,.2f".format(kotlin.math.abs(this) / 100.0)
+    return if (this < 0) "-$body" else body
+}
 
 /** Write [content] to cache/exports/[fileName], then return a share Intent. */
 fun shareCsv(context: Context, fileName: String, content: String): Intent {
@@ -44,7 +47,9 @@ fun buildMonthlyCsv(
     val income   = transactions.filter { it.isIncome }.sumOf { it.amountCents }
     val expenses = transactions.filter { !it.isIncome }.sumOf { it.amountCents }
     val net      = income - expenses
-    val savingsRate = if (income > 0) net / income * 100 else null
+    // Both sides are cent totals. Divided as Longs this is 0 for every month short of a perfect
+    // one, and "%.1f" throws outright on a Long — the two hazards the cents conversion left behind.
+    val savingsRate = if (income > 0) net.toDouble() / income * 100 else null
 
     val grouped = transactions.sortedByDescending { it.occurredAt }.groupBy { it.occurredAt.take(10) }
     val sortedDates = grouped.keys.sortedDescending()
@@ -119,7 +124,7 @@ fun buildQuarterlyCsv(
         appendLine("Income,${totalIncome.currency()}")
         appendLine("Expenses,${totalExpenses.currency()}")
         appendLine("Net,${totalNet.currency()}")
-        if (totalIncome > 0) appendLine("Savings Rate,${"%.1f".format(totalNet / totalIncome * 100)}%")
+        if (totalIncome > 0) appendLine("Savings Rate,${"%.1f".format(totalNet.toDouble() / totalIncome * 100)}%")
         appendLine("Transactions,${transactions.size}")
         appendLine()
 
@@ -134,7 +139,7 @@ fun buildQuarterlyCsv(
         appendLine("SPENDING BY CATEGORY")
         appendLine("Category,Amount,% of Expenses")
         categoryTotals.forEach { (cat, amt) ->
-            val pct = if (totalExpenses > 0) amt / totalExpenses * 100 else 0.0
+            val pct = if (totalExpenses > 0) amt.toDouble() / totalExpenses * 100 else 0.0
             appendLine("${cat.csvField()},${amt.currency()},${"%.1f".format(pct)}%")
         }
         appendLine()
@@ -150,7 +155,7 @@ fun buildQuarterlyCsv(
 // ── Net worth snapshot ────────────────────────────────────────────────────────
 
 fun buildNetWorthCsv(
-    totalAssets: Double, totalLiabilities: Double,
+    totalAssetsCents: Long, totalLiabilitiesCents: Long,
     wallets: List<uniffi.ledger.Wallet>,
     debts: List<uniffi.ledger.Debt>
 ): String {
@@ -160,9 +165,9 @@ fun buildNetWorthCsv(
         appendLine()
 
         appendLine("SUMMARY")
-        appendLine("Total Assets,${totalAssets.currency()}")
-        appendLine("Total Liabilities,${totalLiabilities.currency()}")
-        appendLine("Net Worth,${(totalAssets - totalLiabilities).currency()}")
+        appendLine("Total Assets,${totalAssetsCents.currency()}")
+        appendLine("Total Liabilities,${totalLiabilitiesCents.currency()}")
+        appendLine("Net Worth,${(totalAssetsCents - totalLiabilitiesCents).currency()}")
         appendLine()
 
         appendLine("ASSETS")
@@ -200,7 +205,7 @@ fun buildCustomCsv(
         appendLine("Income,${income.currency()}")
         appendLine("Expenses,${expenses.currency()}")
         appendLine("Net,${net.currency()}")
-        if (income > 0) appendLine("Savings Rate,${"%.1f".format(net / income * 100)}%")
+        if (income > 0) appendLine("Savings Rate,${"%.1f".format(net.toDouble() / income * 100)}%")
         appendLine("Transactions,${transactions.size}")
         appendLine()
 

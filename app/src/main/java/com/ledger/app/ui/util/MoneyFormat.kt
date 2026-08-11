@@ -62,10 +62,26 @@ val Long.asUnits: Double get() = this / 100.0
  * step in the whole system, and it happens once, at the edge, on a number a person entered — not
  * repeatedly in the middle of arithmetic, which is what the old Double storage was doing.
  */
-fun Double.toCents(): Long = kotlin.math.round(this * 100).toLong()
+fun Double.toCents(): Long =
+    // Not kotlin.math.round: that rounds halves to even, so 12.345 becomes 12.34 — a rule nobody
+    // typing an amount expects. HALF_UP rounds away from zero, matching both what a person means
+    // and the CAST(ROUND(x * 100)) that m8 used to convert the stored data.
+    //
+    // BigDecimal.valueOf goes through the shortest decimal representation ("12.345"), so the
+    // rounding is applied to the number that was typed rather than to the binary approximation of
+    // it — 12.345 is really 12.34499999999999886 in a Double, and rounding *that* gives 12.34.
+    java.math.BigDecimal.valueOf(this)
+        .movePointRight(2)
+        .setScale(0, java.math.RoundingMode.HALF_UP)
+        .toLong()
 
 /** Parses "12.34" (or "12,34") into cents, returning null when it is not a usable amount. */
-fun String.toCentsOrNull(): Long? = replace(',', '.').toDoubleOrNull()?.toCents()
+fun String.toCentsOrNull(): Long? = runCatching {
+    java.math.BigDecimal(trim().replace(',', '.'))
+        .movePointRight(2)
+        .setScale(0, java.math.RoundingMode.HALF_UP)
+        .toLong()
+}.getOrNull()
 
 fun formatAmount(
     amount: Double,
