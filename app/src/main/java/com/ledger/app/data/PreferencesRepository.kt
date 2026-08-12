@@ -29,6 +29,12 @@ class PreferencesRepository @Inject constructor(
         val KEY_HOME_TAB_INDEX     = intPreferencesKey("home_tab_index")
         val KEY_NUMBER_FORMAT      = intPreferencesKey("number_format_index")
         val KEY_DARK_MODE          = booleanPreferencesKey("dark_mode")
+        // Automatic backups
+        val KEY_AUTO_BACKUP        = booleanPreferencesKey("auto_backup")
+        val KEY_AUTO_BACKUP_FOLDER = stringPreferencesKey("auto_backup_folder")
+        val KEY_AUTO_BACKUP_KEEP   = stringPreferencesKey("auto_backup_keep")
+        val KEY_AUTO_BACKUP_AT     = stringPreferencesKey("auto_backup_last_at")
+        val KEY_AUTO_BACKUP_ERROR  = stringPreferencesKey("auto_backup_last_error")
         // Notifications
         val KEY_NOTIF_MASTER       = booleanPreferencesKey("notif_master")
         val KEY_NOTIF_BUDGET       = booleanPreferencesKey("notif_budget")
@@ -67,6 +73,14 @@ class PreferencesRepository @Inject constructor(
     val homeTabIndex: Flow<Int>       = ds.data.map { it[KEY_HOME_TAB_INDEX]     ?: 0 }
     val numberFormatIndex: Flow<Int>  = ds.data.map { it[KEY_NUMBER_FORMAT]      ?: 0 }
     val darkMode: Flow<Boolean>       = ds.data.map { it[KEY_DARK_MODE]          ?: false }
+
+    val autoBackup: Flow<Boolean>       = ds.data.map { it[KEY_AUTO_BACKUP]        ?: false }
+    /** The folder the user granted lasting write access to; empty until they pick one. */
+    val autoBackupFolder: Flow<String>  = ds.data.map { it[KEY_AUTO_BACKUP_FOLDER] ?: "" }
+    /** How many of our own backups to keep in that folder. Seven means a week of daily runs. */
+    val autoBackupKeep: Flow<String>    = ds.data.map { it[KEY_AUTO_BACKUP_KEEP]   ?: "7" }
+    val autoBackupAt: Flow<String>      = ds.data.map { it[KEY_AUTO_BACKUP_AT]     ?: "" }
+    val autoBackupError: Flow<String>   = ds.data.map { it[KEY_AUTO_BACKUP_ERROR]  ?: "" }
 
     val notifMaster: Flow<Boolean>    = ds.data.map { it[KEY_NOTIF_MASTER]       ?: true }
     val notifBudget: Flow<Boolean>    = ds.data.map { it[KEY_NOTIF_BUDGET]       ?: true }
@@ -110,6 +124,14 @@ class PreferencesRepository @Inject constructor(
     suspend fun setHomeTabIndex(value: Int)         = ds.edit { it[KEY_HOME_TAB_INDEX]     = value }
     suspend fun setNumberFormatIndex(value: Int)    = ds.edit { it[KEY_NUMBER_FORMAT]      = value }
     suspend fun setDarkMode(value: Boolean)         = ds.edit { it[KEY_DARK_MODE]          = value }
+
+    suspend fun setAutoBackup(value: Boolean)       = ds.edit { it[KEY_AUTO_BACKUP]        = value }
+    suspend fun setAutoBackupFolder(value: String)  = ds.edit { it[KEY_AUTO_BACKUP_FOLDER] = value }
+    suspend fun setAutoBackupKeep(value: String)    = ds.edit { it[KEY_AUTO_BACKUP_KEEP]   = value }
+    suspend fun setAutoBackupResult(at: String, error: String) = ds.edit {
+        it[KEY_AUTO_BACKUP_AT] = at
+        it[KEY_AUTO_BACKUP_ERROR] = error
+    }
 
     suspend fun setNotifMaster(value: Boolean)      = ds.edit { it[KEY_NOTIF_MASTER]       = value }
     suspend fun setNotifBudget(value: Boolean)      = ds.edit { it[KEY_NOTIF_BUDGET]       = value }

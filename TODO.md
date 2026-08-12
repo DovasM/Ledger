@@ -198,6 +198,14 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 
 ## Automatic Backups
 
+- [x] **Automatic daily backups** — `AutoBackupWorker`, a daily WorkManager job into a folder the user grants
+  persistable access to; without taking that permission the grant would die at the next reboot and the backup
+  would stop silently. Keeps the 3, 7 or 30 most recent and prunes the rest. The pruning decision lives in
+  `BackupRetention` as a pure function precisely because it is the dangerous part: the folder may be Documents
+  with years of the user's own files in it, so it filters to this app's exact naming *before* applying the count,
+  and a keep-count of zero deletes nothing rather than everything. 9 tests on that alone. A failed run retries
+  rather than giving up — the folder may be temporarily unavailable — and the last result is shown on the screen,
+  because a backup silently failing for a month is worse than none
 - [x] **Backup, restore and the screen for them** — `backup_database` writes a snapshot with SQLite's own
   `VACUUM INTO`, so it is complete and non-torn without stopping the app. `restore_backup` **migrates the file
   forward first**: the app is still changing shape, so restoring a backup written two schema versions ago is the
@@ -210,7 +218,7 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 
 
 - [x] **Local backup** — export full Room database as a `.ledgerbackup` file (JSON or binary) on a schedule (daily/weekly) using WorkManager; store in app-scoped external storage
-- [ ] **Google Drive / cloud backup** — optional upload of backup file to user's Drive via Google Drive API
+- [ ] **Google Drive / cloud backup** — the daily job already writes to any folder the system picker offers, which includes a Drive or OneDrive folder if that provider is installed. A dedicated integration would only add sign-in and quota handling. Original note: — optional upload of backup file to user's Drive via Google Drive API
 - [x] **Restore from backup** — UI flow in Settings to pick a `.ledgerbackup` file and restore (with confirmation warning that current data will be replaced)
 - [x] **Backup settings screen** — frequency (daily/weekly/manual), last backup time, cloud on/off toggle; wire to `BackupSettingsScreen` or add section to existing SettingsScreen
 
@@ -234,6 +242,17 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 - [x] **Budget progress bar was doing integer division** — found in the audit after the cents conversion, not by the compiler: `(spent / limit).toFloat()` on two Longs is 0 or 1 and never anything between. The exact class of bug the `*Cents` renaming was meant to force into the open
 - [x] **Goal contributions and debt payments are recorded, not just summed** — a goal stored only how much was in it and a debt only how much was left, both mutated in place, so "I put 50 in last Tuesday" existed nowhere and a mistyped amount could only be fixed by typing over the total. `m7` adds `goal_contributions` and `debt_payments`, seeds one `opening` row per existing balance, and **drops** `current_amount` and `remaining_amount` — both are now summed from the history, the same answer `wallets.balance` needed. Goal details gained a History tab; the debt tracker gained Record payment and an expandable history, both with delete. Typing over a debt's remaining amount now writes an `adjustment` row instead of silently disagreeing with its own history
 - [x] **Widget updates crashed the whole app** — `LedgerWidgetReceiver.onUpdate` called `goAsync()` after `super.onUpdate` had already claimed it, then `finish()` on the null. Platform-typed, so Kotlin never forced the check; it was crashing on every widget update including at install time
+- [x] **The budgets screen crashed outright, and the streaks screen with it** — the same
+  `IllegalFormatConversionException: f != java.lang.Long` as the CSV exports, in `"%.0f".format(totalSpent /
+  totalLimit * 100)`. The line above it had the other half of the trap: `(totalSpent / totalLimit).toFloat()` on
+  two Longs is 0 or 1 and never anything between, so the progress bar was never partly full either. Both fixed,
+  and `MoneyFormatHazardTest` now reads the source and fails the build on that shape — the detector is unit-tested
+  against the lines that actually shipped broken, and re-injecting one fails the suite. Only 2 files were
+  affected: the two that kept cents end to end. The rest read `.asUnits` and were already Doubles
+- [ ] **Hand-written `"$%,.2f"` hardcodes dollars** — the wallets here are in EUR and these screens print a dollar
+  sign regardless. Every one of them should go through `formatCents`/`formatAmount` with the user's currency, which
+  also removes the remaining places a Long could reach a float format. ~160 sites; the streaks and budgets screens
+  are done
 - [x] **Every CSV export crashed** — found by the new `CsvExportTest`. `net / income * 100` on two cent totals is integer division, and `"%.1f".format()` on the resulting `Long` throws `IllegalFormatConversionException`. Four sites across the monthly, quarterly and custom reports, all live since the cents conversion. The earlier grep missed them because the locals are named `net` and `income`, not `*Cents`. Fixed, and negative figures now read `-$200.00` instead of `$-200.00`; `buildNetWorthCsv` takes cents like everything else
 - [x] **Money parsing rounded the wrong way** — `kotlin.math.round` takes ties to even, so 12.345 became 12.34. `toCents`/`toCentsOrNull` now go through `BigDecimal` with HALF_UP, applied to the decimal the user typed rather than its binary approximation. Covered by `MoneyFormatTest`, which also pins the non-breaking space before a trailing currency symbol
 - [x] **Plain and multiple transactions are covered at the DB layer** — 22 tests: balances across several wallets stay independent, identical transactions both survive, a year of 60 transactions stays consistent month by month, transfers stay out of the month summary, editing a non-existent transaction fails, tags attach and are cleaned up, a split receipt becomes several rows on one date, and editing or deleting one of many leaves the rest untouched
