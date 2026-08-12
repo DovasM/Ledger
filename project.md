@@ -874,7 +874,18 @@ in `Double`, which is what those screens actually mean.
 Both greps miss the case where the money is held in a plainly-named local. `CsvExport` had
 `val income = ….sumOf { it.amountCents }` and then `net / income * 100`, which is both traps at once
 — and every CSV export threw `IllegalFormatConversionException: f != java.lang.Long` because of it.
-When a money type changes, check the *locals* too, not only the fields. `StreakCalculator`'s two integer divisions are deliberate and commented:
+When a money type changes, check the *locals* too, not only the fields.
+
+**`MoneyFormatHazardTest` now fails the build on the unambiguous shape.** It reads the source and
+looks for a `%f`-style format whose argument names a `*Cents` value without converting it first —
+the exact shape that took down every CSV export, the whole budgets screen and the streaks screen,
+three separate times. The detector is itself unit-tested against the lines that actually shipped
+broken, and re-injecting any of them fails the suite.
+
+It only catches the unambiguous case; money in a plainly-named local still slips past, which is the
+argument for routing every amount through `formatCents` rather than a hand-written `"$%,.2f"`. That
+also fixes a second thing those hand-written formats got wrong: they hardcode a dollar sign for
+someone whose wallets are in euros. `StreakCalculator`'s two integer divisions are deliberate and commented:
    the daily share is whole cents and rounding down is the conservative direction.
 
 `m8` converts with `CAST(ROUND(x * 100) AS INTEGER)`. The `ROUND` is load-bearing: `0.29 * 100` is

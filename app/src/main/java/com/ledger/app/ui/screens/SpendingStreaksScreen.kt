@@ -24,6 +24,8 @@ import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.util.asUnits
+import com.ledger.app.ui.util.formatAmount
+import com.ledger.app.ui.util.formatCents
 import com.ledger.app.ui.util.AllowanceSettings
 import com.ledger.app.ui.util.DayState
 import com.ledger.app.ui.util.STREAK_LOOKBACK_DAYS
@@ -75,7 +77,14 @@ fun SpendingStreaksScreen(
             offBudgetWalletIds = walletState.wallets.filter { it.offBudget }.map { it.id }.toSet()
         )
     }
-    val dailyAllowance = stats.dailyAllowanceCents
+    // Amounts here are integer cents end to end, and the currency comes from the user's settings —
+    // this screen used to write a dollar sign whatever their money actually was.
+    val currency by settingsViewModel.currencyCode.collectAsStateWithLifecycle()
+    val numberFormat by settingsViewModel.numberFormatIndex.collectAsStateWithLifecycle()
+    fun money(amountCents: Long) = formatCents(amountCents, currency, numberFormat)
+    fun moneyUnits(amount: Double) = formatAmount(amount, currency, numberFormat)
+
+    val dailyAllowanceCents = stats.dailyAllowanceCents
     val currentStreak  = stats.currentStreak
     val bestStreak     = stats.bestStreak
     val daysWithData   = stats.daysWithData
@@ -99,11 +108,11 @@ fun SpendingStreaksScreen(
     }
     val weekIncome   = remember(weekTxs) { weekTxs.filter {  it.isIncome }.sumOf { it.amountCents.asUnits } }
     val weekExpenses = remember(weekTxs) { weekTxs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits } }
-    val weeklyBudgetShare = dailyAllowance * 7.0
+    val weeklyBudgetShare = dailyAllowanceCents * 7.0
     val weekBudgetPct = if (weeklyBudgetShare > 0) (weekExpenses / weeklyBudgetShare).coerceIn(0.0, 1.5).toFloat() else 0f
 
-    val todayExpenses = stats.spentTodayCents
-    val todayPct = if (stats.dailyAllowanceCents > 0) (todayExpenses.toDouble() / stats.dailyAllowanceCents).coerceIn(0.0, 1.5).toFloat() else 0f
+    val todayExpensesCents = stats.spentTodayCents
+    val todayPct = if (stats.dailyAllowanceCents > 0) (todayExpensesCents.toDouble() / stats.dailyAllowanceCents).coerceIn(0.0, 1.5).toFloat() else 0f
 
     // ── Achievements ──────────────────────────────────────────────────────────
 
@@ -208,15 +217,15 @@ fun SpendingStreaksScreen(
                         fontWeight = FontWeight.Bold
                     )
                     Text(
-                        if (dailyAllowance > 0) "day streak under daily budget"
+                        if (dailyAllowanceCents > 0) "day streak under daily budget"
                         else "day activity streak",
                         style = MaterialTheme.typography.bodyLarge,
                         color = OnSurfaceVariant,
                         textAlign = TextAlign.Center
                     )
-                    if (dailyAllowance > 0) {
+                    if (dailyAllowanceCents > 0) {
                         Text(
-                            "Daily allowance: ${"$%,.2f".format(dailyAllowance)}",
+                            "Daily allowance: ${money(dailyAllowanceCents)}",
                             style = MaterialTheme.typography.labelSmall,
                             color = OnSurfaceVariant
                         )
@@ -286,7 +295,7 @@ fun SpendingStreaksScreen(
             // ── This week ─────────────────────────────────────────────────────
             Text("This Week", style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.SemiBold)
 
-            if (dailyAllowance > 0) {
+            if (dailyAllowanceCents > 0) {
                 LedgerCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                         // Today
@@ -294,7 +303,7 @@ fun SpendingStreaksScreen(
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                                 Text("Today's spending", style = MaterialTheme.typography.bodyMedium, color = OnSurface)
                                 Text(
-                                    "${"$%,.2f".format(todayExpenses)} / ${"$%,.2f".format(dailyAllowance)}",
+                                    "${money(todayExpensesCents)} / ${money(dailyAllowanceCents)}",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = if (todayPct >= 1f) Tertiary else OnSurfaceVariant
                                 )
@@ -324,7 +333,7 @@ fun SpendingStreaksScreen(
                                 trackColor = SurfaceContainerHighest
                             )
                             Text(
-                                "${"$%,.2f".format(weekExpenses)} spent · ${"$%,.2f".format((weeklyBudgetShare - weekExpenses).coerceAtLeast(0.0))} remaining",
+                                "${moneyUnits(weekExpenses)} spent · ${"$%,.2f".format((weeklyBudgetShare - weekExpenses).coerceAtLeast(0.0))} remaining",
                                 style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
                             )
                         }

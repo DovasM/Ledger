@@ -183,13 +183,13 @@ fun BudgetsScreen(
                         )
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                             LinearProgressIndicator(
-                                progress = { (totalSpent / totalLimit).toFloat().coerceIn(0f, 1f) },
+                                progress = { (totalSpent.toDouble() / totalLimit).toFloat().coerceIn(0f, 1f) },
                                 modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
                                 color = if (totalSpent > totalLimit) Tertiary else Primary,
                                 trackColor = SurfaceContainerHighest
                             )
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("${"%.0f".format(totalSpent / totalLimit * 100)}% used",
+                                Text("${"%.0f".format(totalSpent.toDouble() / totalLimit * 100)}% used",
                                     style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                                 if (overCount > 0) {
                                     Text("$overCount over budget", style = MaterialTheme.typography.labelSmall,
