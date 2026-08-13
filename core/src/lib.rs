@@ -13,6 +13,7 @@ use db::open_pool;
 use db::models::{
     TransactionRow, WalletRow, TransferRow, SavingsGoalRow, GoalContributionRow, DebtPaymentRow,
     CategoryRow, BudgetRow, DebtRow, RecurringTransactionRow, TagRow, PriceAlertRow,
+    ExpenseGroupRow, GroupMemberRow, SharedExpenseRow, ExpenseShareRow,
 };
 use sqlx::SqlitePool;
 use std::sync::Arc;
@@ -116,6 +117,62 @@ pub struct BackupInfo {
     pub recurring: i64,
 }
 
+/// A group of people splitting costs. Every figure on it is read from your side of the group.
+pub struct ExpenseGroup {
+    pub id: String,
+    pub name: String,
+    pub emoji: String,
+    pub color_hex: String,
+    /// Everything the group has spent between them.
+    pub total_cents: i64,
+    /// The part of that which is yours.
+    pub your_share_cents: i64,
+    /// What you paid minus what you owe. Positive means the group owes you.
+    pub net_balance_cents: i64,
+    pub member_count: i32,
+    pub expense_count: i32,
+    pub created_at: String,
+}
+
+pub struct GroupMember {
+    pub id: String,
+    pub group_id: String,
+    pub name: String,
+    /// Exactly one member of a group is the person using the app.
+    pub is_you: bool,
+    pub paid_cents: i64,
+    pub owes_cents: i64,
+    /// paid − owes. Positive means they are owed money.
+    pub balance_cents: i64,
+}
+
+pub struct SharedExpense {
+    pub id: String,
+    pub group_id: String,
+    /// Set when you paid it, so the money really left your wallet. Null when somebody else did.
+    pub transaction_id: Option<String>,
+    pub description: String,
+    pub amount_cents: i64,
+    pub paid_by_member_id: String,
+    pub paid_by_name: String,
+    pub your_share_cents: i64,
+    pub occurred_at: String,
+}
+
+pub struct ExpenseShare {
+    pub id: String,
+    pub shared_expense_id: String,
+    pub member_id: String,
+    pub member_name: String,
+    pub share_cents: i64,
+}
+
+/// One person's slice of an expense, as handed in when it is recorded.
+pub struct ShareInput {
+    pub member_id: String,
+    pub share_cents: i64,
+}
+
 pub struct MonthSummary {
     pub total_income_cents: i64,
     pub total_expenses_cents: i64,
@@ -187,6 +244,12 @@ pub struct PriceAlert {
 pub struct LedgerDb {
     pool: SqlitePool,
     rt: tokio::runtime::Runtime,
+}
+
+/// The backup format this build writes and can read up to. Exposed so neither a test nor a screen
+/// has to repeat the number — both did, and both went stale the moment a migration was added.
+pub fn current_schema_version() -> i64 {
+    db::CURRENT_SCHEMA_VERSION
 }
 
 pub fn open_database(db_path: String) -> Arc<LedgerDb> {
@@ -1105,6 +1168,200 @@ impl LedgerDb {
         })
     }
 
+    // ── Shared expenses ───────────────────────────────────────────────────────
+
+    pub fn list_expense_groups(&self) -> Result<Vec<ExpenseGroup>, LedgerError> {
+        self.rt.block_on(async {
+            let rows = sqlx::query_as::<_, ExpenseGroupRow>(&format!("{GROUP_SELECT} ORDER BY g.created_at DESC"))
+                .fetch_all(&self.pool).await?;
+            Ok(rows.into_iter().map(row_to_group).collect())
+        })
+    }
+
+    /// Creates the group with you already in it — every balance is read from your side, so a group
+    /// without you in it could not answer the only question it exists to answer.
+    pub fn create_expense_group(&self, name: String, emoji: String, color_hex: String, member_names: Vec<String>) -> Result<ExpenseGroup, LedgerError> {
+        if name.trim().is_empty() { return Err(LedgerError::InvalidInput("name is required".into())); }
+        self.rt.block_on(async {
+            let id = Uuid::new_v4().to_string();
+            let now = Utc::now().to_rfc3339();
+
+            let mut tx = self.pool.begin().await?;
+            sqlx::query("INSERT INTO expense_groups (id, name, emoji, color_hex, created_at) VALUES (?,?,?,?,?)")
+                .bind(&id).bind(name.trim()).bind(&emoji).bind(&color_hex).bind(&now)
+                .execute(&mut *tx).await?;
+
+            sqlx::query("INSERT INTO group_members (id, group_id, name, is_you, created_at) VALUES (?,?,?,1,?)")
+                .bind(Uuid::new_v4().to_string()).bind(&id).bind("You").bind(&now)
+                .execute(&mut *tx).await?;
+            for member in member_names.iter().filter(|n| !n.trim().is_empty()) {
+                sqlx::query("INSERT INTO group_members (id, group_id, name, is_you, created_at) VALUES (?,?,?,0,?)")
+                    .bind(Uuid::new_v4().to_string()).bind(&id).bind(member.trim()).bind(&now)
+                    .execute(&mut *tx).await?;
+            }
+            tx.commit().await?;
+
+            self.group_by_id(&id).await
+        })
+    }
+
+    pub fn update_expense_group(&self, id: String, name: String, emoji: String, color_hex: String) -> Result<ExpenseGroup, LedgerError> {
+        if name.trim().is_empty() { return Err(LedgerError::InvalidInput("name is required".into())); }
+        self.rt.block_on(async {
+            let changed = sqlx::query("UPDATE expense_groups SET name=?, emoji=?, color_hex=? WHERE id=?")
+                .bind(name.trim()).bind(&emoji).bind(&color_hex).bind(&id)
+                .execute(&self.pool).await?;
+            if changed.rows_affected() == 0 { return Err(LedgerError::NotFound); }
+            self.group_by_id(&id).await
+        })
+    }
+
+    pub fn delete_expense_group(&self, id: String) -> Result<(), LedgerError> {
+        self.rt.block_on(async {
+            // Children first, and by hand: nothing here declares ON DELETE CASCADE.
+            let mut tx = self.pool.begin().await?;
+            sqlx::query(
+                "DELETE FROM shared_expense_shares WHERE shared_expense_id IN (SELECT id FROM shared_expenses WHERE group_id=?)"
+            ).bind(&id).execute(&mut *tx).await?;
+            sqlx::query("DELETE FROM shared_expenses WHERE group_id=?").bind(&id).execute(&mut *tx).await?;
+            sqlx::query("DELETE FROM group_members WHERE group_id=?").bind(&id).execute(&mut *tx).await?;
+            sqlx::query("DELETE FROM expense_groups WHERE id=?").bind(&id).execute(&mut *tx).await?;
+            tx.commit().await?;
+            Ok(())
+        })
+    }
+
+    pub fn list_group_members(&self, group_id: String) -> Result<Vec<GroupMember>, LedgerError> {
+        self.rt.block_on(async {
+            let rows = sqlx::query_as::<_, GroupMemberRow>(&format!("{MEMBER_SELECT} WHERE m.group_id = ? ORDER BY m.is_you DESC, m.created_at ASC"))
+                .bind(&group_id).fetch_all(&self.pool).await?;
+            Ok(rows.into_iter().map(row_to_member).collect())
+        })
+    }
+
+    pub fn add_group_member(&self, group_id: String, name: String) -> Result<GroupMember, LedgerError> {
+        if name.trim().is_empty() { return Err(LedgerError::InvalidInput("name is required".into())); }
+        self.rt.block_on(async {
+            let id = Uuid::new_v4().to_string();
+            sqlx::query("INSERT INTO group_members (id, group_id, name, is_you, created_at) VALUES (?,?,?,0,?)")
+                .bind(&id).bind(&group_id).bind(name.trim()).bind(Utc::now().to_rfc3339())
+                .execute(&self.pool).await?;
+            let row = sqlx::query_as::<_, GroupMemberRow>(&format!("{MEMBER_SELECT} WHERE m.id = ?"))
+                .bind(&id).fetch_one(&self.pool).await?;
+            Ok(row_to_member(row))
+        })
+    }
+
+    /// Refused while the member still appears in an expense — removing them would leave shares
+    /// pointing at nobody and the group would stop adding up.
+    pub fn remove_group_member(&self, id: String) -> Result<(), LedgerError> {
+        self.rt.block_on(async {
+            let (used,): (i64,) = sqlx::query_as(
+                "SELECT (SELECT COUNT(*) FROM shared_expense_shares WHERE member_id = ?1)
+                      + (SELECT COUNT(*) FROM shared_expenses WHERE paid_by_member_id = ?1)"
+            ).bind(&id).fetch_one(&self.pool).await?;
+            if used > 0 {
+                return Err(LedgerError::InvalidInput(
+                    "this person appears in an expense — remove those first".into()
+                ));
+            }
+            sqlx::query("DELETE FROM group_members WHERE id=? AND is_you = 0")
+                .bind(&id).execute(&self.pool).await?;
+            Ok(())
+        })
+    }
+
+    pub fn list_shared_expenses(&self, group_id: String) -> Result<Vec<SharedExpense>, LedgerError> {
+        self.rt.block_on(async {
+            let rows = sqlx::query_as::<_, SharedExpenseRow>(
+                &format!("{EXPENSE_SELECT} WHERE e.group_id = ? ORDER BY e.occurred_at DESC, e.created_at DESC, e.id DESC")
+            ).bind(&group_id).fetch_all(&self.pool).await?;
+            Ok(rows.into_iter().map(row_to_shared_expense).collect())
+        })
+    }
+
+    /// `transaction_id` is set when you paid and the money really left your wallet; it is null when
+    /// somebody else paid, because then nothing of yours moved.
+    ///
+    /// The shares must add up to the amount exactly. Anything else means a share has been lost, and
+    /// every balance computed afterwards would be wrong in a way nobody could trace.
+    pub fn add_shared_expense(
+        &self,
+        group_id: String,
+        description: String,
+        amount_cents: i64,
+        paid_by_member_id: String,
+        transaction_id: Option<String>,
+        shares: Vec<ShareInput>,
+        occurred_at: Option<String>,
+    ) -> Result<SharedExpense, LedgerError> {
+        if description.trim().is_empty() { return Err(LedgerError::InvalidInput("description is required".into())); }
+        if amount_cents <= 0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
+
+        let total: i64 = shares.iter().map(|s| s.share_cents).sum();
+        if total != amount_cents {
+            return Err(LedgerError::InvalidInput(format!(
+                "the shares add up to {} but the expense is {} — every cent has to belong to somebody",
+                total, amount_cents
+            )));
+        }
+        if shares.is_empty() { return Err(LedgerError::InvalidInput("split it between someone".into())); }
+
+        self.rt.block_on(async {
+            let id = Uuid::new_v4().to_string();
+            let now = Utc::now().to_rfc3339();
+            let occurred = occurred_at.unwrap_or_else(|| now.clone());
+
+            let mut tx = self.pool.begin().await?;
+            sqlx::query(
+                "INSERT INTO shared_expenses (id, group_id, transaction_id, description, amount_cents, paid_by_member_id, occurred_at, created_at)
+                 VALUES (?,?,?,?,?,?,?,?)"
+            )
+            .bind(&id).bind(&group_id).bind(&transaction_id).bind(description.trim())
+            .bind(amount_cents).bind(&paid_by_member_id).bind(&occurred).bind(&now)
+            .execute(&mut *tx).await?;
+
+            for s in &shares {
+                sqlx::query("INSERT INTO shared_expense_shares (id, shared_expense_id, member_id, share_cents) VALUES (?,?,?,?)")
+                    .bind(Uuid::new_v4().to_string()).bind(&id).bind(&s.member_id).bind(s.share_cents)
+                    .execute(&mut *tx).await?;
+            }
+            tx.commit().await?;
+
+            let row = sqlx::query_as::<_, SharedExpenseRow>(&format!("{EXPENSE_SELECT} WHERE e.id = ?"))
+                .bind(&id).fetch_one(&self.pool).await?;
+            Ok(row_to_shared_expense(row))
+        })
+    }
+
+    pub fn delete_shared_expense(&self, id: String) -> Result<(), LedgerError> {
+        self.rt.block_on(async {
+            let mut tx = self.pool.begin().await?;
+            sqlx::query("DELETE FROM shared_expense_shares WHERE shared_expense_id=?").bind(&id).execute(&mut *tx).await?;
+            sqlx::query("DELETE FROM shared_expenses WHERE id=?").bind(&id).execute(&mut *tx).await?;
+            tx.commit().await?;
+            Ok(())
+        })
+    }
+
+    pub fn list_expense_shares(&self, shared_expense_id: String) -> Result<Vec<ExpenseShare>, LedgerError> {
+        self.rt.block_on(async {
+            let rows = sqlx::query_as::<_, ExpenseShareRow>(
+                "SELECT s.id, s.shared_expense_id, s.member_id, m.name AS member_name, s.share_cents
+                 FROM shared_expense_shares s JOIN group_members m ON m.id = s.member_id
+                 WHERE s.shared_expense_id = ? ORDER BY m.is_you DESC, m.created_at ASC"
+            ).bind(&shared_expense_id).fetch_all(&self.pool).await?;
+            Ok(rows.into_iter().map(row_to_expense_share).collect())
+        })
+    }
+
+    async fn group_by_id(&self, id: &str) -> Result<ExpenseGroup, LedgerError> {
+        let row = sqlx::query_as::<_, ExpenseGroupRow>(&format!("{GROUP_SELECT} WHERE g.id = ?"))
+            .bind(id).fetch_optional(&self.pool).await?
+            .ok_or(LedgerError::NotFound)?;
+        Ok(row_to_group(row))
+    }
+
     pub fn list_price_alerts(&self) -> Result<Vec<PriceAlert>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, PriceAlertRow>(
@@ -1200,6 +1457,54 @@ async fn count_contents(pool: &SqlitePool) -> Result<BackupInfo, LedgerError> {
         transfers: count_of(pool, "transfers").await?,
         recurring: count_of(pool, "recurring_transactions").await?,
     })
+}
+
+
+// ── Shared expenses ──────────────────────────────────────────────────────────
+
+// Totals are summed on read, like every other total in this schema. A group's numbers are only ever
+// as right as the rows underneath them, which is the point.
+const GROUP_SELECT: &str = "SELECT g.id, g.name, g.emoji, g.color_hex, \
+     COALESCE((SELECT SUM(amount_cents) FROM shared_expenses WHERE group_id = g.id), 0) AS total_cents, \
+     COALESCE((SELECT SUM(s.share_cents) FROM shared_expense_shares s \
+               JOIN group_members m ON m.id = s.member_id \
+               JOIN shared_expenses e ON e.id = s.shared_expense_id \
+               WHERE e.group_id = g.id AND m.is_you = 1), 0) AS your_share_cents, \
+     COALESCE((SELECT SUM(amount_cents) FROM shared_expenses e \
+               JOIN group_members m ON m.id = e.paid_by_member_id \
+               WHERE e.group_id = g.id AND m.is_you = 1), 0) \
+       - COALESCE((SELECT SUM(s.share_cents) FROM shared_expense_shares s \
+                   JOIN group_members m ON m.id = s.member_id \
+                   JOIN shared_expenses e ON e.id = s.shared_expense_id \
+                   WHERE e.group_id = g.id AND m.is_you = 1), 0) AS net_balance_cents, \
+     (SELECT COUNT(*) FROM group_members WHERE group_id = g.id) AS member_count, \
+     (SELECT COUNT(*) FROM shared_expenses WHERE group_id = g.id) AS expense_count, \
+     g.created_at FROM expense_groups g";
+
+const MEMBER_SELECT: &str = "SELECT m.id, m.group_id, m.name, m.is_you, \
+     COALESCE((SELECT SUM(amount_cents) FROM shared_expenses WHERE paid_by_member_id = m.id), 0) AS paid_cents, \
+     COALESCE((SELECT SUM(share_cents) FROM shared_expense_shares WHERE member_id = m.id), 0) AS owes_cents \
+     FROM group_members m";
+
+const EXPENSE_SELECT: &str = "SELECT e.id, e.group_id, e.transaction_id, e.description, e.amount_cents, \
+     e.paid_by_member_id, p.name AS paid_by_name, \
+     COALESCE((SELECT SUM(s.share_cents) FROM shared_expense_shares s \
+               JOIN group_members m ON m.id = s.member_id \
+               WHERE s.shared_expense_id = e.id AND m.is_you = 1), 0) AS your_share_cents, \
+     e.occurred_at \
+     FROM shared_expenses e JOIN group_members p ON p.id = e.paid_by_member_id";
+
+/// Splits `amount_cents` between `people`, giving the remainder to the first shares.
+///
+/// 100.00 three ways is 33.333…, which has no exact answer in cents. Rounding each share
+/// independently loses the odd cent and the group silently stops adding up, so the remainder is
+/// handed out deliberately instead: the first person pays the extra penny.
+pub fn split_equally(amount_cents: i64, people: i32) -> Vec<i64> {
+    if people <= 0 { return Vec::new(); }
+    let n = people as i64;
+    let base = amount_cents / n;
+    let remainder = amount_cents - base * n;
+    (0..n).map(|i| if i < remainder { base + 1 } else { base }).collect()
 }
 
 // Every transaction read resolves its category name through category_id, so a rename is picked up
@@ -1344,4 +1649,38 @@ fn row_to_tag(r: TagRow) -> Tag {
 
 fn row_to_alert(r: PriceAlertRow) -> PriceAlert {
     PriceAlert { id: r.id, symbol: r.symbol, asset_name: r.asset_name, target_price_cents: r.target_price_cents, direction: r.direction, active: r.active, created_at: r.created_at }
+}
+
+fn row_to_group(r: ExpenseGroupRow) -> ExpenseGroup {
+    ExpenseGroup {
+        id: r.id, name: r.name, emoji: r.emoji, color_hex: r.color_hex,
+        total_cents: r.total_cents, your_share_cents: r.your_share_cents,
+        net_balance_cents: r.net_balance_cents,
+        member_count: r.member_count as i32, expense_count: r.expense_count as i32,
+        created_at: r.created_at,
+    }
+}
+
+fn row_to_member(r: GroupMemberRow) -> GroupMember {
+    GroupMember {
+        id: r.id, group_id: r.group_id, name: r.name, is_you: r.is_you,
+        paid_cents: r.paid_cents, owes_cents: r.owes_cents,
+        balance_cents: r.paid_cents - r.owes_cents,
+    }
+}
+
+fn row_to_shared_expense(r: SharedExpenseRow) -> SharedExpense {
+    SharedExpense {
+        id: r.id, group_id: r.group_id, transaction_id: r.transaction_id,
+        description: r.description, amount_cents: r.amount_cents,
+        paid_by_member_id: r.paid_by_member_id, paid_by_name: r.paid_by_name,
+        your_share_cents: r.your_share_cents, occurred_at: r.occurred_at,
+    }
+}
+
+fn row_to_expense_share(r: ExpenseShareRow) -> ExpenseShare {
+    ExpenseShare {
+        id: r.id, shared_expense_id: r.shared_expense_id, member_id: r.member_id,
+        member_name: r.member_name, share_cents: r.share_cents,
+    }
 }

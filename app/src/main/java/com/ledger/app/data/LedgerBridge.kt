@@ -2,6 +2,7 @@ package com.ledger.app.data
 
 import android.content.Context
 import uniffi.ledger.LedgerDb
+import uniffi.ledger.ShareInput
 import uniffi.ledger.openDatabase
 import java.io.File
 import java.time.LocalDate
@@ -193,6 +194,33 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
 
     override fun listTransactionTags(transactionId: String) =
         db.listTransactionTags(transactionId)
+
+    // ── Shared expenses ───────────────────────────────────────────────────────
+
+    override fun listExpenseGroups() = db.listExpenseGroups()
+
+    override fun createExpenseGroup(name: String, emoji: String, colorHex: String, memberNames: List<String>) =
+        db.createExpenseGroup(name, emoji, colorHex, memberNames)
+
+    override fun updateExpenseGroup(id: String, name: String, emoji: String, colorHex: String) =
+        db.updateExpenseGroup(id, name, emoji, colorHex)
+
+    override fun deleteExpenseGroup(id: String) = db.deleteExpenseGroup(id)
+
+    override fun listGroupMembers(groupId: String) = db.listGroupMembers(groupId)
+
+    override fun addGroupMember(groupId: String, name: String) = db.addGroupMember(groupId, name)
+
+    override fun removeGroupMember(id: String) = db.removeGroupMember(id)
+
+    override fun listSharedExpenses(groupId: String) = db.listSharedExpenses(groupId)
+
+    override fun addSharedExpense(groupId: String, description: String, amountCents: Long, paidByMemberId: String, transactionId: String?, shares: List<ShareInput>, occurredAt: String?) =
+        db.addSharedExpense(groupId, description, amountCents, paidByMemberId, transactionId, shares, occurredAt)
+
+    override fun deleteSharedExpense(id: String) = db.deleteSharedExpense(id)
+
+    override fun listExpenseShares(sharedExpenseId: String) = db.listExpenseShares(sharedExpenseId)
 
     // ── Backup & restore ──────────────────────────────────────────────────────
 

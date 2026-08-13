@@ -72,6 +72,19 @@ interface ILedgerBridge {
     fun removeTagFromTransaction(transactionId: String, tagId: String)
     fun listTransactionTags(transactionId: String): List<Tag>
 
+    // ── Shared expenses ───────────────────────────────────────────────────────
+    fun listExpenseGroups(): List<ExpenseGroup>
+    fun createExpenseGroup(name: String, emoji: String, colorHex: String, memberNames: List<String>): ExpenseGroup
+    fun updateExpenseGroup(id: String, name: String, emoji: String, colorHex: String): ExpenseGroup
+    fun deleteExpenseGroup(id: String)
+    fun listGroupMembers(groupId: String): List<GroupMember>
+    fun addGroupMember(groupId: String, name: String): GroupMember
+    fun removeGroupMember(id: String)
+    fun listSharedExpenses(groupId: String): List<SharedExpense>
+    fun addSharedExpense(groupId: String, description: String, amountCents: Long, paidByMemberId: String, transactionId: String?, shares: List<ShareInput>, occurredAt: String?): SharedExpense
+    fun deleteSharedExpense(id: String)
+    fun listExpenseShares(sharedExpenseId: String): List<ExpenseShare>
+
     // ── Backup & restore ──────────────────────────────────────────────────────
     fun backupDatabase(destPath: String): BackupInfo
     fun inspectBackup(path: String): BackupInfo

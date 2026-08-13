@@ -3,6 +3,10 @@
 
 namespace ledger {
     LedgerDb open_database(string db_path);
+    // Splitting evenly has no exact answer in cents; the remainder is handed out deliberately
+    // rather than rounded away. Exposed so the screen can show the shares before they are saved.
+    sequence<i64> split_equally(i64 amount_cents, i32 people);
+    i64 current_schema_version();
     [Throws=LlamaError]
     LlamaEngine llama_create(string model_path, u32 n_ctx);
 };
@@ -101,6 +105,58 @@ dictionary BackupInfo {
     i64 debts;
     i64 transfers;
     i64 recurring;
+};
+
+// A group of people splitting costs. Every figure is read from your side of the group.
+dictionary ExpenseGroup {
+    string id;
+    string name;
+    string emoji;
+    string color_hex;
+    i64 total_cents;
+    i64 your_share_cents;
+    // What you paid minus what you owe. Positive means the group owes you.
+    i64 net_balance_cents;
+    i32 member_count;
+    i32 expense_count;
+    string created_at;
+};
+
+dictionary GroupMember {
+    string id;
+    string group_id;
+    string name;
+    boolean is_you;
+    i64 paid_cents;
+    i64 owes_cents;
+    i64 balance_cents;
+};
+
+dictionary SharedExpense {
+    string id;
+    string group_id;
+    // Set when you paid and the money really left your wallet; null when somebody else did.
+    string? transaction_id;
+    string description;
+    i64 amount_cents;
+    string paid_by_member_id;
+    string paid_by_name;
+    i64 your_share_cents;
+    string occurred_at;
+};
+
+dictionary ExpenseShare {
+    string id;
+    string shared_expense_id;
+    string member_id;
+    string member_name;
+    i64 share_cents;
+};
+
+// One person's slice of an expense, as handed in when it is recorded.
+dictionary ShareInput {
+    string member_id;
+    i64 share_cents;
 };
 
 dictionary MonthSummary {
@@ -334,6 +390,42 @@ interface LedgerDb {
 
     [Throws=LedgerError]
     sequence<Tag> list_transaction_tags(string transaction_id);
+
+    // ── Shared expenses ───────────────────────────────────────────────────────
+    [Throws=LedgerError]
+    sequence<ExpenseGroup> list_expense_groups();
+
+    [Throws=LedgerError]
+    ExpenseGroup create_expense_group(string name, string emoji, string color_hex, sequence<string> member_names);
+
+    [Throws=LedgerError]
+    ExpenseGroup update_expense_group(string id, string name, string emoji, string color_hex);
+
+    [Throws=LedgerError]
+    void delete_expense_group(string id);
+
+    [Throws=LedgerError]
+    sequence<GroupMember> list_group_members(string group_id);
+
+    [Throws=LedgerError]
+    GroupMember add_group_member(string group_id, string name);
+
+    [Throws=LedgerError]
+    void remove_group_member(string id);
+
+    [Throws=LedgerError]
+    sequence<SharedExpense> list_shared_expenses(string group_id);
+
+    [Throws=LedgerError]
+    SharedExpense add_shared_expense(string group_id, string description, i64 amount_cents,
+                                     string paid_by_member_id, string? transaction_id,
+                                     sequence<ShareInput> shares, string? occurred_at);
+
+    [Throws=LedgerError]
+    void delete_shared_expense(string id);
+
+    [Throws=LedgerError]
+    sequence<ExpenseShare> list_expense_shares(string shared_expense_id);
 
     // ── Backup & restore ──────────────────────────────────────────────────────
     [Throws=LedgerError]

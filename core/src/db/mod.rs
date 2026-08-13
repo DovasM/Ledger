@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 /// The highest migration this build knows how to run. A backup taken by a newer build carries a
 /// higher number and must be refused rather than half-understood.
-pub const CURRENT_SCHEMA_VERSION: i64 = 9;
+pub const CURRENT_SCHEMA_VERSION: i64 = 10;
 
 /// Every table holding user data, in an order that inserts parents before children. schema_version
 /// is deliberately absent: a restore keeps the running app's own version.
@@ -13,6 +13,7 @@ pub const USER_TABLES: &[&str] = &[
     "categories", "wallets", "tags", "transactions", "transaction_tags", "transfers",
     "savings_goals", "goal_contributions", "debts", "debt_payments", "budgets",
     "recurring_transactions", "price_alerts",
+    "expense_groups", "group_members", "shared_expenses", "shared_expense_shares",
 ];
 
 pub async fn open_pool(db_path: &str) -> Result<SqlitePool, sqlx::Error> {
@@ -81,7 +82,66 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
         m9_wallet_opening_balance(pool).await?;
         record_version(pool, 9).await?;
     }
+    if applied < 10 {
+        m10_shared_expenses(pool).await?;
+        record_version(pool, 10).await?;
+    }
 
+    Ok(())
+}
+
+// Splitting a bill has two truths at once: your wallet really did lose the whole 360, and only 120
+// of it was your spending. The transaction stays whole — the balance depends on it — and what each
+// person owes lives here beside it.
+//
+// The shares are rows rather than a percentage, for the same reason contributions became rows in m7:
+// a percentage has to be recomputed on every read and leaves the odd cent unaccounted for. Stored
+// shares add up to the expense exactly, and `add_shared_expense` refuses them if they do not.
+async fn m10_shared_expenses(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS expense_groups (
+            id         TEXT PRIMARY KEY,
+            name       TEXT NOT NULL,
+            emoji      TEXT NOT NULL DEFAULT '',
+            color_hex  TEXT NOT NULL DEFAULT '#1565C0',
+            created_at TEXT NOT NULL
+        );
+        CREATE TABLE IF NOT EXISTS group_members (
+            id         TEXT PRIMARY KEY,
+            group_id   TEXT NOT NULL REFERENCES expense_groups(id),
+            name       TEXT NOT NULL,
+            -- Exactly one member of each group is the person using the app; every balance is read
+            -- from their point of view.
+            is_you     INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_member_group ON group_members(group_id);
+        CREATE TABLE IF NOT EXISTS shared_expenses (
+            id                TEXT PRIMARY KEY,
+            group_id          TEXT NOT NULL REFERENCES expense_groups(id),
+            -- Set when you paid and it is therefore a real transaction of yours. Null when someone
+            -- else paid: you owe them a share, but no money left your wallet.
+            transaction_id    TEXT REFERENCES transactions(id),
+            description       TEXT NOT NULL,
+            amount_cents      INTEGER NOT NULL,
+            paid_by_member_id TEXT NOT NULL REFERENCES group_members(id),
+            occurred_at       TEXT NOT NULL,
+            created_at        TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_shared_group ON shared_expenses(group_id);
+        CREATE INDEX IF NOT EXISTS idx_shared_tx    ON shared_expenses(transaction_id);
+        CREATE TABLE IF NOT EXISTS shared_expense_shares (
+            id                TEXT PRIMARY KEY,
+            shared_expense_id TEXT NOT NULL REFERENCES shared_expenses(id),
+            member_id         TEXT NOT NULL REFERENCES group_members(id),
+            share_cents       INTEGER NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_share_expense ON shared_expense_shares(shared_expense_id);
+        "#,
+    )
+    .execute(pool)
+    .await?;
     Ok(())
 }
 

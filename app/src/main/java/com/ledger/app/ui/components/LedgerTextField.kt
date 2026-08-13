@@ -1,6 +1,7 @@
 package com.ledger.app.ui.components
 
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -22,6 +23,9 @@ fun LedgerTextField(
     isError: Boolean = false,
     supportingText: String? = null,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    // So a field that adds something can act on the keyboard's done key rather than forcing a
+    // reach for the button beside it.
+    keyboardActions: KeyboardActions = KeyboardActions.Default,
 ) {
     OutlinedTextField(
         value = value,
@@ -37,6 +41,7 @@ fun LedgerTextField(
         singleLine = singleLine,
         isError = isError,
         keyboardOptions = keyboardOptions,
+        keyboardActions = keyboardActions,
         supportingText = if (supportingText != null) ({
             Text(supportingText, style = MaterialTheme.typography.labelSmall)
         }) else null,
