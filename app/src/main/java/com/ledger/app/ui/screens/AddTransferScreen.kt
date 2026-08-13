@@ -21,7 +21,8 @@ import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.util.currencySymbol
-import com.ledger.app.ui.util.formatAmount
+import com.ledger.app.ui.util.formatCents
+import com.ledger.app.ui.util.toCentsOrNull
 import com.ledger.app.ui.viewmodel.SettingsViewModel
 import com.ledger.app.ui.viewmodel.TransferViewModel
 import com.ledger.app.ui.viewmodel.WalletViewModel
@@ -32,6 +33,8 @@ import com.ledger.app.ui.viewmodel.WalletViewModel
 @Composable
 fun AddTransferScreen(
     navController: NavController,
+    /** Set when the screen is opened from a wallet, so that wallet starts as the one money leaves. */
+    initialFromWalletId: String? = null,
     walletViewModel: WalletViewModel = hiltViewModel(),
     transferViewModel: TransferViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel()
@@ -42,8 +45,15 @@ fun AddTransferScreen(
     val numberFormat by settingsViewModel.numberFormatIndex.collectAsStateWithLifecycle()
 
     val wallets = walletState.wallets
-    var fromIndex by remember(wallets) { mutableStateOf(0) }
-    var toIndex by remember(wallets) { mutableStateOf(if (wallets.size > 1) 1 else 0) }
+    // Opened from a wallet, that wallet is what you meant to send from; "to" then starts on the
+    // first wallet that is not it, so the form is valid before anything is touched.
+    var fromIndex by remember(wallets, initialFromWalletId) {
+        mutableStateOf(wallets.indexOfFirst { it.id == initialFromWalletId }.coerceAtLeast(0))
+    }
+    var toIndex by remember(wallets, initialFromWalletId) {
+        val from = wallets.indexOfFirst { it.id == initialFromWalletId }.coerceAtLeast(0)
+        mutableStateOf(wallets.indices.firstOrNull { it != from } ?: from)
+    }
     var amount by remember { mutableStateOf("") }
     var note by remember { mutableStateOf("") }
     var showErrors by remember { mutableStateOf(false) }
@@ -53,9 +63,11 @@ fun AddTransferScreen(
 
     val from = wallets.getOrNull(fromIndex)
     val to = wallets.getOrNull(toIndex)
-    val parsed = amount.toDoubleOrNull()
+    // The typed amount becomes cents immediately, because every balance it meets is in cents.
+    // Subtracting units from cents is what made the preview read a hundred times too large.
+    val parsedCents = amount.toCentsOrNull()
     val sameWallet = from != null && to != null && from.id == to.id
-    val canSave = from != null && to != null && !sameWallet && parsed != null && parsed > 0.0
+    val canSave = from != null && to != null && !sameWallet && parsedCents != null && parsedCents > 0
 
     Scaffold(
         topBar = {
@@ -97,7 +109,7 @@ fun AddTransferScreen(
                 onAmountChange = { amount = it },
                 onCalculatorOpen = { showCalc = true },
                 prefix = currencySymbol(currency),
-                showError = showErrors && (parsed == null || parsed <= 0.0),
+                showError = showErrors && (parsedCents == null || parsedCents <= 0),
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -136,12 +148,21 @@ fun AddTransferScreen(
             LedgerTextField(value = note, onValueChange = { note = it }, label = "Note (optional)", modifier = Modifier.fillMaxWidth())
 
             // Balances after the move, so a transfer that would overdraw is visible before saving.
-            if (canSave && parsed != null && from != null && to != null) {
+            if (from != null && to != null && !sameWallet) {
                 LedgerCard(modifier = Modifier.fillMaxWidth()) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Text("After this transfer", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        BalancePreviewRow(from.name, from.balanceCents - parsed, currency, numberFormat)
-                        BalancePreviewRow(to.name, to.balanceCents + parsed, currency, numberFormat)
+                        // What is in each wallet right now, so the amount can be judged against it
+                        // without leaving the screen.
+                        Text("Now", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                        BalancePreviewRow(from.name, from.balanceCents, currency, numberFormat)
+                        BalancePreviewRow(to.name, to.balanceCents, currency, numberFormat)
+
+                        if (parsedCents != null && parsedCents > 0) {
+                            HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
+                            Text("After this transfer", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                            BalancePreviewRow(from.name, from.balanceCents - parsedCents, currency, numberFormat)
+                            BalancePreviewRow(to.name, to.balanceCents + parsedCents, currency, numberFormat)
+                        }
                     }
                 }
             }
@@ -153,11 +174,11 @@ fun AddTransferScreen(
             Button(
                 onClick = {
                     showErrors = true
-                    if (canSave && from != null && to != null && parsed != null) {
+                    if (canSave && from != null && to != null && parsedCents != null) {
                         transferViewModel.createTransfer(
                             fromWalletId = from.id,
                             toWalletId = to.id,
-                            amountCents = parsed.toCents(),
+                            amountCents = parsedCents,
                             note = note.ifBlank { null }
                         ) {
                             walletViewModel.load()
@@ -182,13 +203,13 @@ fun AddTransferScreen(
 }
 
 @Composable
-private fun BalancePreviewRow(name: String, balance: Double, currency: String, numberFormat: Int) {
+private fun BalancePreviewRow(name: String, balanceCents: Long, currency: String, numberFormat: Int) {
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(name, style = MaterialTheme.typography.bodySmall, color = OnSurface)
         Text(
-            formatAmount(balance, currency, numberFormat),
+            formatCents(balanceCents, currency, numberFormat),
             style = MaterialTheme.typography.bodySmall,
-            color = if (balance < 0) Tertiary else OnSurface,
+            color = if (balanceCents < 0) Tertiary else OnSurface,
             fontWeight = FontWeight.Medium
         )
     }

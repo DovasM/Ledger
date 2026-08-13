@@ -242,7 +242,7 @@ fun WalletDetailsScreen(
                 }
             }
 
-            TextButton(onClick = { navController.navigate(Screen.AddTransfer.route) }, modifier = Modifier.fillMaxWidth()) {
+            TextButton(onClick = { navController.navigate(Screen.AddTransfer.createRoute(walletId)) }, modifier = Modifier.fillMaxWidth()) {
                 Icon(Icons.Filled.SwapHoriz, contentDescription = null, tint = Primary, modifier = Modifier.size(18.dp))
                 Spacer(Modifier.width(4.dp))
                 Text("New Transfer", color = Primary, style = MaterialTheme.typography.labelLarge)
