@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import com.ledger.app.ui.util.asUnits
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -34,6 +35,7 @@ fun TransactionsScreen(
     viewModel: TransactionViewModel = hiltViewModel(),
     tagViewModel: TagViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val currentEntry by navController.currentBackStackEntryAsState()
     LaunchedEffect(currentEntry?.destination?.route) { viewModel.loadAll() }
@@ -46,7 +48,7 @@ fun TransactionsScreen(
         val tx = longPressTx!!
         LedgerActionDialog(
             title = tx.title,
-            subtitle = (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
+            subtitle = (if (tx.isIncome) "+" else "-") + "${money.ofUnits(tx.amountCents.asUnits)}",
             onDismiss = { longPressTx = null },
             onEdit = { longPressTx = null; navController.navigate(Screen.EditTransaction.createRoute(tx.id)) },
             onDelete = { viewModel.deleteTransaction(tx.id) {}; longPressTx = null }
@@ -144,7 +146,7 @@ fun TransactionsScreen(
                             TransactionRow(
                                 tx.title,
                                 tx.category,
-                                (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
+                                (if (tx.isIncome) "+" else "-") + "${money.ofUnits(tx.amountCents.asUnits)}",
                                 isIncome = tx.isIncome,
                                 onClick = { sheetTx = tx },
                                 onLongClick = { longPressTx = tx },
@@ -165,6 +167,7 @@ fun TransactionsScreen(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TxDetailSheet(tx: Transaction, tags: List<Tag>, onDismiss: () -> Unit, onEdit: () -> Unit) {
+    val money = rememberMoneyFormatter()
     val accentColor = if (tx.isIncome) Primary else Tertiary
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 36.dp),
@@ -174,7 +177,7 @@ private fun TxDetailSheet(tx: Transaction, tags: List<Tag>, onDismiss: () -> Uni
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(tx.title, style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                 Text(
-                    (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
+                    (if (tx.isIncome) "+" else "-") + "${money.ofUnits(tx.amountCents.asUnits)}",
                     style = MaterialTheme.typography.titleLarge,
                     color = accentColor,
                     fontWeight = FontWeight.Bold

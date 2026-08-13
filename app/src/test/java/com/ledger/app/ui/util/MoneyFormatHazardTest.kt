@@ -107,6 +107,36 @@ class MoneyFormatHazardTest {
         )
     }
 
+    /**
+     * A hand-rolled `"$%,.2f"` is wrong twice over: it prints a dollar sign to someone whose wallets
+     * are in euros, and it ignores the number-format preference. It is also the shape every money
+     * bug in this app has hidden inside. `MoneyFormatter` replaced all 162 of them; this stops the
+     * 163rd.
+     */
+    @Test
+    fun `no screen hardcodes a currency symbol in a format string`() {
+        val sources = File("src/main/java/com/ledger/app")
+        val hardcoded = Regex(""""\$%[-,+ 0-9.#]*f"""")
+        val offences = mutableListOf<String>()
+        sources.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" && "uniffi" !in it.path.replace('\\', '/') }
+            // MoneyFormatter's own documentation quotes the pattern it exists to replace.
+            .filter { it.name != "MoneyFormatter.kt" }
+            .forEach { file ->
+                file.readLines().forEachIndexed { index, line ->
+                    if (hardcoded.containsMatchIn(line) && !line.trimStart().startsWith("//")) {
+                        offences += "${file.name}:${index + 1}  ${line.trim().take(90)}"
+                    }
+                }
+            }
+        assertEquals(
+            "a currency symbol written into a format string — use rememberMoneyFormatter():\n" +
+                offences.joinToString("\n"),
+            emptyList<String>(),
+            offences
+        )
+    }
+
     @Test
     fun `no screen formats cents as a float`() {
         val sources = File("src/main/java/com/ledger/app")

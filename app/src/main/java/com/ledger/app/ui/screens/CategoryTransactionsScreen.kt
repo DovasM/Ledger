@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -42,6 +43,7 @@ fun CategoryTransactionsScreen(
     txViewModel: TransactionViewModel = hiltViewModel(),
     categoryViewModel: CategoryViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val txState  by txViewModel.state.collectAsStateWithLifecycle()
     val catState by categoryViewModel.state.collectAsStateWithLifecycle()
 
@@ -156,9 +158,9 @@ fun CategoryTransactionsScreen(
                         }
                         Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             if (totalSpent > 0)
-                                Text("-${"$%,.2f".format(totalSpent)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
+                                Text("-${money.ofUnits(totalSpent)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
                             if (totalEarned > 0)
-                                Text("+${"$%,.2f".format(totalEarned)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.Bold)
+                                Text("+${money.ofUnits(totalEarned)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -207,7 +209,7 @@ fun CategoryTransactionsScreen(
                                                 )
                                             }
                                             Text(
-                                                "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amountCents.asUnits)}",
+                                                "${if (tx.isIncome) "+" else "-"}${money.ofUnits(tx.amountCents.asUnits)}",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = if (tx.isIncome) Primary else Tertiary,
                                                 fontWeight = FontWeight.SemiBold
@@ -236,6 +238,7 @@ private fun CatTxDetailSheet(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val money = rememberMoneyFormatter()
     var confirmDelete by remember { mutableStateOf(false) }
     val dateFmt = DateTimeFormatter.ofPattern("MMM d, yyyy")
     val displayDate = runCatching { LocalDate.parse(tx.occurredAt.take(10)).format(dateFmt) }.getOrElse { tx.occurredAt.take(10) }
@@ -258,7 +261,7 @@ private fun CatTxDetailSheet(
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(tx.title, style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                 Text(
-                    "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amountCents.asUnits)}",
+                    "${if (tx.isIncome) "+" else "-"}${money.ofUnits(tx.amountCents.asUnits)}",
                     style = MaterialTheme.typography.titleLarge,
                     color = if (tx.isIncome) Primary else Tertiary,
                     fontWeight = FontWeight.Bold

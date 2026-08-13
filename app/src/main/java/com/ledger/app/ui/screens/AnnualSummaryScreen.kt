@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -46,6 +47,7 @@ fun AnnualSummaryScreen(
     txViewModel: TransactionViewModel  = hiltViewModel(),
     catViewModel: CategoryViewModel    = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val txState  by txViewModel.state.collectAsStateWithLifecycle()
     // Off-budget accounts are excluded here unless the user asked to see them.
     val reportTxs = rememberReportTransactions(txState)
@@ -148,10 +150,10 @@ fun AnnualSummaryScreen(
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                     Text("$selectedYear YEAR TO DATE", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        AnnualStat("Total Income",  "+${"$%,.0f".format(totalIncome)}",    Primary)
-                        AnnualStat("Total Spent",   "-${"$%,.0f".format(totalExpenses)}",  Tertiary, alignment = Alignment.CenterHorizontally)
+                        AnnualStat("Total Income",  "+${money.ofUnits(totalIncome, decimals = 0)}",    Primary)
+                        AnnualStat("Total Spent",   "-${money.ofUnits(totalExpenses, decimals = 0)}",  Tertiary, alignment = Alignment.CenterHorizontally)
                         AnnualStat("Net Saved",
-                            "${if (totalSavings >= 0) "+" else ""}${"$%,.0f".format(totalSavings)}",
+                            "${if (totalSavings >= 0) "+" else ""}${money.ofUnits(totalSavings, decimals = 0)}",
                             if (totalSavings >= 0) Primary else Tertiary, alignment = Alignment.End)
                     }
                     AnnualChart(monthlyIncome, monthlyExpenses, monthsFull)
@@ -221,7 +223,7 @@ fun AnnualSummaryScreen(
                                     modifier = Modifier.width(80.dp).height(4.dp).clip(RoundedCornerShape(2.dp)),
                                     color = color, trackColor = SurfaceContainerHighest
                                 )
-                                Text("${"$%,.0f".format(amount)}", style = MaterialTheme.typography.labelSmall,
+                                Text("${money.ofUnits(amount, decimals = 0)}", style = MaterialTheme.typography.labelSmall,
                                     color = OnSurface, fontWeight = FontWeight.SemiBold, modifier = Modifier.width(52.dp))
                             }
                         }
@@ -253,6 +255,7 @@ private fun HighlightCard(label: String, value: String, icon: androidx.compose.u
 
 @Composable
 private fun AnnualChart(income: List<Float>, expenses: List<Float>, labels: List<String>) {
+    val money = rememberMoneyFormatter()
     var selectedIdx by remember { mutableStateOf<Int?>(null) }
     var canvasWidth by remember { mutableStateOf(0f) }
     val incColor = Color(0xFF00513F)
@@ -318,12 +321,12 @@ private fun AnnualChart(income: List<Float>, expenses: List<Float>, labels: List
             ) {
                 Text(labels[idx], style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant, modifier = Modifier.width(32.dp))
                 if (income[idx] > 0f)
-                    Text("+${"$%,.0f".format(income[idx])}", style = MaterialTheme.typography.labelSmall, color = incColor, fontWeight = FontWeight.SemiBold)
+                    Text("+${money.ofUnits(income[idx], decimals = 0)}", style = MaterialTheme.typography.labelSmall, color = incColor, fontWeight = FontWeight.SemiBold)
                 if (expenses[idx] > 0f)
-                    Text("-${"$%,.0f".format(expenses[idx])}", style = MaterialTheme.typography.labelSmall, color = expColor, fontWeight = FontWeight.SemiBold)
+                    Text("-${money.ofUnits(expenses[idx], decimals = 0)}", style = MaterialTheme.typography.labelSmall, color = expColor, fontWeight = FontWeight.SemiBold)
                 if (income[idx] > 0f && expenses[idx] > 0f) {
                     val net = income[idx] - expenses[idx]
-                    Text("net ${"$%,.0f".format(net)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Text("net ${money.ofUnits(net, decimals = 0)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                 }
             }
         } ?: Text(

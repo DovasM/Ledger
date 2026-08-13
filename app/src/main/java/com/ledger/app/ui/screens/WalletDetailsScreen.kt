@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import com.ledger.app.ui.util.asUnits
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -20,7 +21,9 @@ import com.ledger.app.ui.components.*
 import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.viewmodel.TransactionViewModel
+import com.ledger.app.ui.viewmodel.TransferViewModel
 import com.ledger.app.ui.viewmodel.WalletViewModel
+import uniffi.ledger.Transfer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -28,10 +31,13 @@ fun WalletDetailsScreen(
     navController: NavController,
     walletId: String,
     walletViewModel: WalletViewModel = hiltViewModel(),
-    transactionViewModel: TransactionViewModel = hiltViewModel()
+    transactionViewModel: TransactionViewModel = hiltViewModel(),
+    transferViewModel: TransferViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val walletState by walletViewModel.state.collectAsStateWithLifecycle()
     val txState by transactionViewModel.state.collectAsStateWithLifecycle()
+    val transferState by transferViewModel.state.collectAsStateWithLifecycle()
     val wallet = walletState.wallets.find { it.id == walletId }
 
     val today = java.time.LocalDate.now()
@@ -39,6 +45,7 @@ fun WalletDetailsScreen(
 
     LaunchedEffect(walletId) {
         transactionViewModel.loadForWallet(walletId)
+        transferViewModel.load()
     }
 
     val periodTxs = txState.transactions.filter {
@@ -85,7 +92,7 @@ fun WalletDetailsScreen(
                         Column {
                             Text("CURRENT BALANCE", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                             Text(
-                                "${"$%,.2f".format(wallet?.balanceCents?.asUnits ?: 0.0)}",
+                                "${money.ofUnits(wallet?.balanceCents?.asUnits ?: 0.0)}",
                                 style = MaterialTheme.typography.displaySmall,
                                 color = OnSurface, fontWeight = FontWeight.Bold
                             )
@@ -108,11 +115,11 @@ fun WalletDetailsScreen(
                     Text("Period Stats", style = MaterialTheme.typography.titleMedium, color = OnSurface)
                     HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        WalletStatCol("Income", "+${"$%,.2f".format(monthIncome)}", Primary)
+                        WalletStatCol("Income", "+${money.ofUnits(monthIncome)}", Primary)
                         VerticalDivider(modifier = Modifier.height(40.dp), color = OutlineVariant.copy(alpha = 0.3f))
-                        WalletStatCol("Expenses", "-${"$%,.2f".format(monthExpenses)}", Tertiary)
+                        WalletStatCol("Expenses", "-${money.ofUnits(monthExpenses)}", Tertiary)
                         VerticalDivider(modifier = Modifier.height(40.dp), color = OutlineVariant.copy(alpha = 0.3f))
-                        WalletStatCol("Net", "${"$%,.2f".format(monthIncome - monthExpenses)}", OnSurface)
+                        WalletStatCol("Net", "${money.ofUnits(monthIncome - monthExpenses)}", OnSurface)
                     }
                 }
             }
@@ -142,12 +149,103 @@ fun WalletDetailsScreen(
                             TransactionRow(
                                 tx.title,
                                 tx.category,
-                                (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
+                                (if (tx.isIncome) "+" else "-") + "${money.ofUnits(tx.amountCents.asUnits)}",
                                 isIncome = tx.isIncome
                             )
                         }
                     }
                 }
+            }
+
+            // Transfers are neither income nor expense, so they never appear above. Without this
+            // they could be created and then never seen or undone again.
+            val walletTransfers = transferState.transfers.filter {
+                it.fromWalletId == walletId || it.toWalletId == walletId
+            }
+            var pendingDelete by remember { mutableStateOf<Transfer?>(null) }
+
+            pendingDelete?.let { transfer ->
+                AlertDialog(
+                    onDismissRequest = { pendingDelete = null },
+                    title = { Text("Remove this transfer?") },
+                    text = {
+                        Text(
+                            "${money.of(transfer.amountCents)} will stop counting in both wallets. " +
+                                "It is not income or spending, so no report changes."
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            transferViewModel.deleteTransfer(transfer.id)
+                            pendingDelete = null
+                        }) { Text("Remove", color = Error) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { pendingDelete = null }) { Text("Cancel", color = OnSurfaceVariant) }
+                    }
+                )
+            }
+
+            Text("Transfers", style = MaterialTheme.typography.titleMedium, color = OnSurface)
+            if (walletTransfers.isEmpty()) {
+                LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        Text(
+                            "No transfers to or from this wallet.",
+                            style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        walletTransfers.forEach { transfer ->
+                            val outgoing = transfer.fromWalletId == walletId
+                            val otherId = if (outgoing) transfer.toWalletId else transfer.fromWalletId
+                            val otherName = walletState.wallets.find { it.id == otherId }?.name ?: "another wallet"
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    if (outgoing) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
+                                    contentDescription = if (outgoing) "Sent" else "Received",
+                                    tint = if (outgoing) Tertiary else Primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        if (outgoing) "To $otherName" else "From $otherName",
+                                        style = MaterialTheme.typography.bodyMedium, color = OnSurface
+                                    )
+                                    Text(
+                                        listOfNotNull(transfer.createdAt.take(10), transfer.note).joinToString(" · "),
+                                        style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                                    )
+                                }
+                                Text(
+                                    (if (outgoing) "-" else "+") + money.of(transfer.amountCents),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (outgoing) Tertiary else Primary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                IconButton(onClick = { pendingDelete = transfer }) {
+                                    Icon(
+                                        Icons.Filled.Delete, "Remove transfer",
+                                        tint = OnSurfaceVariant, modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            TextButton(onClick = { navController.navigate(Screen.AddTransfer.createRoute(walletId)) }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.SwapHoriz, contentDescription = null, tint = Primary, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("New Transfer", color = Primary, style = MaterialTheme.typography.labelLarge)
             }
 
             TextButton(onClick = { navController.navigate(Screen.Transactions.route) }, modifier = Modifier.fillMaxWidth()) {

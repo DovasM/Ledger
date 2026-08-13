@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -59,6 +60,7 @@ fun MonthlyStatisticsScreen(
     categoryViewModel: CategoryViewModel = hiltViewModel(),
     recurringViewModel: RecurringViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val txState        by txViewModel.state.collectAsStateWithLifecycle()
     // Off-budget accounts are excluded here unless the user asked to see them.
     val reportTxs = rememberReportTransactions(txState)
@@ -139,7 +141,7 @@ fun MonthlyStatisticsScreen(
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text(tx.title, style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                         Text(
-                            "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amountCents.asUnits)}",
+                            "${if (tx.isIncome) "+" else "-"}${money.ofUnits(tx.amountCents.asUnits)}",
                             style = MaterialTheme.typography.titleLarge, color = accentColor, fontWeight = FontWeight.Bold
                         )
                     }
@@ -268,6 +270,7 @@ private fun StatsSummaryTab(
     onTxClick: (Transaction) -> Unit,
     onNavigateToMonth: (Int) -> Unit
 ) {
+    val money = rememberMoneyFormatter()
     val income    = txs.filter {  it.isIncome }.sumOf { it.amountCents.asUnits }
     val expenses  = txs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }
     val net       = income - expenses
@@ -283,15 +286,15 @@ private fun StatsSummaryTab(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("INCOME", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text("+${"$%,.0f".format(income)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.Bold)
+                        Text("+${money.ofUnits(income, decimals = 0)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.Bold)
                     }
                     Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("EXPENSES", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text("-${"$%,.0f".format(expenses)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
+                        Text("-${money.ofUnits(expenses, decimals = 0)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
                     }
                     Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("NET", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text("${if (net >= 0) "+" else ""}${"$%,.0f".format(net)}",
+                        Text("${if (net >= 0) "+" else ""}${money.ofUnits(net, decimals = 0)}",
                             style = MaterialTheme.typography.titleMedium,
                             color = if (net >= 0) Primary else Tertiary,
                             fontWeight = FontWeight.Bold)
@@ -305,7 +308,7 @@ private fun StatsSummaryTab(
                     }
                     Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                         Icon(Icons.Filled.Receipt, null, tint = OnSurfaceVariant, modifier = Modifier.size(14.dp))
-                        Text("$txCount transactions · avg ${"$%.0f".format(avgTxSize)}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                        Text("$txCount transactions · avg ${money.ofUnits(avgTxSize, decimals = 0)}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                     }
                 }
             }
@@ -376,7 +379,7 @@ private fun StatsSummaryTab(
                     TransactionRow(
                         title    = tx.title,
                         subtitle = "${tx.occurredAt.take(10)} · ${tx.category}",
-                        amount   = "-${"$%,.2f".format(tx.amountCents.asUnits)}",
+                        amount   = "-${money.ofUnits(tx.amountCents.asUnits)}",
                         isIncome = false,
                         onClick  = { onTxClick(tx) }
                     )
@@ -403,7 +406,7 @@ private fun StatsSummaryTab(
                     TransactionRow(
                         title    = tx.title,
                         subtitle = "${tx.occurredAt.take(10)} · ${tx.category}",
-                        amount   = "+${"$%,.2f".format(tx.amountCents.asUnits)}",
+                        amount   = "+${money.ofUnits(tx.amountCents.asUnits)}",
                         isIncome = true,
                         onClick  = { onTxClick(tx) }
                     )
@@ -422,6 +425,7 @@ private fun StatsTrendsTab(
     sixMonths: List<Triple<LocalDate, List<Transaction>, String>>,
     categories: List<Category>
 ) {
+    val money = rememberMoneyFormatter()
     val monthLabels   = sixMonths.map { it.third }
     val incomeValues  = sixMonths.map { (_, txs, _) -> txs.filter {  it.isIncome }.sumOf { it.amountCents.asUnits }.toFloat() }
     val expenseValues = sixMonths.map { (_, txs, _) -> txs.filter { !it.isIncome }.sumOf { it.amountCents.asUnits }.toFloat() }
@@ -489,7 +493,7 @@ private fun StatsTrendsTab(
                             values[values.size - 2] == 0f ->
                                 Text("new this month", style = MaterialTheme.typography.labelSmall, color = Primary)
                             else ->
-                                Text("${if (diff >= 0) "+" else ""}${"$%.0f".format(diff)} vs last month",
+                                Text("${if (diff >= 0) "+" else ""}${money.ofUnits(diff, decimals = 0)} vs last month",
                                     style = MaterialTheme.typography.labelSmall, color = if (diff <= 0f) Primary else Tertiary)
                         }
                     }
@@ -506,6 +510,7 @@ private fun StatsTrendsTab(
 
 @Composable
 private fun IncExpDualChart(income: List<Float>, expenses: List<Float>, labels: List<String>) {
+    val money = rememberMoneyFormatter()
     var selectedIdx by remember { mutableStateOf<Int?>(null) }
     var canvasWidth by remember { mutableStateOf(0f) }
     val n = income.size
@@ -574,12 +579,12 @@ private fun IncExpDualChart(income: List<Float>, expenses: List<Float>, labels: 
             Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(labels[idx], style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant, modifier = Modifier.width(28.dp))
                 if (income[idx] > 0f)
-                    Text("+${"$%,.0f".format(income[idx])}", style = MaterialTheme.typography.labelSmall, color = Color(0xFF00513F), fontWeight = FontWeight.SemiBold)
+                    Text("+${money.ofUnits(income[idx], decimals = 0)}", style = MaterialTheme.typography.labelSmall, color = Color(0xFF00513F), fontWeight = FontWeight.SemiBold)
                 if (expenses[idx] > 0f)
-                    Text("-${"$%,.0f".format(expenses[idx])}", style = MaterialTheme.typography.labelSmall, color = Tertiary, fontWeight = FontWeight.SemiBold)
+                    Text("-${money.ofUnits(expenses[idx], decimals = 0)}", style = MaterialTheme.typography.labelSmall, color = Tertiary, fontWeight = FontWeight.SemiBold)
                 if (income[idx] > 0f && expenses[idx] > 0f) {
                     val net = income[idx] - expenses[idx]
-                    Text("net ${if (net >= 0) "+" else ""}${"$%,.0f".format(net)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                    Text("net ${if (net >= 0) "+" else ""}${money.ofUnits(net, decimals = 0)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                 }
             }
         } ?: Text("Hold & drag to inspect", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant.copy(alpha = 0.5f))
@@ -607,6 +612,7 @@ private fun TrendSparkline(values: List<Float>, color: Color) {
 
 @Composable
 private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String>) {
+    val money = rememberMoneyFormatter()
     val expenses = txs.filter { !it.isIncome }
 
     // ── Day of week ───────────────────────────────────────────────────────────
@@ -636,7 +642,7 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
                         LinearProgressIndicator(progress = { amount / maxDow },
                             modifier = Modifier.weight(1f).height(10.dp).clip(RoundedCornerShape(5.dp)),
                             color = if (isPeak) Tertiary else Primary, trackColor = SurfaceContainerHighest)
-                        Text("${"$%.0f".format(amount)}", style = MaterialTheme.typography.labelSmall, color = OnSurface,
+                        Text("${money.ofUnits(amount, decimals = 0)}", style = MaterialTheme.typography.labelSmall, color = OnSurface,
                             fontWeight = if (isPeak) FontWeight.Bold else FontWeight.Normal, modifier = Modifier.width(44.dp))
                     }
                 }
@@ -677,7 +683,7 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
                         LinearProgressIndicator(progress = { byWeekNorm[i] / maxWeek },  // normalized height
                             modifier = Modifier.weight(1f).height(10.dp).clip(RoundedCornerShape(5.dp)),
                             color = if (isPeak) Color(0xFF1565C0) else Primary.copy(alpha = 0.8f), trackColor = SurfaceContainerHighest)
-                        Text("${"$%.0f".format(amount)}", style = MaterialTheme.typography.labelSmall, color = OnSurface, modifier = Modifier.width(44.dp))  // actual total
+                        Text("${money.ofUnits(amount, decimals = 0)}", style = MaterialTheme.typography.labelSmall, color = OnSurface, modifier = Modifier.width(44.dp))  // actual total
                     }
                 }
                 if (peakWeekIdx != null)
@@ -707,7 +713,7 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
                             color = Primary, trackColor = SurfaceContainerHighest)
                         Text("${count}×", style = MaterialTheme.typography.labelSmall, color = Primary,
                             fontWeight = FontWeight.SemiBold, modifier = Modifier.width(24.dp))
-                        Text("${"$%.0f".format(totalSpent)}", style = MaterialTheme.typography.labelSmall,
+                        Text("${money.ofUnits(totalSpent, decimals = 0)}", style = MaterialTheme.typography.labelSmall,
                             color = OnSurfaceVariant, modifier = Modifier.width(44.dp))
                     }
                 }
@@ -729,7 +735,7 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
                     Text(largest.title, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
                     Text("${largest.occurredAt.take(10)} · ${largest.category}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                 }
-                Text("-${"$%,.2f".format(largest.amountCents.asUnits)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
+                Text("-${money.ofUnits(largest.amountCents.asUnits)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
             }
         }
     }
@@ -760,7 +766,7 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
                             Box(Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF1565C0)))
                             Text("Recurring", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                         }
-                        Text("${"$%,.0f".format(recurringTotal)} · ${"%.0f".format(recurringPct)}%",
+                        Text("${money.ofUnits(recurringTotal, decimals = 0)} · ${"%.0f".format(recurringPct)}%",
                             style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
                     }
                     Column(horizontalAlignment = Alignment.End) {
@@ -768,7 +774,7 @@ private fun StatsPatternsTab(txs: List<Transaction>, recurringTitles: Set<String
                             Box(Modifier.size(8.dp).clip(CircleShape).background(SurfaceContainerHighest))
                             Text("Discretionary", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                         }
-                        Text("${"$%,.0f".format(discretionaryTotal)} · ${"%.0f".format(100 - recurringPct)}%",
+                        Text("${money.ofUnits(discretionaryTotal, decimals = 0)} · ${"%.0f".format(100 - recurringPct)}%",
                             style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
                     }
                 }
@@ -785,6 +791,7 @@ private fun StatsSavingsTab(
     allYearMonths: List<Triple<LocalDate, List<Transaction>, String>>,
     navController: NavController
 ) {
+    val money = rememberMoneyFormatter()
     // rate is null when income == 0 (no income data for that month — not "saved 0%")
     val savingsData: List<Triple<String, Float?, Double>> = sixMonths.map { (_, txs, label) ->
         val income   = txs.filter { it.isIncome }.sumOf { it.amountCents.asUnits }
@@ -893,7 +900,7 @@ private fun StatsSavingsTab(
     if (avgMonthlySavingsAmount > 0) {
         val targets = listOf(1_000.0, 5_000.0, 10_000.0, 25_000.0, 50_000.0)
         Text("Savings Projection", style = MaterialTheme.typography.headlineSmall, color = OnSurface)
-        Text("At your 6-month avg net savings of ${"$%,.0f".format(avgMonthlySavingsAmount)}/month, how long to reach key milestones.",
+        Text("At your 6-month avg net savings of ${money.ofUnits(avgMonthlySavingsAmount, decimals = 0)}/month, how long to reach key milestones.",
             style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
         LedgerCard(modifier = Modifier.fillMaxWidth()) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -907,7 +914,7 @@ private fun StatsSavingsTab(
                         else                 -> "${rem}mo"
                     }
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("${"$%,.0f".format(target)}", style = MaterialTheme.typography.bodyMedium, color = OnSurface)
+                        Text("${money.ofUnits(target, decimals = 0)}", style = MaterialTheme.typography.bodyMedium, color = OnSurface)
                         Surface(shape = RoundedCornerShape(4.dp), color = Primary.copy(alpha = 0.10f)) {
                             Text(label, modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                                 style = MaterialTheme.typography.labelMedium, color = Primary, fontWeight = FontWeight.SemiBold)
@@ -936,6 +943,7 @@ private fun StatsComparisonTab(
     allYearMonths: List<Triple<LocalDate, List<Transaction>, String>>,
     selectedMonth: Int
 ) {
+    val money = rememberMoneyFormatter()
     val selExp  = selTxs.filter { !it.isIncome }
     val prevExp = prevTxs.filter { !it.isIncome }
 
@@ -1010,7 +1018,7 @@ private fun StatsComparisonTab(
                                             Text("Best", style = MaterialTheme.typography.labelSmall, color = Primary)
                                         }
                                         Text(best.first, style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                                        Text("${"$%,.0f".format(best.second)}", style = MaterialTheme.typography.bodyMedium, color = Primary, fontWeight = FontWeight.Bold)
+                                        Text("${money.ofUnits(best.second, decimals = 0)}", style = MaterialTheme.typography.bodyMedium, color = Primary, fontWeight = FontWeight.Bold)
                                     }
                                 }
                                 Surface(modifier = Modifier.weight(1f), shape = RoundedCornerShape(8.dp), color = Tertiary.copy(alpha = 0.08f)) {
@@ -1020,7 +1028,7 @@ private fun StatsComparisonTab(
                                             Text("Worst", style = MaterialTheme.typography.labelSmall, color = Tertiary)
                                         }
                                         Text(worst.first, style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                                        Text("${"$%,.0f".format(worst.second)}", style = MaterialTheme.typography.bodyMedium, color = Tertiary, fontWeight = FontWeight.Bold)
+                                        Text("${money.ofUnits(worst.second, decimals = 0)}", style = MaterialTheme.typography.bodyMedium, color = Tertiary, fontWeight = FontWeight.Bold)
                                     }
                                 }
                             }
@@ -1094,15 +1102,16 @@ private fun StatsComparisonTab(
 
 @Composable
 private fun CategoryCompareRow(name: String, current: Float, previous: Float, maxVal: Float) {
+    val money = rememberMoneyFormatter()
     val diff = current - previous
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
             Text(name, style = MaterialTheme.typography.bodyMedium, color = OnSurface)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("${"$%.0f".format(current)}", style = MaterialTheme.typography.labelMedium, color = OnSurface)
+                Text("${money.ofUnits(current, decimals = 0)}", style = MaterialTheme.typography.labelMedium, color = OnSurface)
                 if (previous > 0f) {
                     Surface(shape = RoundedCornerShape(4.dp), color = (if (diff <= 0f) Primary else Tertiary).copy(alpha = 0.10f)) {
-                        Text("${if (diff >= 0) "+" else ""}${"$%.0f".format(diff)}",
+                        Text("${if (diff >= 0) "+" else ""}${money.ofUnits(diff, decimals = 0)}",
                             modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp),
                             style = MaterialTheme.typography.labelSmall,
                             color = if (diff <= 0f) Primary else Tertiary, fontWeight = FontWeight.Bold)
@@ -1118,15 +1127,16 @@ private fun CategoryCompareRow(name: String, current: Float, previous: Float, ma
                 modifier = Modifier.fillMaxWidth().height(6.dp).clip(RoundedCornerShape(3.dp)),
                 color = if (diff > 0f) Tertiary else Primary, trackColor = Color.Transparent)
         }
-        Text("vs ${"$%.0f".format(previous)} last month", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+        Text("vs ${money.ofUnits(previous, decimals = 0)} last month", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
     }
 }
 
 @Composable
 private fun YtdStatRow(label: String, value: Double, color: Color) {
+    val money = rememberMoneyFormatter()
     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
         Text(label, style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant)
-        Text("${if (value >= 0) "" else "-"}${"$%,.0f".format(abs(value))}",
+        Text("${if (value >= 0) "" else "-"}${money.ofUnits(abs(value), decimals = 0)}",
             style = MaterialTheme.typography.bodyMedium, color = color, fontWeight = FontWeight.Medium)
     }
 }

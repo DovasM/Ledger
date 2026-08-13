@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -37,6 +38,7 @@ fun CustomReportScreen(
     categoryViewModel: CategoryViewModel = hiltViewModel(),
     txViewModel: TransactionViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val catState by categoryViewModel.state.collectAsStateWithLifecycle()
     val txState  by txViewModel.state.collectAsStateWithLifecycle()
     // Off-budget accounts are excluded here unless the user asked to see them.
@@ -376,7 +378,7 @@ fun CustomReportScreen(
                         }
                     }
                     IconButton(onClick = {
-                        val csv = buildCustomCsv(startYm, endYm, filteredTxs, selectedGrouping)
+                        val csv = buildCustomCsv(startYm, endYm, filteredTxs, selectedGrouping, money)
                         val fileName = "custom_report_${startYm.year}${"%02d".format(startYm.monthValue)}_${endYm.year}${"%02d".format(endYm.monthValue)}.csv"
                         context.startActivity(Intent.createChooser(shareCsv(context, fileName, csv), "Export CSV"))
                     }) {
@@ -390,16 +392,16 @@ fun CustomReportScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text("INCOME", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                                Text("+${"$%,.2f".format(report.income)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.Bold)
+                                Text("+${money.ofUnits(report.income)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.Bold)
                             }
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text("EXPENSES", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                                Text("-${"$%,.2f".format(report.expenses)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
+                                Text("-${money.ofUnits(report.expenses)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
                             }
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text("NET", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                                 Text(
-                                    "${if (net >= 0) "+" else ""}${"$%,.2f".format(net)}",
+                                    "${if (net >= 0) "+" else ""}${money.ofUnits(net)}",
                                     style = MaterialTheme.typography.titleMedium,
                                     color = if (net >= 0) Primary else Tertiary, fontWeight = FontWeight.Bold
                                 )
@@ -427,9 +429,9 @@ fun CustomReportScreen(
                                     Text(label, style = MaterialTheme.typography.bodyMedium, color = OnSurface, modifier = Modifier.weight(1f))
                                     Text(
                                         if (selectedGrouping == "By Category")
-                                            "${"$%,.2f".format(value)}"
+                                            "${money.ofUnits(value)}"
                                         else
-                                            "${if (value >= 0) "+" else ""}${"$%,.2f".format(value)}",
+                                            "${if (value >= 0) "+" else ""}${money.ofUnits(value)}",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = if (selectedGrouping == "By Category") Tertiary
                                                 else if (value >= 0) Primary else Tertiary,

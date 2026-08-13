@@ -69,7 +69,7 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 - [ ] **Month heatmap (4×3)** — calendar grid coloured by daily spend, no-spend days highlighted
 
 ### Widget polish
-- [ ] Adopt `ui/util/MoneyFormat.kt` across the app's remaining screens — `BudgetsScreen` and the widgets use it, but most others still hardcode `"$%,.2f"` and ignore the currency preference
+- [x] Adopt `ui/util/MoneyFormat.kt` across the app's remaining screens — `BudgetsScreen` and the widgets use it, but most others still hardcode `"$%,.2f"` and ignore the currency preference
 - [ ] Stale widget-snapshot keys — `w_daily_allowance` lingers in the DataStore after being renamed to `w_today_allowance`. Harmless (nothing reads it) but confusing when debugging the `.preferences_pb`
 - [ ] Replace `previewLayout` XMLs with richer picker previews, and `widget_preview_generic.xml` with a real `previewImage` for API < 31
 - [ ] Dark-theme pass on the widgets — day/night `ColorProvider`s are declared but untested on a dark home screen
@@ -141,28 +141,12 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 ### Wallet Operations
 - [x] **Transfer between wallets — data layer** — `transfers` table with its own CRUD; moves balance between both wallets and never touches income or expense totals (folding it into `transactions` would make every report count it twice)
 - [x] **Transfer between wallets — UI** — `AddTransferScreen` + `TransferViewModel`, reached from the swap icon in the WalletsList top bar. From/to pickers, amount, note, and an after-the-move balance preview so an overdrawing transfer is visible before saving; refuses the same wallet on both sides
-- [ ] **Transfers are not listed anywhere** — you can create a transfer and then never see it again, and never
-  delete it. Everything below it already exists; only the screen is missing.
-
-  *What is already there:* `listTransfers(limit, offset)` and `deleteTransfer(id)` on the bridge, `TransferViewModel`
-  with `load()` / `createTransfer()` / `deleteTransfer()`, `AddTransferScreen` on route `Screen.AddTransfer`, reached
-  from the swap icon in the WalletsList top bar. The Rust side is covered by
-  `a_transfer_moves_money_without_touching_income_or_expenses` and `a_transfer_stays_out_of_the_month_summary`.
-
-  *Where it goes:* `WalletDetailsScreen` already has a "Recent Transactions" section; a "Transfers" section under it
-  is the natural home, showing the transfers on **either** side of this wallet with a direction marker — "→ Savings"
-  for money leaving, "← Checking" for money arriving — the other wallet's name, the amount, the date and the note.
-  A full list belongs on WalletsList or its own screen if one wallet's worth is not enough.
-
-  *Deleting:* confirm first, then call `deleteTransfer`. Since `m9` the balance is derived, so removing the row is
-  the whole operation — there is no money to put back by hand, and the two balances simply stop including it.
-
-  *Watch for:* a transfer is neither income nor expense, so it must not appear in the transactions list, the month
-  summary, the budgets or the streak — it has its own table precisely so no report counts it twice. Any new sum
-  written for this screen has to keep that true.
-
-  *Related:* Money Manager transfers are still not imported (separate item below), so this list will be empty for
-  anyone whose data came from an import until that is fixed.
+- [x] **Transfers are listed and can be removed** — WalletDetailsScreen gained a Transfers section showing every
+  transfer on either side of that wallet: direction, the other wallet's name, the amount, the date and the note,
+  with delete behind a confirmation and a New Transfer button beside it. Since `m9` the balance is derived, so
+  removing one is just removing the row — both balances simply stop including it, and no report changes because a
+  transfer was never income or spending. Note the list will be empty for data that came from a Money Manager
+  import: those transfers are still not imported (separate item below)
 - [x] **Overall budget** — a budget with no category caps everything you spend and is now the *only* source of the daily allowance. Category budgets are no longer summed into a total, which had invented a figure nobody chose and hid every unbudgeted purchase from the allowance. `AddEditBudgetScreen` gained an Overall/Category scope selector
 - [x] **`carry_over` wired** — the "Carry unspent amount to next period" switch stored nothing before. It composes with `allowance_rollover` rather than conflicting: carry-over moves the previous period's residual into this period's ceiling, rollover spreads that ceiling across remaining days. One period back, symmetric
 - [x] **Carry-over no longer reaches back before the budget existed** — a 200/month budget created today inherited the previous month's 2644 of spending and opened at minus 2244, shown as "2692 over" on day one. The previous period now only counts if the budget already covered it
@@ -254,7 +238,7 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
   and `MoneyFormatHazardTest` now reads the source and fails the build on that shape — the detector is unit-tested
   against the lines that actually shipped broken, and re-injecting one fails the suite. Only 2 files were
   affected: the two that kept cents end to end. The rest read `.asUnits` and were already Doubles
-- [ ] **Hand-written `"$%,.2f"` hardcodes dollars** — the wallets here are in EUR and these screens print a dollar
+- [x] **Hand-written `"$%,.2f"` hardcodes dollars** — the wallets here are in EUR and these screens print a dollar
   sign regardless. Every one of them should go through `formatCents`/`formatAmount` with the user's currency, which
   also removes the remaining places a Long could reach a float format. ~160 sites; the streaks and budgets screens
   are done

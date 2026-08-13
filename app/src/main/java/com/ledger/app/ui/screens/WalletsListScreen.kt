@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import com.ledger.app.ui.util.asUnits
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -34,6 +35,7 @@ fun WalletsListScreen(
     viewModel: WalletViewModel = hiltViewModel(),
     txViewModel: TransactionViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val txState by txViewModel.state.collectAsStateWithLifecycle()
     val currentEntry by navController.currentBackStackEntryAsState()
@@ -44,7 +46,7 @@ fun WalletsListScreen(
             TopAppBar(
                 title = { Text("Wallets", style = MaterialTheme.typography.headlineSmall) },
                 actions = {
-                    IconButton(onClick = { navController.navigate(Screen.AddTransfer.route) }) {
+                    IconButton(onClick = { navController.navigate(Screen.AddTransfer.createRoute()) }) {
                         Icon(Icons.Filled.SwapHoriz, contentDescription = "Transfer between wallets")
                     }
                 },
@@ -74,7 +76,7 @@ fun WalletsListScreen(
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text("COMBINED BALANCE", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     Text(
-                        "${"$%,.2f".format(totalBalance)}",
+                        "${money.ofUnits(totalBalance)}",
                         style = MaterialTheme.typography.displaySmall,
                         color = OnSurface,
                         fontWeight = FontWeight.Bold
@@ -108,7 +110,7 @@ fun WalletsListScreen(
                     val w = longPressWallet!!
                     LedgerActionDialog(
                         title = w.name,
-                        subtitle = "Balance: ${"$%,.2f".format(w.balanceCents.asUnits)}",
+                        subtitle = "Balance: ${money.ofUnits(w.balanceCents.asUnits)}",
                         onDismiss = { longPressWallet = null },
                         onEdit = { longPressWallet = null; navController.navigate(Screen.EditWallet.createRoute(w.id)) }
                     )
@@ -185,6 +187,7 @@ private fun WalletDistributionBar(wallets: List<Wallet>) {
 
 @Composable
 private fun WalletCard(wallet: Wallet, navController: NavController, onLongClick: () -> Unit = {}) {
+    val money = rememberMoneyFormatter()
     LedgerCard(
         modifier = Modifier.fillMaxWidth(),
         onClick = { navController.navigate(Screen.WalletDetails.createRoute(wallet.id)) },
@@ -210,7 +213,7 @@ private fun WalletCard(wallet: Wallet, navController: NavController, onLongClick
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    "${"$%,.2f".format(wallet.balanceCents.asUnits)}",
+                    "${money.ofUnits(wallet.balanceCents.asUnits)}",
                     style = MaterialTheme.typography.titleMedium,
                     color = if (wallet.balanceCents.asUnits >= 0) OnSurface else Tertiary,
                     fontWeight = FontWeight.Bold

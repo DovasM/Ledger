@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -58,6 +59,7 @@ private val groups = listOf(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SharedExpensesScreen(navController: NavController) {
+    val money = rememberMoneyFormatter()
     var selectedGroup by remember { mutableStateOf<Long?>(null) }
     var showAddSheet by remember { mutableStateOf(false) }
 
@@ -93,13 +95,13 @@ fun SharedExpensesScreen(navController: NavController) {
                 LedgerFloatingCard(modifier = Modifier.weight(1f)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("YOU ARE OWED", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text("${"$%,.2f".format(totalOwed)}", style = MaterialTheme.typography.titleLarge, color = Primary, fontWeight = FontWeight.Bold)
+                        Text("${money.ofUnits(totalOwed)}", style = MaterialTheme.typography.titleLarge, color = Primary, fontWeight = FontWeight.Bold)
                     }
                 }
                 LedgerFloatingCard(modifier = Modifier.weight(1f)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("YOU OWE", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text("${"$%,.2f".format(totalOwe)}", style = MaterialTheme.typography.titleLarge, color = Tertiary, fontWeight = FontWeight.Bold)
+                        Text("${money.ofUnits(totalOwe)}", style = MaterialTheme.typography.titleLarge, color = Tertiary, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -125,13 +127,13 @@ fun SharedExpensesScreen(navController: NavController) {
                                 ) { Text(group.emoji, style = MaterialTheme.typography.titleMedium) }
                                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                     Text(group.name, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
-                                    Text("${group.members.size} people · ${"$%,.2f".format(group.total)} total", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                                    Text("${group.members.size} people · ${money.ofUnits(group.total)} total", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
                                     val bal = group.entries.filter { it.paidBy == "You" }.sumOf { it.amount - it.yourShare } -
                                             group.entries.filter { it.paidBy != "You" }.sumOf { it.yourShare }
                                     Text(
-                                        if (bal >= 0) "+${"$%,.2f".format(bal)}" else "-${"$%,.2f".format(-bal)}",
+                                        if (bal >= 0) "+${money.ofUnits(bal)}" else "-${money.ofUnits(-bal)}",
                                         style = MaterialTheme.typography.titleSmall,
                                         color = if (bal >= 0) Primary else Tertiary,
                                         fontWeight = FontWeight.SemiBold
@@ -148,9 +150,9 @@ fun SharedExpensesScreen(navController: NavController) {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(entry.description, style = MaterialTheme.typography.bodyMedium, color = OnSurface)
-                                            Text("Paid by ${entry.paidBy} · Your share: ${"$%,.2f".format(entry.yourShare)}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                                            Text("Paid by ${entry.paidBy} · Your share: ${money.ofUnits(entry.yourShare)}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                                         }
-                                        Text("${"$%,.2f".format(entry.amount)}", style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium)
+                                        Text("${money.ofUnits(entry.amount)}", style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium)
                                     }
                                     if (idx < group.entries.lastIndex) HorizontalDivider(color = OutlineVariant.copy(alpha = 0.1f))
                                 }

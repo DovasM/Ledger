@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -50,6 +51,7 @@ fun SpendingStreaksScreen(
     settingsViewModel: SettingsViewModel = hiltViewModel(),
     walletViewModel: WalletViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val txState     by txViewModel.state.collectAsStateWithLifecycle()
     val budgetState by budgetViewModel.state.collectAsStateWithLifecycle()
     val catState    by categoryViewModel.state.collectAsStateWithLifecycle()
@@ -333,7 +335,7 @@ fun SpendingStreaksScreen(
                                 trackColor = SurfaceContainerHighest
                             )
                             Text(
-                                "${moneyUnits(weekExpenses)} spent · ${"$%,.2f".format((weeklyBudgetShare - weekExpenses).coerceAtLeast(0.0))} remaining",
+                                "${moneyUnits(weekExpenses)} spent · ${money.ofUnits((weeklyBudgetShare - weekExpenses).coerceAtLeast(0.0))} remaining",
                                 style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
                             )
                         }
@@ -346,13 +348,13 @@ fun SpendingStreaksScreen(
                 Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                     Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("INCOME", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text("+${"$%,.0f".format(weekIncome)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.Bold)
+                        Text("+${money.ofUnits(weekIncome, decimals = 0)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.Bold)
                         Text("this week", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     }
                     VerticalDivider(modifier = Modifier.height(48.dp).align(Alignment.CenterVertically), color = OutlineVariant.copy(alpha = 0.4f))
                     Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(4.dp)) {
                         Text("EXPENSES", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text("-${"$%,.0f".format(weekExpenses)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
+                        Text("-${money.ofUnits(weekExpenses, decimals = 0)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
                         Text("this week", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     }
                 }

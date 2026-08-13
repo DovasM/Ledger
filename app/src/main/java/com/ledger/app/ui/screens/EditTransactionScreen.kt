@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import com.ledger.app.ui.util.asUnits
 
 import androidx.compose.foundation.layout.*
@@ -37,6 +38,7 @@ fun EditTransactionScreen(
     tagViewModel: TagViewModel = hiltViewModel(),
     categoryViewModel: CategoryViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val tagState by tagViewModel.state.collectAsStateWithLifecycle()
     val categoryState by categoryViewModel.state.collectAsStateWithLifecycle()
@@ -172,7 +174,7 @@ fun EditTransactionScreen(
                     Row(modifier = Modifier.padding(16.dp), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Amount", style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant)
                         Text(
-                            (if (isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
+                            (if (isIncome) "+" else "-") + "${money.ofUnits(tx.amountCents.asUnits)}",
                             style = MaterialTheme.typography.titleMedium,
                             color = accentColor
                         )

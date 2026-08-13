@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -37,6 +38,7 @@ fun MonthlyReportScreen(
     navController: NavController,
     txViewModel: TransactionViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val txState by txViewModel.state.collectAsStateWithLifecycle()
     // Off-budget accounts are excluded here unless the user asked to see them.
     val reportTxs = rememberReportTransactions(txState)
@@ -107,7 +109,7 @@ fun MonthlyReportScreen(
                         }
                     } else if (monthTxs.isNotEmpty()) {
                         IconButton(onClick = {
-                            val csv = buildMonthlyCsv(selectedYear, selectedMonth, monthTxs)
+                            val csv = buildMonthlyCsv(selectedYear, selectedMonth, monthTxs, money)
                             val fileName = "monthly_report_${selectedYear}_${"%02d".format(selectedMonth)}.csv"
                             context.startActivity(Intent.createChooser(shareCsv(context, fileName, csv), "Export CSV"))
                         }) {
@@ -156,11 +158,11 @@ fun MonthlyReportScreen(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("INCOME", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                            Text("+${"$%,.2f".format(totalIncome)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.Bold)
+                            Text("+${money.ofUnits(totalIncome)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.Bold)
                         }
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("EXPENSES", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                            Text("-${"$%,.2f".format(totalExpenses)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
+                            Text("-${money.ofUnits(totalExpenses)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
                         }
                     }
                     HorizontalDivider(color = OutlineVariant.copy(alpha = 0.2f))
@@ -168,7 +170,7 @@ fun MonthlyReportScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("NET", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                             Text(
-                                "${if (net >= 0) "+" else ""}${"$%,.2f".format(net)}",
+                                "${if (net >= 0) "+" else ""}${money.ofUnits(net)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = if (net >= 0) Primary else Tertiary, fontWeight = FontWeight.Bold
                             )
@@ -212,7 +214,7 @@ fun MonthlyReportScreen(
                                         Text(cat, style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium)
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             Text("${"%.1f".format(pct)}%", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
-                                            Text("${"$%,.2f".format(amount)}", style = MaterialTheme.typography.bodyMedium, color = Tertiary, fontWeight = FontWeight.SemiBold)
+                                            Text("${money.ofUnits(amount)}", style = MaterialTheme.typography.bodyMedium, color = Tertiary, fontWeight = FontWeight.SemiBold)
                                         }
                                     }
                                     LinearProgressIndicator(
@@ -234,7 +236,7 @@ fun MonthlyReportScreen(
                             Text("LARGEST EXPENSE", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                             Text(largestExpense?.title ?: "—", style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium, maxLines = 1)
                             if (largestExpense != null)
-                                Text("${"$%,.2f".format(largestExpense.amountCents.asUnits)}", style = MaterialTheme.typography.titleSmall, color = Tertiary, fontWeight = FontWeight.Bold)
+                                Text("${money.ofUnits(largestExpense.amountCents.asUnits)}", style = MaterialTheme.typography.titleSmall, color = Tertiary, fontWeight = FontWeight.Bold)
                         }
                     }
                     LedgerCard(modifier = Modifier.weight(1f)) {
@@ -254,7 +256,7 @@ fun MonthlyReportScreen(
                     ) {
                         Column {
                             Text("AVG DAILY SPEND", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                            Text("${"$%,.2f".format(avgDailySpend)}", style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.Bold)
+                            Text("${money.ofUnits(avgDailySpend)}", style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.Bold)
                         }
                         Text("on $daysWithSpend active day${if (daysWithSpend != 1) "s" else ""}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                     }
@@ -279,7 +281,7 @@ fun MonthlyReportScreen(
                                     color = OnSurfaceVariant, fontWeight = FontWeight.SemiBold
                                 )
                                 Text(
-                                    "${if (dayNet >= 0) "+" else ""}${"$%,.2f".format(dayNet)}",
+                                    "${if (dayNet >= 0) "+" else ""}${money.ofUnits(dayNet)}",
                                     style = MaterialTheme.typography.labelMedium,
                                     color = if (dayNet >= 0) Primary else Tertiary
                                 )
@@ -296,7 +298,7 @@ fun MonthlyReportScreen(
                                         Text(tx.category, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                                     }
                                     Text(
-                                        "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amountCents.asUnits)}",
+                                        "${if (tx.isIncome) "+" else "-"}${money.ofUnits(tx.amountCents.asUnits)}",
                                         style = MaterialTheme.typography.bodyMedium,
                                         color = if (tx.isIncome) Primary else Tertiary,
                                         fontWeight = FontWeight.SemiBold

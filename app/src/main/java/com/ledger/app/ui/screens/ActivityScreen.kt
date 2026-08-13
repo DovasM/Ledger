@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import com.ledger.app.ui.util.asUnits
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -39,6 +40,7 @@ fun ActivityScreen(
     viewModel: TransactionViewModel = hiltViewModel(),
     tagViewModel: TagViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val currentEntry by navController.currentBackStackEntryAsState()
     LaunchedEffect(currentEntry?.destination?.route) { viewModel.loadAll() }
@@ -57,7 +59,7 @@ fun ActivityScreen(
         val tx = longPressTx!!
         LedgerActionDialog(
             title = tx.title,
-            subtitle = (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
+            subtitle = (if (tx.isIncome) "+" else "-") + "${money.ofUnits(tx.amountCents.asUnits)}",
             onDismiss = { longPressTx = null },
             onEdit = { longPressTx = null; navController.navigate(Screen.EditTransaction.createRoute(tx.id)) },
             onDelete = { viewModel.deleteTransaction(tx.id) {}; longPressTx = null }
@@ -228,17 +230,17 @@ fun ActivityScreen(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Column {
                             Text("Income", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                            Text("+${"$%,.2f".format(totalIncome)}", style = MaterialTheme.typography.titleLarge, color = Primary, fontWeight = FontWeight.Bold)
+                            Text("+${money.ofUnits(totalIncome)}", style = MaterialTheme.typography.titleLarge, color = Primary, fontWeight = FontWeight.Bold)
                         }
                         Column(horizontalAlignment = Alignment.End) {
                             Text("Expenses", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                            Text("-${"$%,.2f".format(totalExpenses)}", style = MaterialTheme.typography.titleLarge, color = Tertiary, fontWeight = FontWeight.Bold)
+                            Text("-${money.ofUnits(totalExpenses)}", style = MaterialTheme.typography.titleLarge, color = Tertiary, fontWeight = FontWeight.Bold)
                         }
                     }
                     val net = totalIncome - totalExpenses
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("Net savings", style = MaterialTheme.typography.bodyMedium, color = OnSurface)
-                        Text("${"$%,.2f".format(net)}", style = MaterialTheme.typography.titleMedium,
+                        Text("${money.ofUnits(net)}", style = MaterialTheme.typography.titleMedium,
                             color = if (net >= 0) Primary else Tertiary, fontWeight = FontWeight.Bold)
                     }
                 }
@@ -274,7 +276,7 @@ fun ActivityScreen(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                             Text(date, style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant, fontWeight = FontWeight.SemiBold)
                             Text(
-                                (if (dayNet >= 0) "+" else "") + "${"$%,.2f".format(dayNet)}",
+                                (if (dayNet >= 0) "+" else "") + "${money.ofUnits(dayNet)}",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = if (dayNet >= 0) Primary else Tertiary
                             )
@@ -285,7 +287,7 @@ fun ActivityScreen(
                                     TransactionRow(
                                         tx.title,
                                         tx.category,
-                                        (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
+                                        (if (tx.isIncome) "+" else "-") + "${money.ofUnits(tx.amountCents.asUnits)}",
                                         isIncome = tx.isIncome,
                                         onClick = { sheetTx = tx },
                                         onLongClick = { longPressTx = tx }
@@ -306,6 +308,7 @@ fun ActivityScreen(
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun ActivityTxSheet(tx: Transaction, tags: List<Tag>, onDismiss: () -> Unit, onEdit: () -> Unit) {
+    val money = rememberMoneyFormatter()
     val accentColor = if (tx.isIncome) Primary else Tertiary
     Column(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp).padding(bottom = 36.dp),
@@ -315,7 +318,7 @@ private fun ActivityTxSheet(tx: Transaction, tags: List<Tag>, onDismiss: () -> U
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(tx.title, style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                 Text(
-                    (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
+                    (if (tx.isIncome) "+" else "-") + "${money.ofUnits(tx.amountCents.asUnits)}",
                     style = MaterialTheme.typography.titleLarge,
                     color = accentColor,
                     fontWeight = FontWeight.Bold

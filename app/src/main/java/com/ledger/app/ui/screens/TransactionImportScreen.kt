@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
@@ -247,6 +248,7 @@ private fun PreviewStep(
     onConfirm: () -> Unit,
     isImporting: Boolean
 ) {
+    val money = rememberMoneyFormatter()
     // Summary card
     LedgerFloatingCard(modifier = Modifier.fillMaxWidth()) {
         Row(
@@ -288,7 +290,7 @@ private fun PreviewStep(
                             Text(acc.currencyCode, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                         }
                         Text(
-                            "${"$%,.2f".format(acc.balance)}",
+                            "${money.ofUnits(acc.balance)}",
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (acc.balance >= 0) Primary else Tertiary,
                             fontWeight = FontWeight.SemiBold

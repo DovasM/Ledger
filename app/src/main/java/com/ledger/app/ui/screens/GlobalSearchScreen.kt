@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -48,6 +49,7 @@ fun GlobalSearchScreen(
     debtViewModel: DebtViewModel = hiltViewModel(),
     recurringViewModel: RecurringViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val txState        by txViewModel.state.collectAsStateWithLifecycle()
     val catState       by categoryViewModel.state.collectAsStateWithLifecycle()
     val walletState    by walletViewModel.state.collectAsStateWithLifecycle()
@@ -91,22 +93,22 @@ fun GlobalSearchScreen(
         val q = query.trim()
         buildList {
             walletState.wallets.filter { it.name.contains(q, ignoreCase = true) }.take(2).forEach { w ->
-                add(QuickResult(w.name, "${"$%,.2f".format(w.balanceCents.asUnits)} · Wallet", Icons.Filled.AccountBalanceWallet, Primary) {
+                add(QuickResult(w.name, "${money.ofUnits(w.balanceCents.asUnits)} · Wallet", Icons.Filled.AccountBalanceWallet, Primary) {
                     navController.navigate(Screen.WalletDetails.createRoute(w.id))
                 })
             }
             goalState.goals.filter { it.name.contains(q, ignoreCase = true) }.take(2).forEach { g ->
-                add(QuickResult(g.name, "${"$%,.0f".format(g.currentAmountCents.asUnits)} / ${"$%,.0f".format(g.targetAmountCents.asUnits)} · Goal", Icons.Filled.Flag, Color(0xFF1565C0)) {
+                add(QuickResult(g.name, "${money.ofUnits(g.currentAmountCents.asUnits, decimals = 0)} / ${money.ofUnits(g.targetAmountCents.asUnits, decimals = 0)} · Goal", Icons.Filled.Flag, Color(0xFF1565C0)) {
                     navController.navigate(Screen.GoalDetails.createRoute(g.id))
                 })
             }
             debtState.debts.filter { it.name.contains(q, ignoreCase = true) }.take(2).forEach { d ->
-                add(QuickResult(d.name, "${"$%,.2f".format(d.remainingAmountCents.asUnits)} remaining · Debt", Icons.Filled.CreditCard, Tertiary) {
+                add(QuickResult(d.name, "${money.ofUnits(d.remainingAmountCents.asUnits)} remaining · Debt", Icons.Filled.CreditCard, Tertiary) {
                     navController.navigate(Screen.EditDebt.createRoute(d.id))
                 })
             }
             recurringState.recurring.filter { it.title.contains(q, ignoreCase = true) }.take(2).forEach { r ->
-                add(QuickResult(r.title, "${"$%,.2f".format(r.amountCents.asUnits)} · ${r.frequency.replaceFirstChar { it.uppercase() }}", Icons.Filled.Repeat, Color(0xFF6A1B9A)) {
+                add(QuickResult(r.title, "${money.ofUnits(r.amountCents.asUnits)} · ${r.frequency.replaceFirstChar { it.uppercase() }}", Icons.Filled.Repeat, Color(0xFF6A1B9A)) {
                     navController.navigate(Screen.RecurringTransactions.route)
                 })
             }
@@ -331,7 +333,7 @@ fun GlobalSearchScreen(
                                                 Text("${tx.category} · $displayDate", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                                             }
                                             Text(
-                                                "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amountCents.asUnits)}",
+                                                "${if (tx.isIncome) "+" else "-"}${money.ofUnits(tx.amountCents.asUnits)}",
                                                 style = MaterialTheme.typography.bodyMedium,
                                                 color = if (tx.isIncome) Primary else Tertiary,
                                                 fontWeight = FontWeight.SemiBold
@@ -360,6 +362,7 @@ private fun SearchTxSheet(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val money = rememberMoneyFormatter()
     var confirmDelete by remember { mutableStateOf(false) }
 
     if (confirmDelete) {
@@ -380,7 +383,7 @@ private fun SearchTxSheet(
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(tx.title, style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                 Text(
-                    "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amountCents.asUnits)}",
+                    "${if (tx.isIncome) "+" else "-"}${money.ofUnits(tx.amountCents.asUnits)}",
                     style = MaterialTheme.typography.titleLarge,
                     color = if (tx.isIncome) Primary else Tertiary,
                     fontWeight = FontWeight.Bold

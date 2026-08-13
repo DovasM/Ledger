@@ -1,5 +1,7 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
+
 import com.ledger.app.ui.util.asAmountInput
 import com.ledger.app.ui.util.toCents
 import androidx.compose.foundation.background
@@ -42,6 +44,7 @@ fun AddEditBudgetScreen(
     budgetViewModel: BudgetViewModel = hiltViewModel(),
     categoryViewModel: CategoryViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val isEdit = budgetId != null
     val budgetState by budgetViewModel.state.collectAsStateWithLifecycle()
     val categoryState by categoryViewModel.state.collectAsStateWithLifecycle()
@@ -139,7 +142,7 @@ fun AddEditBudgetScreen(
                         Text(selectedPeriod, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                     }
                     Text(
-                        if (amount.isBlank()) "\$—" else "\$$amount",
+                        if (amount.isBlank()) "—" else money.ofUnits(amount.toDoubleOrNull() ?: 0.0),
                         style = MaterialTheme.typography.titleLarge.copy(fontSize = 28.sp),
                         color = color, fontWeight = FontWeight.Bold
                     )

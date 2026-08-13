@@ -32,7 +32,11 @@ sealed class Screen(val route: String) {
         fun createRoute(id: String) = "wallet_details/$id"
     }
     object AddWallet : Screen("add_wallet")
-    object AddTransfer : Screen("add_transfer")
+    object AddTransfer : Screen("add_transfer?from={from}") {
+        /** Opened from a wallet, that wallet is pre-selected as the one money leaves. */
+        fun createRoute(fromWalletId: String? = null) =
+            if (fromWalletId == null) "add_transfer" else "add_transfer?from=$fromWalletId"
+    }
     object EditWallet : Screen("edit_wallet/{id}") {
         fun createRoute(id: String) = "edit_wallet/$id"
     }
@@ -138,7 +142,12 @@ fun LedgerNavGraph(navController: NavHostController) {
             WalletDetailsScreen(navController, id)
         }
         composable(Screen.AddWallet.route) { AddWalletScreen(navController) }
-        composable(Screen.AddTransfer.route) { AddTransferScreen(navController) }
+        composable(
+            Screen.AddTransfer.route,
+            arguments = listOf(navArgument("from") { nullable = true; defaultValue = null })
+        ) { entry ->
+            AddTransferScreen(navController, entry.arguments?.getString("from"))
+        }
         composable(Screen.EditWallet.route) { backStack ->
             val id = backStack.arguments?.getString("id") ?: return@composable
             EditWalletScreen(navController, id)

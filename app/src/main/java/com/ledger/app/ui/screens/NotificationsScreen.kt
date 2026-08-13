@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import com.ledger.app.ui.util.asUnits
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -46,6 +47,7 @@ fun NotificationsScreen(
     recurringViewModel: RecurringViewModel = hiltViewModel(),
     walletViewModel: WalletViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val txState        by txViewModel.state.collectAsStateWithLifecycle()
     val budgetState    by budgetViewModel.state.collectAsStateWithLifecycle()
     val catState       by categoryViewModel.state.collectAsStateWithLifecycle()
@@ -98,7 +100,7 @@ fun NotificationsScreen(
                     icon = Icons.Filled.Warning,
                     iconColor = Color(0xFF920009),
                     title = "Over budget — $catName",
-                    body = "${"$%,.2f".format(spent)} spent of ${"$%,.2f".format(budget.limitAmountCents.asUnits)} limit (${"%.0f".format(pct * 100)}%).",
+                    body = "${money.ofUnits(spent)} spent of ${money.ofUnits(budget.limitAmountCents.asUnits)} limit (${"%.0f".format(pct * 100)}%).",
                     isAlert = true
                 )
                 pct >= alertFraction -> list += NotifItem(
@@ -106,7 +108,7 @@ fun NotificationsScreen(
                     icon = Icons.Filled.NotificationsActive,
                     iconColor = Color(0xFFE65100),
                     title = "Budget alert — $catName",
-                    body = "${"%.0f".format(pct * 100)}% of ${"$%,.2f".format(budget.limitAmountCents.asUnits)} used · ${"$%,.2f".format(budget.limitAmountCents.asUnits - spent)} remaining.",
+                    body = "${"%.0f".format(pct * 100)}% of ${money.ofUnits(budget.limitAmountCents.asUnits)} used · ${money.ofUnits(budget.limitAmountCents.asUnits - spent)} remaining.",
                     isAlert = true
                 )
             }
@@ -119,7 +121,7 @@ fun NotificationsScreen(
                 icon = Icons.Filled.AccountBalanceWallet,
                 iconColor = Tertiary,
                 title = "Low balance — ${wallet.name}",
-                body = "${wallet.name} has only ${"$%,.2f".format(wallet.balanceCents.asUnits)} remaining.",
+                body = "${wallet.name} has only ${money.ofUnits(wallet.balanceCents.asUnits)} remaining.",
                 isAlert = true
             )
         }
@@ -136,7 +138,7 @@ fun NotificationsScreen(
                     icon = if (r.isIncome) Icons.Filled.TrendingUp else Icons.Filled.Schedule,
                     iconColor = if (r.isIncome) Primary else Color(0xFF1565C0),
                     title = "${r.title} due $whenStr",
-                    body = "${if (r.isIncome) "+" else "-"}${"$%,.2f".format(r.amountCents.asUnits)} · ${r.category}",
+                    body = "${if (r.isIncome) "+" else "-"}${money.ofUnits(r.amountCents.asUnits)} · ${r.category}",
                     isAlert = true
                 )
             }
@@ -151,7 +153,7 @@ fun NotificationsScreen(
                 icon = Icons.Filled.TrendingDown,
                 iconColor = Tertiary,
                 title = "Spending exceeds income",
-                body = "Expenses are ${"$%,.2f".format(thisMonthExpenses - thisMonthIncome)} over income this month.",
+                body = "Expenses are ${money.ofUnits(thisMonthExpenses - thisMonthIncome)} over income this month.",
                 isAlert = true
             )
         }
@@ -211,7 +213,7 @@ fun NotificationsScreen(
                 icon = if (isBest) Icons.Filled.EmojiEvents else Icons.Filled.CheckCircle,
                 iconColor = if (isBest) Color(0xFFF9A825) else Primary,
                 title = if (isBest) "$monthName — best month in 6 months!" else "$monthName — great savings month",
-                body = "${"%.1f".format(prevRate)}% savings rate · +${"$%,.0f".format(prevIncome)} income · -${"$%,.0f".format(prevExpenses)} expenses.",
+                body = "${"%.1f".format(prevRate)}% savings rate · +${money.ofUnits(prevIncome, decimals = 0)} income · -${money.ofUnits(prevExpenses, decimals = 0)} expenses.",
                 isAlert = false
             )
         }
@@ -232,7 +234,7 @@ fun NotificationsScreen(
                     icon = if (milestone == 100) Icons.Filled.EmojiEvents else Icons.Filled.Savings,
                     iconColor = if (milestone == 100) Color(0xFFF9A825) else Color(0xFF1565C0),
                     title = if (milestone == 100) "${goal.name} — Goal reached!" else "${goal.name} — $milestone% funded",
-                    body = "${"$%,.2f".format(goal.currentAmountCents.asUnits)} saved of ${"$%,.2f".format(goal.targetAmountCents.asUnits)} target.",
+                    body = "${money.ofUnits(goal.currentAmountCents.asUnits)} saved of ${money.ofUnits(goal.targetAmountCents.asUnits)} target.",
                     isAlert = false
                 )
             }
@@ -272,7 +274,7 @@ fun NotificationsScreen(
                     icon = Icons.Filled.Receipt,
                     iconColor = Color(0xFFE65100),
                     title = "Large expense — ${largest.title}",
-                    body = "${"$%,.2f".format(largest.amountCents.asUnits)} in ${largest.category} · ${"%.0f".format(largest.amountCents.asUnits / avg3MonthLargest * 100 - 100)}% above your usual largest expense.",
+                    body = "${money.ofUnits(largest.amountCents.asUnits)} in ${largest.category} · ${"%.0f".format(largest.amountCents.asUnits / avg3MonthLargest * 100 - 100)}% above your usual largest expense.",
                     isAlert = false
                 )
             }
