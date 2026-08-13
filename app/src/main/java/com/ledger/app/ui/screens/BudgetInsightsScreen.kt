@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -180,6 +181,7 @@ private fun OverviewTab(
     categoryById: Map<String, uniffi.ledger.Category>,
     today: LocalDate
 ) {
+    val money = rememberMoneyFormatter()
     val monthName = today.month.getDisplayName(TextStyle.FULL, Locale.getDefault())
     val totalBudget = budgets.sumOf { it.limitAmountCents.asUnits }
     val hasBudgets = budgets.isNotEmpty() && totalBudget > 0
@@ -193,14 +195,14 @@ private fun OverviewTab(
                 style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
             )
             Text(
-                "${"$%,.2f".format(if (hasBudgets) budgetedSpent else thisMonthExpenses)}",
+                "${money.ofUnits(if (hasBudgets) budgetedSpent else thisMonthExpenses)}",
                 style = MaterialTheme.typography.displaySmall, color = OnSurface, fontWeight = FontWeight.Bold
             )
             if (hasBudgets) {
                 val progress = (budgetedSpent / totalBudget).coerceIn(0.0, 1.0).toFloat()
                 val isOver = budgetedSpent >= totalBudget
                 Text(
-                    "of ${"$%,.2f".format(totalBudget)} total budget",
+                    "of ${money.ofUnits(totalBudget)} total budget",
                     style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
                 )
                 LinearProgressIndicator(
@@ -216,12 +218,12 @@ private fun OverviewTab(
                     )
                     if (isOver) {
                         Text(
-                            "${"$%,.2f".format(budgetedSpent - totalBudget)} over budget",
+                            "${money.ofUnits(budgetedSpent - totalBudget)} over budget",
                             style = MaterialTheme.typography.labelSmall, color = Tertiary, fontWeight = FontWeight.SemiBold
                         )
                     } else {
                         Text(
-                            "${"$%,.2f".format(totalBudget - budgetedSpent)} remaining",
+                            "${money.ofUnits(totalBudget - budgetedSpent)} remaining",
                             style = MaterialTheme.typography.labelSmall, color = Primary, fontWeight = FontWeight.SemiBold
                         )
                     }
@@ -243,14 +245,14 @@ private fun OverviewTab(
         LedgerCard(modifier = Modifier.weight(1f)) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("INCOME", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                Text("+${"$%,.2f".format(thisMonthIncome)}", style = MaterialTheme.typography.titleLarge, color = Primary, fontWeight = FontWeight.Bold)
+                Text("+${money.ofUnits(thisMonthIncome)}", style = MaterialTheme.typography.titleLarge, color = Primary, fontWeight = FontWeight.Bold)
                 Text("this month", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
             }
         }
         LedgerCard(modifier = Modifier.weight(1f)) {
             Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text("EXPENSES", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                Text("-${"$%,.2f".format(thisMonthExpenses)}", style = MaterialTheme.typography.titleLarge, color = Tertiary, fontWeight = FontWeight.Bold)
+                Text("-${money.ofUnits(thisMonthExpenses)}", style = MaterialTheme.typography.titleLarge, color = Tertiary, fontWeight = FontWeight.Bold)
                 Text("this month", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
             }
         }
@@ -276,7 +278,7 @@ private fun OverviewTab(
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text(cat?.name ?: "Budget", style = MaterialTheme.typography.bodySmall, color = OnSurface)
                             Text(
-                                "${"$%,.2f".format(over)} over",
+                                "${money.ofUnits(over)} over",
                                 style = MaterialTheme.typography.bodySmall, color = Tertiary, fontWeight = FontWeight.SemiBold
                             )
                         }
@@ -297,7 +299,7 @@ private fun OverviewTab(
                     TransactionRow(
                         title = tx.title,
                         subtitle = "$date · ${tx.category}",
-                        amount = "${if (tx.isIncome) "+" else "-"}${"$%,.2f".format(tx.amountCents.asUnits)}",
+                        amount = "${if (tx.isIncome) "+" else "-"}${money.ofUnits(tx.amountCents.asUnits)}",
                         isIncome = tx.isIncome,
                         modifier = Modifier.padding(horizontal = 12.dp)
                     )
@@ -326,6 +328,7 @@ private fun OverviewTab(
 
 @Composable
 private fun FixedCostsTab(recurringExpenses: List<uniffi.ledger.RecurringTransaction>) {
+    val money = rememberMoneyFormatter()
     fun toMonthly(amount: Double, frequency: String): Double = when (frequency.lowercase()) {
         "daily"     -> amount * 30.44
         "weekly"    -> amount * 4.33
@@ -355,7 +358,7 @@ private fun FixedCostsTab(recurringExpenses: List<uniffi.ledger.RecurringTransac
     LedgerFloatingCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             Text("TOTAL FIXED / MONTH", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-            Text("${"$%,.2f".format(totalMonthly)}", style = MaterialTheme.typography.displaySmall, color = OnSurface, fontWeight = FontWeight.Bold)
+            Text("${money.ofUnits(totalMonthly)}", style = MaterialTheme.typography.displaySmall, color = OnSurface, fontWeight = FontWeight.Bold)
             Text("${recurringExpenses.size} recurring expense${if (recurringExpenses.size != 1) "s" else ""}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
         }
     }
@@ -391,12 +394,12 @@ private fun FixedCostsTab(recurringExpenses: List<uniffi.ledger.RecurringTransac
                             }
                             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text(
-                                    "-${"$%,.2f".format(r.amountCents.asUnits)}",
+                                    "-${money.ofUnits(r.amountCents.asUnits)}",
                                     style = MaterialTheme.typography.bodyMedium, color = Tertiary, fontWeight = FontWeight.SemiBold
                                 )
                                 if (r.frequency.lowercase() != "monthly") {
                                     Text(
-                                        "≈${"$%,.2f".format(monthly)}/mo",
+                                        "≈${money.ofUnits(monthly)}/mo",
                                         style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
                                     )
                                 }

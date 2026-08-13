@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import android.content.Intent
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -35,6 +36,7 @@ fun QuarterlyReportScreen(
     navController: NavController,
     txViewModel: TransactionViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val txState = txViewModel.state.collectAsStateWithLifecycle().value
     // Off-budget accounts are excluded here unless the user asked to see them.
     val reportTxs = rememberReportTransactions(txState)
@@ -123,7 +125,7 @@ fun QuarterlyReportScreen(
                         }
                     } else if (quarterTxs.isNotEmpty()) {
                         IconButton(onClick = {
-                            val csv = buildQuarterlyCsv(selectedYear, selectedQuarter, quarterTxs)
+                            val csv = buildQuarterlyCsv(selectedYear, selectedQuarter, quarterTxs, money)
                             val fileName = "quarterly_report_${selectedYear}_Q${selectedQuarter}.csv"
                             context.startActivity(Intent.createChooser(shareCsv(context, fileName, csv), "Export CSV"))
                         }) {
@@ -172,11 +174,11 @@ fun QuarterlyReportScreen(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("INCOME", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                            Text("+${"$%,.2f".format(totalIncome)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.Bold)
+                            Text("+${money.ofUnits(totalIncome)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.Bold)
                         }
                         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("EXPENSES", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                            Text("-${"$%,.2f".format(totalExpenses)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
+                            Text("-${money.ofUnits(totalExpenses)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.Bold)
                         }
                     }
                     HorizontalDivider(color = OutlineVariant.copy(alpha = 0.2f))
@@ -184,7 +186,7 @@ fun QuarterlyReportScreen(
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("NET", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                             Text(
-                                "${if (totalNet >= 0) "+" else ""}${"$%,.2f".format(totalNet)}",
+                                "${if (totalNet >= 0) "+" else ""}${money.ofUnits(totalNet)}",
                                 style = MaterialTheme.typography.titleLarge,
                                 color = if (totalNet >= 0) Primary else Tertiary, fontWeight = FontWeight.Bold
                             )
@@ -232,19 +234,19 @@ fun QuarterlyReportScreen(
                                 color = OnSurface, fontWeight = FontWeight.SemiBold
                             )
                             Text(
-                                "${"$%,.0f".format(stats.income)}",
+                                "${money.ofUnits(stats.income, decimals = 0)}",
                                 modifier = Modifier.weight(1f),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Primary, textAlign = TextAlign.End
                             )
                             Text(
-                                "${"$%,.0f".format(stats.expenses)}",
+                                "${money.ofUnits(stats.expenses, decimals = 0)}",
                                 modifier = Modifier.weight(1f),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Tertiary, textAlign = TextAlign.End
                             )
                             Text(
-                                "${if (stats.net >= 0) "+" else ""}${"$%,.0f".format(stats.net)}",
+                                "${if (stats.net >= 0) "+" else ""}${money.ofUnits(stats.net, decimals = 0)}",
                                 modifier = Modifier.weight(1f),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = if (stats.net >= 0) Primary else Tertiary,
@@ -258,10 +260,10 @@ fun QuarterlyReportScreen(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = OutlineVariant.copy(alpha = 0.3f))
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                         Text("Total", modifier = Modifier.width(56.dp), style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Bold)
-                        Text("${"$%,.0f".format(totalIncome)}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Primary, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
-                        Text("${"$%,.0f".format(totalExpenses)}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Tertiary, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                        Text("${money.ofUnits(totalIncome, decimals = 0)}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Primary, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
+                        Text("${money.ofUnits(totalExpenses, decimals = 0)}", modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodyMedium, color = Tertiary, fontWeight = FontWeight.Bold, textAlign = TextAlign.End)
                         Text(
-                            "${if (totalNet >= 0) "+" else ""}${"$%,.0f".format(totalNet)}",
+                            "${if (totalNet >= 0) "+" else ""}${money.ofUnits(totalNet, decimals = 0)}",
                             modifier = Modifier.weight(1f),
                             style = MaterialTheme.typography.bodyMedium,
                             color = if (totalNet >= 0) Primary else Tertiary,
@@ -279,7 +281,7 @@ fun QuarterlyReportScreen(
                             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text("BEST MONTH", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                                 Text(shortMonthNames[bm.month], style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.Bold)
-                                Text("+${"$%,.2f".format(bm.net)}", style = MaterialTheme.typography.bodyMedium, color = Primary, fontWeight = FontWeight.SemiBold)
+                                Text("+${money.ofUnits(bm.net)}", style = MaterialTheme.typography.bodyMedium, color = Primary, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -288,7 +290,7 @@ fun QuarterlyReportScreen(
                             Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                                 Text("WORST MONTH", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                                 Text(shortMonthNames[wm.month], style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.Bold)
-                                Text("${if (wm.net >= 0) "+" else ""}${"$%,.2f".format(wm.net)}", style = MaterialTheme.typography.bodyMedium, color = if (wm.net >= 0) Primary else Tertiary, fontWeight = FontWeight.SemiBold)
+                                Text("${if (wm.net >= 0) "+" else ""}${money.ofUnits(wm.net)}", style = MaterialTheme.typography.bodyMedium, color = if (wm.net >= 0) Primary else Tertiary, fontWeight = FontWeight.SemiBold)
                             }
                         }
                     }
@@ -307,7 +309,7 @@ fun QuarterlyReportScreen(
                                         Text(cat, style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium)
                                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                             Text("${"%.1f".format(pct)}%", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
-                                            Text("${"$%,.2f".format(amount)}", style = MaterialTheme.typography.bodyMedium, color = Tertiary, fontWeight = FontWeight.SemiBold)
+                                            Text("${money.ofUnits(amount)}", style = MaterialTheme.typography.bodyMedium, color = Tertiary, fontWeight = FontWeight.SemiBold)
                                         }
                                     }
                                     LinearProgressIndicator(

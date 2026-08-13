@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import com.ledger.app.ui.util.asUnits
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -30,6 +31,7 @@ fun WalletDetailsScreen(
     walletViewModel: WalletViewModel = hiltViewModel(),
     transactionViewModel: TransactionViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val walletState by walletViewModel.state.collectAsStateWithLifecycle()
     val txState by transactionViewModel.state.collectAsStateWithLifecycle()
     val wallet = walletState.wallets.find { it.id == walletId }
@@ -85,7 +87,7 @@ fun WalletDetailsScreen(
                         Column {
                             Text("CURRENT BALANCE", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                             Text(
-                                "${"$%,.2f".format(wallet?.balanceCents?.asUnits ?: 0.0)}",
+                                "${money.ofUnits(wallet?.balanceCents?.asUnits ?: 0.0)}",
                                 style = MaterialTheme.typography.displaySmall,
                                 color = OnSurface, fontWeight = FontWeight.Bold
                             )
@@ -108,11 +110,11 @@ fun WalletDetailsScreen(
                     Text("Period Stats", style = MaterialTheme.typography.titleMedium, color = OnSurface)
                     HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                        WalletStatCol("Income", "+${"$%,.2f".format(monthIncome)}", Primary)
+                        WalletStatCol("Income", "+${money.ofUnits(monthIncome)}", Primary)
                         VerticalDivider(modifier = Modifier.height(40.dp), color = OutlineVariant.copy(alpha = 0.3f))
-                        WalletStatCol("Expenses", "-${"$%,.2f".format(monthExpenses)}", Tertiary)
+                        WalletStatCol("Expenses", "-${money.ofUnits(monthExpenses)}", Tertiary)
                         VerticalDivider(modifier = Modifier.height(40.dp), color = OutlineVariant.copy(alpha = 0.3f))
-                        WalletStatCol("Net", "${"$%,.2f".format(monthIncome - monthExpenses)}", OnSurface)
+                        WalletStatCol("Net", "${money.ofUnits(monthIncome - monthExpenses)}", OnSurface)
                     }
                 }
             }
@@ -142,7 +144,7 @@ fun WalletDetailsScreen(
                             TransactionRow(
                                 tx.title,
                                 tx.category,
-                                (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
+                                (if (tx.isIncome) "+" else "-") + "${money.ofUnits(tx.amountCents.asUnits)}",
                                 isIncome = tx.isIncome
                             )
                         }

@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import com.ledger.app.ui.util.asAmountInput
 import com.ledger.app.ui.util.toCents
 import androidx.compose.foundation.layout.*
@@ -32,6 +33,7 @@ fun AddEditDebtScreen(
     debtId: String? = null,
     viewModel: DebtViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val isEdit = debtId != null
     val state by viewModel.state.collectAsStateWithLifecycle()
     val existingDebt = if (isEdit) state.debts.find { it.id == debtId } else null
@@ -176,7 +178,7 @@ fun AddEditDebtScreen(
                         }
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                             Text("Est. total interest", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
-                            Text("${"$%,.2f".format(totalInterest)}", style = MaterialTheme.typography.bodySmall, color = Tertiary, fontWeight = FontWeight.Medium)
+                            Text("${money.ofUnits(totalInterest)}", style = MaterialTheme.typography.bodySmall, color = Tertiary, fontWeight = FontWeight.Medium)
                         }
                     }
                 }

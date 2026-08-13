@@ -13,6 +13,10 @@ import java.time.YearMonth
  */
 class CsvExportTest {
 
+    /** The export honours the user's settings like every screen; these tests pin the US shape. */
+    private val money = MoneyFormatter("USD", 0)
+
+
     private fun tx(
         amountCents: Long,
         category: String = "Groceries",
@@ -36,7 +40,7 @@ class CsvExportTest {
 
     @Test
     fun `the monthly summary totals every transaction`() {
-        val csv = buildMonthlyCsv(2026, 3, month)
+        val csv = buildMonthlyCsv(2026, 3, month, money)
         assertEquals("$400.00", lineAfter(csv, "Income"))
         assertEquals("$100.00", lineAfter(csv, "Expenses"))
         assertEquals("$300.00", lineAfter(csv, "Net"))
@@ -49,20 +53,20 @@ class CsvExportTest {
      */
     @Test
     fun `the monthly savings rate is a real percentage`() {
-        val csv = buildMonthlyCsv(2026, 3, month)
+        val csv = buildMonthlyCsv(2026, 3, month, money)
         assertEquals("75.0%", lineAfter(csv, "Savings Rate"))
     }
 
     @Test
     fun `a month with no income has no savings rate rather than a division by zero`() {
-        val csv = buildMonthlyCsv(2026, 3, listOf(tx(6_000)))
+        val csv = buildMonthlyCsv(2026, 3, listOf(tx(6_000)), money)
         assertFalse(csv.contains("Savings Rate"))
     }
 
     /** Spending is grouped per category and each share is a real percentage of the expenses. */
     @Test
     fun `spending by category sums each category and its share`() {
-        val csv = buildMonthlyCsv(2026, 3, month)
+        val csv = buildMonthlyCsv(2026, 3, month, money)
         assertEquals("$90.00,90.0%", lineAfter(csv, "Groceries"))
         assertEquals("$10.00,10.0%", lineAfter(csv, "Cafe"))
     }
@@ -70,7 +74,7 @@ class CsvExportTest {
     /** Every transaction is listed, newest day first, with the date the money moved. */
     @Test
     fun `every transaction is listed under the date it happened`() {
-        val csv = buildMonthlyCsv(2026, 3, month)
+        val csv = buildMonthlyCsv(2026, 3, month, money)
         val rows = csv.lineSequence().dropWhile { it != "Date,Title,Category,Amount,Type,Note" }.drop(1)
             .filter { it.isNotBlank() }.toList()
         assertEquals(4, rows.size)
@@ -85,7 +89,8 @@ class CsvExportTest {
     fun `fields containing commas and quotes are escaped`() {
         val csv = buildMonthlyCsv(
             2026, 3,
-            listOf(tx(1_000, title = "Lunch, with colleagues", note = "said \"thanks\""))
+            listOf(tx(1_000, title = "Lunch, with colleagues", note = "said \"thanks\"")),
+            money
         )
         assertTrue(csv.contains("\"Lunch, with colleagues\""))
         assertTrue(csv.contains("\"said \"\"thanks\"\"\""))
@@ -100,7 +105,8 @@ class CsvExportTest {
                 tx(10_000, "Groceries", "2026-01-11"),
                 tx(20_000, "Groceries", "2026-02-11"),
                 tx(30_000, "Groceries", "2026-03-11")
-            )
+            ),
+            money
         )
         assertEquals("$400.00", lineAfter(csv, "Income"))
         assertEquals("$600.00", lineAfter(csv, "Expenses"))
@@ -118,7 +124,7 @@ class CsvExportTest {
     @Test
     fun `the custom report totals the range it was given`() {
         val csv = buildCustomCsv(
-            YearMonth.of(2026, 1), YearMonth.of(2026, 3), month, "monthly"
+            YearMonth.of(2026, 1), YearMonth.of(2026, 3), month, "monthly", money
         )
         assertEquals("$400.00", lineAfter(csv, "Income"))
         assertEquals("$100.00", lineAfter(csv, "Expenses"))
@@ -128,7 +134,7 @@ class CsvExportTest {
 
     @Test
     fun `an empty month produces a report rather than an error`() {
-        val csv = buildMonthlyCsv(2026, 3, emptyList())
+        val csv = buildMonthlyCsv(2026, 3, emptyList(), money)
         assertEquals("$0.00", lineAfter(csv, "Income"))
         assertEquals("0", lineAfter(csv, "Transactions"))
     }

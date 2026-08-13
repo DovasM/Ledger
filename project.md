@@ -847,6 +847,13 @@ before `m8` converted them.
 - **Percentages stay `Double`**: `budgets.alert_threshold` and `debts.apr` are not money.
 - **`MoneyFormat.kt` owns the boundary.** `formatCents` on the way out, `Double.toCents()` /
   `String.toCentsOrNull()` on the way in. That parse is the single rounding step in the system.
+- **A screen formats money with `rememberMoneyFormatter()`, never with a hand-rolled `"$%,.2f"`.**
+  `money.of(cents)` for a figure from the database, `money.ofUnits(x)` for one the screen computed in
+  real numbers. The hand-rolled version was wrong twice over — it printed a dollar sign to someone
+  whose wallets are in euros, and it ignored the number-format preference — and it is the shape every
+  money bug in this app hid inside. All 162 of them are gone and `MoneyFormatHazardTest` stops the
+  163rd. Note the display currency is a single app-wide preference (Appearance settings); per-wallet
+  currency exists in the data but nothing converts between them yet.
 - **A text field is pre-filled with `asAmountInput()`, never with the raw `Long`.** It is the exact
   inverse of `toCentsOrNull`, formats with `Locale.US` so the separator is always a dot whatever the
   device language is, and adds no grouping — `"1,000.00"` would not parse back. Pre-filling with the

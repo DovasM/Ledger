@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import com.ledger.app.ui.util.toCents
 
 import androidx.compose.animation.AnimatedContent
@@ -306,6 +307,7 @@ private fun OverviewTab(
     largestUpcoming: CfEvent?,
     variableDailyBurn: Double
 ) {
+    val money = rememberMoneyFormatter()
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
@@ -316,11 +318,11 @@ private fun OverviewTab(
                 Text(today.month.getDisplayName(TextStyle.FULL, Locale.getDefault()).uppercase() + " SUMMARY",
                     style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                 Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                    SummaryCol("INCOME",   "+${"$%,.0f".format(income)}", Primary)
+                    SummaryCol("INCOME",   "+${money.ofUnits(income, decimals = 0)}", Primary)
                     VerticalDivider(modifier = Modifier.height(36.dp), color = OutlineVariant.copy(alpha = 0.4f))
-                    SummaryCol("EXPENSES", "-${"$%,.0f".format(expenses)}", Tertiary)
+                    SummaryCol("EXPENSES", "-${money.ofUnits(expenses, decimals = 0)}", Tertiary)
                     VerticalDivider(modifier = Modifier.height(36.dp), color = OutlineVariant.copy(alpha = 0.4f))
-                    SummaryCol("NET", "${if (net >= 0) "+" else ""}${"$%,.0f".format(net)}", if (net >= 0) Primary else Tertiary)
+                    SummaryCol("NET", "${if (net >= 0) "+" else ""}${money.ofUnits(net, decimals = 0)}", if (net >= 0) Primary else Tertiary)
                 }
             }
         }
@@ -332,7 +334,7 @@ private fun OverviewTab(
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Projected balance", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text("${"$%,.0f".format(projectedBalances.lastOrNull()?.toDouble() ?: 0.0)}",
+                        Text("${money.ofUnits(projectedBalances.lastOrNull()?.toDouble() ?: 0.0, decimals = 0)}",
                             style = MaterialTheme.typography.titleLarge,
                             color = if (projectedDelta >= 0) Primary else Tertiary,
                             fontWeight = FontWeight.Bold)
@@ -341,7 +343,7 @@ private fun OverviewTab(
                         Row(modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp), horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
                             Icon(if (projectedDelta >= 0) Icons.Filled.TrendingUp else Icons.Filled.TrendingDown, null,
                                 tint = if (projectedDelta >= 0) Primary else Tertiary, modifier = Modifier.size(16.dp))
-                            Text("${if (projectedDelta >= 0) "+" else ""}${"$%,.0f".format(projectedDelta)}",
+                            Text("${if (projectedDelta >= 0) "+" else ""}${money.ofUnits(projectedDelta, decimals = 0)}",
                                 style = MaterialTheme.typography.labelMedium, color = if (projectedDelta >= 0) Primary else Tertiary, fontWeight = FontWeight.Bold)
                         }
                     }
@@ -349,7 +351,7 @@ private fun OverviewTab(
                 CfProjectionChart(projectedBalances, projectedDelta >= 0)
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                     Text(
-                        "~${"$%.0f".format(variableDailyBurn)}/day variable · ${scheduledEvents.size} scheduled",
+                        "~${money.ofUnits(variableDailyBurn, decimals = 0)}/day variable · ${scheduledEvents.size} scheduled",
                         style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
                     )
                     Text("Hold & drag to inspect", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant.copy(alpha = 0.55f))
@@ -371,7 +373,7 @@ private fun OverviewTab(
                     }
                     Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("Pay Yourself First", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text("Move up to ${"$%,.0f".format(payYourselfFirst)} to savings",
+                        Text("Move up to ${money.ofUnits(payYourselfFirst, decimals = 0)} to savings",
                             style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                         Text("Without going negative this month", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                     }
@@ -391,7 +393,7 @@ private fun OverviewTab(
                         Text(largestUpcoming.title, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                         Text(largestUpcoming.date.format(DateTimeFormatter.ofPattern("MMM d")), style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                     }
-                    Text("-${"$%,.2f".format(largestUpcoming.amount)}", style = MaterialTheme.typography.titleSmall, color = Tertiary, fontWeight = FontWeight.Bold)
+                    Text("-${money.ofUnits(largestUpcoming.amount)}", style = MaterialTheme.typography.titleSmall, color = Tertiary, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -414,7 +416,7 @@ private fun OverviewTab(
                                 Text(event.title, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.Medium)
                                 Text(event.date.format(DateTimeFormatter.ofPattern("MMM d")), style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                             }
-                            Text("${if (event.isIncome) "+" else "-"}${"$%.2f".format(event.amount)}",
+                            Text("${if (event.isIncome) "+" else "-"}${money.ofUnits(event.amount)}",
                                 style = MaterialTheme.typography.titleSmall,
                                 color = if (event.isIncome) Primary else Tertiary, fontWeight = FontWeight.SemiBold)
                         }
@@ -440,6 +442,7 @@ private fun OverviewTab(
 
 @Composable
 private fun CalendarTab(today: LocalDate, scheduledEvents: List<CfEvent>, allTxs: List<Transaction>) {
+    val money = rememberMoneyFormatter()
     var calendarMonth by remember { mutableStateOf(today.withDayOfMonth(1)) }
     var selectedDay   by remember { mutableStateOf<LocalDate?>(null) }
 
@@ -562,13 +565,13 @@ private fun CalendarTab(today: LocalDate, scheduledEvents: List<CfEvent>, allTxs
                         }
                     }
                     dayScheduled.forEachIndexed { idx, ev ->
-                        DayEventRow(ev.title, "${if (ev.isIncome) "+" else "-"}${"$%.2f".format(ev.amount)}", "Scheduled",
+                        DayEventRow(ev.title, "${if (ev.isIncome) "+" else "-"}${money.ofUnits(ev.amount)}", "Scheduled",
                             if (ev.isIncome) Primary else Tertiary)
                         if (idx < dayScheduled.lastIndex || dayTxs.isNotEmpty())
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 4.dp), color = OutlineVariant.copy(alpha = 0.15f))
                     }
                     dayTxs.forEachIndexed { idx, tx ->
-                        DayEventRow(tx.title, "${if (tx.isIncome) "+" else "-"}${"$%.2f".format(tx.amountCents.asUnits)}", "Actual",
+                        DayEventRow(tx.title, "${if (tx.isIncome) "+" else "-"}${money.ofUnits(tx.amountCents.asUnits)}", "Actual",
                             if (tx.isIncome) Primary else Tertiary)
                         if (idx < dayTxs.lastIndex)
                             HorizontalDivider(modifier = Modifier.padding(horizontal = 4.dp), color = OutlineVariant.copy(alpha = 0.15f))
@@ -591,6 +594,7 @@ private fun AnalyticsTab(
     totalMonthlyDebt: Double,
     debtRatio: Double
 ) {
+    val money = rememberMoneyFormatter()
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
@@ -625,7 +629,7 @@ private fun AnalyticsTab(
                             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                 Text(row.label, style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium)
                                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Text("${"$%.0f".format(row.spentCents.asUnits)} / ${"$%.0f".format(row.limitCents.asUnits)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                    Text("${money.ofUnits(row.spentCents.asUnits, decimals = 0)} / ${money.ofUnits(row.limitCents.asUnits, decimals = 0)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                                     Surface(shape = RoundedCornerShape(4.dp), color = color.copy(alpha = 0.12f)) {
                                         Text("${"%.0f".format(pct * 100)}%", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                                             style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.Bold)
@@ -648,7 +652,7 @@ private fun AnalyticsTab(
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                             Text("Monthly debt payments", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                            Text("${"$%,.0f".format(totalMonthlyDebt)}", style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.Bold)
+                            Text("${money.ofUnits(totalMonthlyDebt, decimals = 0)}", style = MaterialTheme.typography.titleMedium, color = OnSurface, fontWeight = FontWeight.Bold)
                         }
                         Surface(shape = RoundedCornerShape(8.dp), color = (if (debtRatio > 36) Tertiary else Primary).copy(alpha = 0.1f)) {
                             Text("${"%.1f".format(debtRatio)}% of income",
@@ -680,6 +684,7 @@ private fun InsightsTab(
     predictedExp: Double, thisMonthIncome: Double,
     unusualSpending: List<CfUnusual>
 ) {
+    val money = rememberMoneyFormatter()
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 20.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp)
@@ -788,7 +793,7 @@ private fun InsightsTab(
                 when { savingsRate >= 20 -> "Great — aim to stay above 20%"; savingsRate > 0 -> "Target ≥ 20% of income"; else -> "Expenses exceed income" },
                 if (savingsRate >= 20) Primary else if (savingsRate >= 0) Color(0xFFF57C00) else Tertiary)
 
-            CfInsightCard(Icons.Filled.Speed, "Daily Burn Rate", "${"$%.2f".format(dailyBurnRate)}/day",
+            CfInsightCard(Icons.Filled.Speed, "Daily Burn Rate", "${money.ofUnits(dailyBurnRate)}/day",
                 "Average daily spend from $daysElapsed days of data", Primary)
 
             CfInsightCard(if (expenseMoM <= 0) Icons.Filled.TrendingDown else Icons.Filled.TrendingUp,
@@ -796,7 +801,7 @@ private fun InsightsTab(
                 if (expenseMoM <= 0) "Spending is down from last month" else "Spending is up from last month",
                 if (expenseMoM <= 0) Primary else Tertiary)
 
-            CfInsightCard(Icons.Filled.BarChart, "Month-End Prediction", "${"$%,.0f".format(predictedExp)}",
+            CfInsightCard(Icons.Filled.BarChart, "Month-End Prediction", "${money.ofUnits(predictedExp, decimals = 0)}",
                 if (predictedExp <= thisMonthIncome) "Actual + recurring + variable spend — within income" else "Actual + recurring + variable spend — exceeds income",
                 if (predictedExp <= thisMonthIncome) Primary else Tertiary)
         }
@@ -814,7 +819,7 @@ private fun InsightsTab(
                             }
                             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                                 Text(spend.category, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.Bold)
-                                Text("${"%.1f".format(ratio)}× your 3-month average of ${"$%.0f".format(spend.avg3)}",
+                                Text("${"%.1f".format(ratio)}× your 3-month average of ${money.ofUnits(spend.avg3, decimals = 0)}",
                                     style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                                 LinearProgressIndicator(
                                     progress = { (1f / ratio.toFloat()).coerceIn(0f, 1f) },
@@ -823,8 +828,8 @@ private fun InsightsTab(
                                 )
                             }
                             Column(horizontalAlignment = Alignment.End, verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text("${"$%.0f".format(spend.thisMonth)}", style = MaterialTheme.typography.titleSmall, color = Tertiary, fontWeight = FontWeight.Bold)
-                                Text("avg ${"$%.0f".format(spend.avg3)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                Text("${money.ofUnits(spend.thisMonth, decimals = 0)}", style = MaterialTheme.typography.titleSmall, color = Tertiary, fontWeight = FontWeight.Bold)
+                                Text("avg ${money.ofUnits(spend.avg3, decimals = 0)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                             }
                         }
                     }
@@ -924,6 +929,7 @@ private fun CfProjectionChart(points: List<Float>, isPositive: Boolean) {
 
 @Composable
 private fun CfInteractiveBarChart(bars: List<CfMonthBar>) {
+    val money = rememberMoneyFormatter()
     if (bars.isEmpty()) return
     val maxVal = bars.maxOf { maxOf(it.income, it.expenses) }.takeIf { it > 0f } ?: 1f
     var selectedIdx by remember { mutableStateOf<Int?>(null) }
@@ -935,11 +941,11 @@ private fun CfInteractiveBarChart(bars: List<CfMonthBar>) {
         if (tooltipBar != null) {
             Row(modifier = Modifier.align(Alignment.Center), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Surface(shape = RoundedCornerShape(6.dp), color = Primary.copy(alpha = 0.12f)) {
-                    Text("+${"$%,.0f".format(tooltipBar.income)}", modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    Text("+${money.ofUnits(tooltipBar.income, decimals = 0)}", modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                         style = MaterialTheme.typography.labelSmall, color = Primary, fontWeight = FontWeight.Bold)
                 }
                 Surface(shape = RoundedCornerShape(6.dp), color = Tertiary.copy(alpha = 0.12f)) {
-                    Text("-${"$%,.0f".format(tooltipBar.expenses)}", modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
+                    Text("-${money.ofUnits(tooltipBar.expenses, decimals = 0)}", modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp),
                         style = MaterialTheme.typography.labelSmall, color = Tertiary, fontWeight = FontWeight.Bold)
                 }
             }

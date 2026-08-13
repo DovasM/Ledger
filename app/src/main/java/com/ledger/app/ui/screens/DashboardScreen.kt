@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -46,6 +47,7 @@ fun DashboardScreen(
     recurringViewModel: RecurringViewModel = hiltViewModel(),
     settingsViewModel: SettingsViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val aiEnabled by settingsViewModel.aiEnabled.collectAsStateWithLifecycle()
     val txState by txViewModel.state.collectAsStateWithLifecycle()
     // Off-budget accounts are excluded here unless the user asked to see them.
@@ -145,7 +147,7 @@ fun DashboardScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(tx.title, style = MaterialTheme.typography.headlineSmall, color = OnSurface, fontWeight = FontWeight.Bold)
                     Text(
-                        (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
+                        (if (tx.isIncome) "+" else "-") + "${money.ofUnits(tx.amountCents.asUnits)}",
                         style = MaterialTheme.typography.titleLarge, color = accentColor, fontWeight = FontWeight.Bold
                     )
                 }
@@ -248,7 +250,7 @@ fun DashboardScreen(
                             letterSpacing = 2.sp
                         )
                         Text(
-                            "${"$%,.2f".format(totalBalance)}",
+                            "${money.ofUnits(totalBalance)}",
                             style = MaterialTheme.typography.displaySmall,
                             color = Primary,
                             fontWeight = FontWeight.Bold,
@@ -266,7 +268,7 @@ fun DashboardScreen(
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             Text("INCOME", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant)
-                            Text("+${"$%,.2f".format(periodIncome)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.SemiBold)
+                            Text("+${money.ofUnits(periodIncome)}", style = MaterialTheme.typography.titleMedium, color = Primary, fontWeight = FontWeight.SemiBold)
                         }
                         VerticalDivider(modifier = Modifier.height(36.dp), color = OutlineVariant.copy(alpha = 0.4f))
                         Column(
@@ -275,7 +277,7 @@ fun DashboardScreen(
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
                             Text("EXPENSES", style = MaterialTheme.typography.labelMedium, color = OnSurfaceVariant)
-                            Text("-${"$%,.2f".format(periodExpenses)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.SemiBold)
+                            Text("-${money.ofUnits(periodExpenses)}", style = MaterialTheme.typography.titleMedium, color = Tertiary, fontWeight = FontWeight.SemiBold)
                         }
                     }
                     LedgerTrendChart(
@@ -340,7 +342,7 @@ fun DashboardScreen(
                             TransactionRow(
                                 title = tx.title,
                                 subtitle = "${tx.occurredAt.take(10)} · ${tx.category}",
-                                amount = (if (tx.isIncome) "+" else "-") + "${"$%,.2f".format(tx.amountCents.asUnits)}",
+                                amount = (if (tx.isIncome) "+" else "-") + "${money.ofUnits(tx.amountCents.asUnits)}",
                                 isIncome = tx.isIncome,
                                 onClick = { sheetTx = tx }
                             )
@@ -377,10 +379,10 @@ fun DashboardScreen(
                         )
                     }
                     Column(horizontalAlignment = Alignment.End) {
-                        Text("${"$%,.0f".format(forecastBalance)}", style = MaterialTheme.typography.titleMedium,
+                        Text("${money.ofUnits(forecastBalance, decimals = 0)}", style = MaterialTheme.typography.titleMedium,
                             color = if (forecastDelta >= 0) Primary else Tertiary, fontWeight = FontWeight.Bold)
                         Text(
-                            (if (forecastDelta >= 0) "+" else "") + "${"$%,.0f".format(forecastDelta)}",
+                            (if (forecastDelta >= 0) "+" else "") + "${money.ofUnits(forecastDelta, decimals = 0)}",
                             style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
                         )
                     }
@@ -412,7 +414,7 @@ fun DashboardScreen(
                                     Text(label, style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium)
                                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                                         Text(
-                                            "${"$%.0f".format(spent)} / ${"$%.0f".format(limit)}",
+                                            "${money.ofUnits(spent, decimals = 0)} / ${money.ofUnits(limit, decimals = 0)}",
                                             style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
                                         )
                                         Surface(shape = RoundedCornerShape(4.dp), color = (if (pct > 1f) Tertiary else color).copy(alpha = 0.12f)) {
@@ -488,6 +490,7 @@ private fun AddActionCard(icon: ImageVector, title: String, description: String,
 
 @Composable
 private fun TopCategoryRow(name: String, icon: ImageVector, spent: Float, totalSpent: Float, color: Color, onClick: () -> Unit) {
+    val money = rememberMoneyFormatter()
     val share = (spent / totalSpent).coerceIn(0f, 1f)
     Column(modifier = Modifier.fillMaxWidth().clickable(onClick = onClick), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -495,7 +498,7 @@ private fun TopCategoryRow(name: String, icon: ImageVector, spent: Float, totalS
                 Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(18.dp))
             }
             Text(name, style = MaterialTheme.typography.bodyMedium, color = OnSurface, modifier = Modifier.weight(1f))
-            Text("-${"$%.0f".format(spent)}", style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.SemiBold)
+            Text("-${money.ofUnits(spent, decimals = 0)}", style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.SemiBold)
             Surface(shape = RoundedCornerShape(4.dp), color = color.copy(alpha = 0.10f)) {
                 Text("${"%.0f".format(share * 100)}%", modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
                     style = MaterialTheme.typography.labelSmall, color = color, fontWeight = FontWeight.Bold)
@@ -511,6 +514,7 @@ private fun TopCategoryRow(name: String, icon: ImageVector, spent: Float, totalS
 
 @Composable
 private fun GoalProgressRow(name: String, current: Float, target: Float, color: Color, onClick: (() -> Unit)? = null) {
+    val money = rememberMoneyFormatter()
     val progress = if (target > 0f) (current / target).coerceIn(0f, 1f) else 0f
     Column(
         modifier = Modifier.fillMaxWidth().let { if (onClick != null) it.clickable(onClick = onClick) else it },
@@ -525,7 +529,7 @@ private fun GoalProgressRow(name: String, current: Float, target: Float, color: 
         }
         LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(4.dp)),
             color = color, trackColor = SurfaceContainerHighest)
-        Text("${"$%.0f".format(current)} saved of ${"$%.0f".format(target)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+        Text("${money.ofUnits(current, decimals = 0)} saved of ${money.ofUnits(target, decimals = 0)}", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
     }
 }
 

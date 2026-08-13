@@ -69,7 +69,7 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 - [ ] **Month heatmap (4×3)** — calendar grid coloured by daily spend, no-spend days highlighted
 
 ### Widget polish
-- [ ] Adopt `ui/util/MoneyFormat.kt` across the app's remaining screens — `BudgetsScreen` and the widgets use it, but most others still hardcode `"$%,.2f"` and ignore the currency preference
+- [x] Adopt `ui/util/MoneyFormat.kt` across the app's remaining screens — `BudgetsScreen` and the widgets use it, but most others still hardcode `"$%,.2f"` and ignore the currency preference
 - [ ] Stale widget-snapshot keys — `w_daily_allowance` lingers in the DataStore after being renamed to `w_today_allowance`. Harmless (nothing reads it) but confusing when debugging the `.preferences_pb`
 - [ ] Replace `previewLayout` XMLs with richer picker previews, and `widget_preview_generic.xml` with a real `previewImage` for API < 31
 - [ ] Dark-theme pass on the widgets — day/night `ColorProvider`s are declared but untested on a dark home screen
@@ -254,7 +254,7 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
   and `MoneyFormatHazardTest` now reads the source and fails the build on that shape — the detector is unit-tested
   against the lines that actually shipped broken, and re-injecting one fails the suite. Only 2 files were
   affected: the two that kept cents end to end. The rest read `.asUnits` and were already Doubles
-- [ ] **Hand-written `"$%,.2f"` hardcodes dollars** — the wallets here are in EUR and these screens print a dollar
+- [x] **Hand-written `"$%,.2f"` hardcodes dollars** — the wallets here are in EUR and these screens print a dollar
   sign regardless. Every one of them should go through `formatCents`/`formatAmount` with the user's currency, which
   also removes the remaining places a Long could reach a float format. ~160 sites; the streaks and budgets screens
   are done

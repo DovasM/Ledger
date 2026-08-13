@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import android.content.Intent
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.*
@@ -42,6 +43,7 @@ fun NetWorthScreen(
     debtViewModel: DebtViewModel = hiltViewModel(),
     txViewModel: TransactionViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val walletState by walletViewModel.state.collectAsStateWithLifecycle()
     val debtState   by debtViewModel.state.collectAsStateWithLifecycle()
     val txState     by txViewModel.state.collectAsStateWithLifecycle()
@@ -97,7 +99,7 @@ fun NetWorthScreen(
                 },
                 actions = {
                     IconButton(onClick = {
-                        val csv = buildNetWorthCsv(walletState.wallets.sumOf { it.balanceCents }, debtState.debts.sumOf { it.remainingAmountCents }, walletState.wallets, debtState.debts)
+                        val csv = buildNetWorthCsv(walletState.wallets.sumOf { it.balanceCents }, debtState.debts.sumOf { it.remainingAmountCents }, walletState.wallets, debtState.debts, money)
                         val fileName = "net_worth_${LocalDate.now()}.csv"
                         context.startActivity(Intent.createChooser(shareCsv(context, fileName, csv), "Export CSV"))
                     }) {
@@ -122,7 +124,7 @@ fun NetWorthScreen(
                 Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text("NET WORTH", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     Text(
-                        "${"$%,.2f".format(currentNW)}",
+                        "${money.ofUnits(currentNW)}",
                         style = MaterialTheme.typography.headlineLarge,
                         color = OnSurface, fontWeight = FontWeight.Bold, maxLines = 1
                     )
@@ -134,7 +136,7 @@ fun NetWorthScreen(
                             modifier = Modifier.size(14.dp)
                         )
                         Text(
-                            "${"$%,.2f".format(Math.abs(change))} (${"%.1f".format(Math.abs(changePct))}%) vs last month",
+                            "${money.ofUnits(Math.abs(change))} (${"%.1f".format(Math.abs(changePct))}%) vs last month",
                             style = MaterialTheme.typography.bodySmall,
                             color = if (change >= 0) Primary else Tertiary
                         )
@@ -172,14 +174,14 @@ fun NetWorthScreen(
                 LedgerCard(modifier = Modifier.weight(1f)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("ASSETS", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text("${"$%,.2f".format(totalAssets)}", style = MaterialTheme.typography.titleLarge, color = Primary, fontWeight = FontWeight.Bold)
+                        Text("${money.ofUnits(totalAssets)}", style = MaterialTheme.typography.titleLarge, color = Primary, fontWeight = FontWeight.Bold)
                         Text("${walletState.wallets.size} wallet${if (walletState.wallets.size != 1) "s" else ""}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                     }
                 }
                 LedgerCard(modifier = Modifier.weight(1f)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("LIABILITIES", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text("${"$%,.2f".format(totalLiabilities)}", style = MaterialTheme.typography.titleLarge, color = Tertiary, fontWeight = FontWeight.Bold)
+                        Text("${money.ofUnits(totalLiabilities)}", style = MaterialTheme.typography.titleLarge, color = Tertiary, fontWeight = FontWeight.Bold)
                         Text("${debtState.debts.size} debt${if (debtState.debts.size != 1) "s" else ""}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                     }
                 }
@@ -223,7 +225,7 @@ fun NetWorthScreen(
                                             Text(wallet.description, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                                     }
                                     Text(
-                                        "${"$%,.2f".format(wallet.balanceCents.asUnits)}",
+                                        "${money.ofUnits(wallet.balanceCents.asUnits)}",
                                         style = MaterialTheme.typography.titleMedium,
                                         color = Primary, fontWeight = FontWeight.SemiBold
                                     )
@@ -252,7 +254,7 @@ fun NetWorthScreen(
                                         Text("${debt.debtType} · ${debt.apr}% APR", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                                     }
                                     Text(
-                                        "${"$%,.2f".format(debt.remainingAmountCents.asUnits)}",
+                                        "${money.ofUnits(debt.remainingAmountCents.asUnits)}",
                                         style = MaterialTheme.typography.titleMedium,
                                         color = Tertiary, fontWeight = FontWeight.SemiBold
                                     )

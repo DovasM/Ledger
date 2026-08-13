@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.rememberMoneyFormatter
 import com.ledger.app.ui.util.toCents
 import com.ledger.app.ui.util.asUnits
 import androidx.compose.foundation.layout.*
@@ -42,6 +43,7 @@ fun DebtTrackerScreen(
     navController: NavController,
     viewModel: DebtViewModel = hiltViewModel()
 ) {
+    val money = rememberMoneyFormatter()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val currentEntry by navController.currentBackStackEntryAsState()
     LaunchedEffect(currentEntry?.destination?.route) { viewModel.load() }
@@ -61,7 +63,7 @@ fun DebtTrackerScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Text(
-                        "${"$%,.2f".format(debt.remainingAmountCents.asUnits)} left on ${debt.name}.",
+                        "${money.ofUnits(debt.remainingAmountCents.asUnits)} left on ${debt.name}.",
                         style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
                     )
                     LedgerTextField(
@@ -135,13 +137,13 @@ fun DebtTrackerScreen(
                 LedgerFloatingCard(modifier = Modifier.weight(1f)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("TOTAL DEBT", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text("${"$%,.2f".format(totalDebt)}", style = MaterialTheme.typography.titleLarge, color = Tertiary, fontWeight = FontWeight.Bold)
+                        Text("${money.ofUnits(totalDebt)}", style = MaterialTheme.typography.titleLarge, color = Tertiary, fontWeight = FontWeight.Bold)
                     }
                 }
                 LedgerFloatingCard(modifier = Modifier.weight(1f)) {
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         Text("MONTHLY", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text("${"$%,.2f".format(totalMonthly)}", style = MaterialTheme.typography.titleLarge, color = OnSurface, fontWeight = FontWeight.Bold)
+                        Text("${money.ofUnits(totalMonthly)}", style = MaterialTheme.typography.titleLarge, color = OnSurface, fontWeight = FontWeight.Bold)
                     }
                 }
             }
@@ -205,6 +207,7 @@ private fun DebtCard(
     onRecordPayment: () -> Unit,
     onDeletePayment: (String) -> Unit
 ) {
+    val money = rememberMoneyFormatter()
     val color = debtColor(debt)
     val pct = if (debt.totalAmountCents.asUnits > 0) ((debt.totalAmountCents.asUnits - debt.remainingAmountCents.asUnits) / debt.totalAmountCents.asUnits).toFloat().coerceIn(0f, 1f) else 0f
     val monthsLeft = if (debt.monthlyPaymentCents.asUnits > 0) (debt.remainingAmountCents.asUnits / debt.monthlyPaymentCents.asUnits).toInt() else 0
@@ -215,7 +218,7 @@ private fun DebtCard(
         AlertDialog(
             onDismissRequest = { pendingDelete = null },
             title = { Text("Remove payment?") },
-            text = { Text("${"$%,.2f".format(p.amountCents.asUnits)} will go back onto what you owe.") },
+            text = { Text("${money.ofUnits(p.amountCents.asUnits)} will go back onto what you owe.") },
             confirmButton = {
                 TextButton(onClick = { onDeletePayment(p.id); pendingDelete = null }) { Text("Remove", color = Error) }
             },
@@ -235,8 +238,8 @@ private fun DebtCard(
                             Text(debt.debtType, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                         }
                         Column(horizontalAlignment = Alignment.End) {
-                            Text("${"$%,.2f".format(debt.remainingAmountCents.asUnits)}", style = MaterialTheme.typography.titleMedium, color = color, fontWeight = FontWeight.Bold)
-                            Text("of ${"$%,.2f".format(debt.totalAmountCents.asUnits)}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                            Text("${money.ofUnits(debt.remainingAmountCents.asUnits)}", style = MaterialTheme.typography.titleMedium, color = color, fontWeight = FontWeight.Bold)
+                            Text("of ${money.ofUnits(debt.totalAmountCents.asUnits)}", style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
                         }
                     }
                     LinearProgressIndicator(
@@ -246,7 +249,7 @@ private fun DebtCard(
                     )
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
                         Text("${"%.1f".format(pct * 100)}% paid off", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                        Text("${debt.apr}% APR · ${"$%,.0f".format(debt.monthlyPaymentCents.asUnits)}/mo · ~$monthsLeft months left",
+                        Text("${debt.apr}% APR · ${money.ofUnits(debt.monthlyPaymentCents.asUnits, decimals = 0)}/mo · ~$monthsLeft months left",
                             style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
                     }
                 }
@@ -290,7 +293,7 @@ private fun DebtCard(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    "${"$%,.2f".format(p.amountCents.asUnits)}",
+                                    "${money.ofUnits(p.amountCents.asUnits)}",
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = if (p.amountCents.asUnits < 0) Error else OnSurface,
                                     fontWeight = FontWeight.Medium
