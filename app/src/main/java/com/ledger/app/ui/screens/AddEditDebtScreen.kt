@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.asAmountInput
 import com.ledger.app.ui.util.toCents
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -40,10 +41,10 @@ fun AddEditDebtScreen(
     var name           by remember(existingDebt) { mutableStateOf(existingDebt?.name ?: "") }
     var selectedType   by remember(existingDebt) { mutableStateOf(existingDebt?.debtType ?: types[0]) }
     var typeMenuExpanded by remember { mutableStateOf(false) }
-    var totalAmount    by remember(existingDebt) { mutableStateOf(existingDebt?.totalAmountCents?.toString() ?: "") }
-    var remaining      by remember(existingDebt) { mutableStateOf(existingDebt?.remainingAmountCents?.toString() ?: "") }
+    var totalAmount    by remember(existingDebt) { mutableStateOf(existingDebt?.totalAmountCents?.asAmountInput() ?: "") }
+    var remaining      by remember(existingDebt) { mutableStateOf(existingDebt?.remainingAmountCents?.asAmountInput() ?: "") }
     var apr            by remember(existingDebt) { mutableStateOf(existingDebt?.apr?.toString() ?: "") }
-    var monthlyPayment by remember(existingDebt) { mutableStateOf(existingDebt?.monthlyPaymentCents?.toString() ?: "") }
+    var monthlyPayment by remember(existingDebt) { mutableStateOf(existingDebt?.monthlyPaymentCents?.asAmountInput() ?: "") }
     var showCalc       by remember { mutableStateOf(false) }
     var calcTarget     by remember { mutableStateOf("total") }
     var showErrors     by remember { mutableStateOf(false) }

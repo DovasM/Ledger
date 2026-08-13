@@ -242,6 +242,11 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 - [x] **Budget progress bar was doing integer division** — found in the audit after the cents conversion, not by the compiler: `(spent / limit).toFloat()` on two Longs is 0 or 1 and never anything between. The exact class of bug the `*Cents` renaming was meant to force into the open
 - [x] **Goal contributions and debt payments are recorded, not just summed** — a goal stored only how much was in it and a debt only how much was left, both mutated in place, so "I put 50 in last Tuesday" existed nowhere and a mistyped amount could only be fixed by typing over the total. `m7` adds `goal_contributions` and `debt_payments`, seeds one `opening` row per existing balance, and **drops** `current_amount` and `remaining_amount` — both are now summed from the history, the same answer `wallets.balance` needed. Goal details gained a History tab; the debt tracker gained Record payment and an expandable history, both with delete. Typing over a debt's remaining amount now writes an `adjustment` row instead of silently disagreeing with its own history
 - [x] **Widget updates crashed the whole app** — `LedgerWidgetReceiver.onUpdate` called `goAsync()` after `super.onUpdate` had already claimed it, then `finish()` on the null. Platform-typed, so Kotlin never forced the check; it was crashing on every widget update including at install time
+- [x] **Editing a budget or a debt multiplied the amount by 100** — the field was pre-filled with the raw cents, so
+  a budget of 1000 opened as "100000", and saving it stored 100000.00. Four fields across two screens: the budget
+  limit and a debt's total, remaining and monthly payment. Now pre-filled with `asAmountInput()`, which is the exact
+  inverse of the parse on save, and `MoneyFormatHazardTest` fails the build if any field goes back to raw cents.
+  Worse than the crash it followed, because it wrote wrong numbers instead of refusing to draw
 - [x] **The budgets screen crashed outright, and the streaks screen with it** — the same
   `IllegalFormatConversionException: f != java.lang.Long` as the CSV exports, in `"%.0f".format(totalSpent /
   totalLimit * 100)`. The line above it had the other half of the trap: `(totalSpent / totalLimit).toFloat()` on

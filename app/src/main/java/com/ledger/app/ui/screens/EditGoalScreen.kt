@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.asAmountInput
 import com.ledger.app.ui.util.toCents
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -64,7 +65,7 @@ fun EditGoalScreen(
     val goal = state.goals.find { it.id == goalId }
 
     var name by remember(goal) { mutableStateOf(goal?.name ?: "") }
-    var targetAmount by remember(goal) { mutableStateOf(goal?.targetAmountCents?.asUnits?.let { "%.2f".format(java.util.Locale.US, it) } ?: "") }
+    var targetAmount by remember(goal) { mutableStateOf(goal?.targetAmountCents?.asAmountInput() ?: "") }
     var selectedDeadline by remember(goal) { mutableStateOf(goal?.deadline ?: "") }
     var selectedIconIndex by remember { mutableStateOf(0) }
     var selectedColorIndex by remember { mutableStateOf(0) }

@@ -75,6 +75,16 @@ fun Double.toCents(): Long =
         .setScale(0, java.math.RoundingMode.HALF_UP)
         .toLong()
 
+/**
+ * Cents as the plain decimal a text field should be pre-filled with: no symbol, no grouping, and a
+ * dot for the decimal point whatever the device locale is, so that what comes back out of the field
+ * parses to exactly what went in.
+ *
+ * Editing screens used to show the raw cents — a budget of 1000 opened as "100000", and saving it
+ * multiplied by a hundred again. [toCentsOrNull] is the exact inverse of this, and a test says so.
+ */
+fun Long.asAmountInput(): String = String.format(java.util.Locale.US, "%.2f", asUnits)
+
 /** Parses "12.34" (or "12,34") into cents, returning null when it is not a usable amount. */
 fun String.toCentsOrNull(): Long? = runCatching {
     java.math.BigDecimal(trim().replace(',', '.'))

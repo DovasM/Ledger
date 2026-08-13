@@ -66,6 +66,47 @@ class MoneyFormatHazardTest {
         assertTrue(hazardsIn("""Text("${'$'}{"%d".format(amountCents)}")""").isEmpty())
     }
 
+    /**
+     * The other direction, and the one that corrupted data rather than crashing: a text field
+     * pre-filled with raw cents showed a budget of 1000 as "100000", and saving it multiplied the
+     * budget by a hundred. Editing a debt did the same to three fields at once.
+     */
+    private fun prefillHazardsIn(line: String): List<String> =
+        if ("mutableStateOf(" in line && Regex("""Cents[^)]*\.toString\(\)""").containsMatchIn(line))
+            listOf(line.trim()) else emptyList()
+
+    @Test
+    fun `the prefill detector recognises what actually went wrong`() {
+        assertTrue(
+            prefillHazardsIn("""var amount by remember { mutableStateOf(existingBudget?.limitAmountCents?.toString() ?: "") }""")
+                .isNotEmpty()
+        )
+        assertTrue(
+            prefillHazardsIn("""var amount by remember { mutableStateOf(existingBudget?.limitAmountCents?.asAmountInput() ?: "") }""")
+                .isEmpty()
+        )
+        assertTrue(prefillHazardsIn("""var name by remember { mutableStateOf(wallet?.name ?: "") }""").isEmpty())
+    }
+
+    @Test
+    fun `no edit field is pre-filled with raw cents`() {
+        val sources = File("src/main/java/com/ledger/app")
+        val offences = mutableListOf<String>()
+        sources.walkTopDown()
+            .filter { it.isFile && it.extension == "kt" && "uniffi" !in it.path.replace('\\', '/') }
+            .forEach { file ->
+                file.readLines().forEachIndexed { index, line ->
+                    prefillHazardsIn(line).forEach { offences += "${file.name}:${index + 1}  ${it.take(90)}" }
+                }
+            }
+        assertEquals(
+            "a text field pre-filled with raw cents — use asAmountInput(), or saving multiplies by 100:\n" +
+                offences.joinToString("\n"),
+            emptyList<String>(),
+            offences
+        )
+    }
+
     @Test
     fun `no screen formats cents as a float`() {
         val sources = File("src/main/java/com/ledger/app")

@@ -1,6 +1,7 @@
 package com.ledger.app.ui.util
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Test
 
@@ -100,6 +101,29 @@ class MoneyFormatTest {
         assertEquals("$24.5k", formatCentsCompact(2_450_000, "USD"))
         assertEquals("$1.3M", formatCentsCompact(130_000_000, "USD"))
         assertEquals("$9.99", formatCentsCompact(999, "USD"))
+    }
+
+    /**
+     * The bug this pins: editing a budget of 1000 pre-filled its field with "100000", and saving
+     * that multiplied it by a hundred again. What goes into a text field has to come back out as
+     * the same money.
+     */
+    @Test
+    fun `a field pre-filled from cents parses back to the same cents`() {
+        for (cents in listOf(0L, 1L, 29L, 720L, 100_000L, 1_234L, 99_999_999L, -8_535L)) {
+            assertEquals(cents, cents.asAmountInput().toCentsOrNull())
+        }
+    }
+
+    @Test
+    fun `the pre-filled value is a plain number, with no symbol or grouping`() {
+        assertEquals("1000.00", 100_000L.asAmountInput())
+        assertEquals("12.34", 1_234L.asAmountInput())
+        assertEquals("0.00", 0L.asAmountInput())
+        assertEquals("-85.35", (-8_535L).asAmountInput())
+        // Grouping separators would not survive the round trip through toCentsOrNull.
+        assertFalse(1_234_567_89L.asAmountInput().contains(","))
+        assertFalse(1_234_567_89L.asAmountInput().contains(" "))
     }
 
     @Test

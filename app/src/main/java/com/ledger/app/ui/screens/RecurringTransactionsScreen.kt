@@ -1,5 +1,6 @@
 package com.ledger.app.ui.screens
 
+import com.ledger.app.ui.util.asAmountInput
 import com.ledger.app.ui.util.toCents
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -182,7 +183,7 @@ private fun RecurringRow(
     var showDatePicker by remember { mutableStateOf(false) }
 
     var editTitle by remember { mutableStateOf(tx.title) }
-    var editAmount by remember { mutableStateOf(tx.amountCents.asUnits.toString()) }
+    var editAmount by remember { mutableStateOf(tx.amountCents.asAmountInput()) }
     var editFrequency by remember { mutableStateOf(tx.frequency) }
     var editNextDate by remember { mutableStateOf(tx.nextDate) }
 

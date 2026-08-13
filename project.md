@@ -847,6 +847,11 @@ before `m8` converted them.
 - **Percentages stay `Double`**: `budgets.alert_threshold` and `debts.apr` are not money.
 - **`MoneyFormat.kt` owns the boundary.** `formatCents` on the way out, `Double.toCents()` /
   `String.toCentsOrNull()` on the way in. That parse is the single rounding step in the system.
+- **A text field is pre-filled with `asAmountInput()`, never with the raw `Long`.** It is the exact
+  inverse of `toCentsOrNull`, formats with `Locale.US` so the separator is always a dot whatever the
+  device language is, and adds no grouping — `"1,000.00"` would not parse back. Pre-filling with the
+  raw cents showed a budget of 1000 as "100000" and multiplied it by a hundred on save, which
+  corrupts data rather than merely looking wrong. `MoneyFormatHazardTest` fails the build on it.
 - **`Long.asUnits`** is a *view* for ratios, averages, trends and chart scales, where a real number
   is the honest type. Never add money with it and never store its result.
 - **Rounding is HALF_UP through `BigDecimal`, not `kotlin.math.round`.** Kotlin's `round` takes ties
