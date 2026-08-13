@@ -21,7 +21,9 @@ import com.ledger.app.ui.components.*
 import com.ledger.app.ui.navigation.Screen
 import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.viewmodel.TransactionViewModel
+import com.ledger.app.ui.viewmodel.TransferViewModel
 import com.ledger.app.ui.viewmodel.WalletViewModel
+import uniffi.ledger.Transfer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -29,11 +31,13 @@ fun WalletDetailsScreen(
     navController: NavController,
     walletId: String,
     walletViewModel: WalletViewModel = hiltViewModel(),
-    transactionViewModel: TransactionViewModel = hiltViewModel()
+    transactionViewModel: TransactionViewModel = hiltViewModel(),
+    transferViewModel: TransferViewModel = hiltViewModel()
 ) {
     val money = rememberMoneyFormatter()
     val walletState by walletViewModel.state.collectAsStateWithLifecycle()
     val txState by transactionViewModel.state.collectAsStateWithLifecycle()
+    val transferState by transferViewModel.state.collectAsStateWithLifecycle()
     val wallet = walletState.wallets.find { it.id == walletId }
 
     val today = java.time.LocalDate.now()
@@ -41,6 +45,7 @@ fun WalletDetailsScreen(
 
     LaunchedEffect(walletId) {
         transactionViewModel.loadForWallet(walletId)
+        transferViewModel.load()
     }
 
     val periodTxs = txState.transactions.filter {
@@ -150,6 +155,97 @@ fun WalletDetailsScreen(
                         }
                     }
                 }
+            }
+
+            // Transfers are neither income nor expense, so they never appear above. Without this
+            // they could be created and then never seen or undone again.
+            val walletTransfers = transferState.transfers.filter {
+                it.fromWalletId == walletId || it.toWalletId == walletId
+            }
+            var pendingDelete by remember { mutableStateOf<Transfer?>(null) }
+
+            pendingDelete?.let { transfer ->
+                AlertDialog(
+                    onDismissRequest = { pendingDelete = null },
+                    title = { Text("Remove this transfer?") },
+                    text = {
+                        Text(
+                            "${money.of(transfer.amountCents)} will stop counting in both wallets. " +
+                                "It is not income or spending, so no report changes."
+                        )
+                    },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            transferViewModel.deleteTransfer(transfer.id)
+                            pendingDelete = null
+                        }) { Text("Remove", color = Error) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { pendingDelete = null }) { Text("Cancel", color = OnSurfaceVariant) }
+                    }
+                )
+            }
+
+            Text("Transfers", style = MaterialTheme.typography.titleMedium, color = OnSurface)
+            if (walletTransfers.isEmpty()) {
+                LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        Text(
+                            "No transfers to or from this wallet.",
+                            style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant
+                        )
+                    }
+                }
+            } else {
+                LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        walletTransfers.forEach { transfer ->
+                            val outgoing = transfer.fromWalletId == walletId
+                            val otherId = if (outgoing) transfer.toWalletId else transfer.fromWalletId
+                            val otherName = walletState.wallets.find { it.id == otherId }?.name ?: "another wallet"
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    if (outgoing) Icons.Filled.ArrowUpward else Icons.Filled.ArrowDownward,
+                                    contentDescription = if (outgoing) "Sent" else "Received",
+                                    tint = if (outgoing) Tertiary else Primary,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        if (outgoing) "To $otherName" else "From $otherName",
+                                        style = MaterialTheme.typography.bodyMedium, color = OnSurface
+                                    )
+                                    Text(
+                                        listOfNotNull(transfer.createdAt.take(10), transfer.note).joinToString(" · "),
+                                        style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                                    )
+                                }
+                                Text(
+                                    (if (outgoing) "-" else "+") + money.of(transfer.amountCents),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = if (outgoing) Tertiary else Primary,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                IconButton(onClick = { pendingDelete = transfer }) {
+                                    Icon(
+                                        Icons.Filled.Delete, "Remove transfer",
+                                        tint = OnSurfaceVariant, modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            TextButton(onClick = { navController.navigate(Screen.AddTransfer.route) }, modifier = Modifier.fillMaxWidth()) {
+                Icon(Icons.Filled.SwapHoriz, contentDescription = null, tint = Primary, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("New Transfer", color = Primary, style = MaterialTheme.typography.labelLarge)
             }
 
             TextButton(onClick = { navController.navigate(Screen.Transactions.route) }, modifier = Modifier.fillMaxWidth()) {
