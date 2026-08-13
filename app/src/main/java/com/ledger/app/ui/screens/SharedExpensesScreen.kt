@@ -1,6 +1,7 @@
 package com.ledger.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -32,6 +33,7 @@ import com.ledger.app.ui.util.rememberMoneyFormatter
 import com.ledger.app.ui.util.toCentsOrNull
 import com.ledger.app.ui.viewmodel.SharedExpenseViewModel
 import uniffi.ledger.ExpenseGroup
+import uniffi.ledger.ExpenseShare
 import uniffi.ledger.GroupMember
 import uniffi.ledger.ShareInput
 import uniffi.ledger.SharedExpense
@@ -78,11 +80,11 @@ fun SharedExpensesScreen(
                 confirmButton = { TextButton(onClick = { expenseForGroupId = null }) { Text("OK", color = Primary) } }
             )
         } else {
-            AddExpenseDialog(
+            ExpenseDialog(
                 members = members,
                 money = money,
                 onDismiss = { expenseForGroupId = null },
-                onAdd = { description, amountCents, paidBy, shares ->
+                onSubmit = { description, amountCents, paidBy, shares ->
                     viewModel.addExpense(id, description, amountCents, paidBy, shares)
                     expenseForGroupId = null
                 }
@@ -100,11 +102,17 @@ fun SharedExpensesScreen(
                 money = money,
                 onDismiss = { openGroupId = null },
                 onLoad = { viewModel.loadGroup(id) },
+                shares = state.shares,
                 onAddExpense = { description, amountCents, paidBy, shares ->
                     viewModel.addExpense(id, description, amountCents, paidBy, shares)
                 },
+                onEditExpense = { expenseId, description, amountCents, paidBy, shares ->
+                    viewModel.updateExpense(expenseId, id, description, amountCents, paidBy, shares)
+                },
+                onLoadShares = { viewModel.loadShares(it) },
                 onDeleteExpense = { viewModel.deleteExpense(it, id) },
                 onAddMember = { viewModel.addMember(id, it) },
+                onRename = { name, emoji -> viewModel.renameGroup(id, name, emoji) },
                 onDeleteGroup = { viewModel.deleteGroup(id) { openGroupId = null } }
             )
         }
@@ -347,15 +355,37 @@ private fun GroupSheet(
     money: MoneyFormatter,
     onDismiss: () -> Unit,
     onLoad: () -> Unit,
+    shares: Map<String, List<ExpenseShare>>,
     onAddExpense: (String, Long, String, List<ShareInput>) -> Unit,
+    onEditExpense: (String, String, Long, String, List<ShareInput>) -> Unit,
+    onLoadShares: (String) -> Unit,
     onDeleteExpense: (String) -> Unit,
     onAddMember: (String) -> Unit,
+    onRename: (String, String) -> Unit,
     onDeleteGroup: () -> Unit
 ) {
     LaunchedEffect(group.id) { onLoad() }
     var addExpense by remember { mutableStateOf(false) }
+    // The entry being corrected. Its shares are fetched when it is picked, because the list itself
+    // only carries your own share.
+    var editing by remember { mutableStateOf<SharedExpense?>(null) }
     var addMember by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
+    var renaming by remember { mutableStateOf(false) }
+
+    editing?.let { expense ->
+        ExpenseDialog(
+            members = members,
+            money = money,
+            existing = expense,
+            existingShares = shares[expense.id].orEmpty(),
+            onDismiss = { editing = null },
+            onSubmit = { description, amountCents, paidBy, newShares ->
+                onEditExpense(expense.id, description, amountCents, paidBy, newShares)
+                editing = null
+            }
+        )
+    }
 
     if (addExpense && members.isEmpty()) {
         AlertDialog(
@@ -366,11 +396,11 @@ private fun GroupSheet(
         )
     }
     if (addExpense && members.isNotEmpty()) {
-        AddExpenseDialog(
+        ExpenseDialog(
             members = members,
             money = money,
             onDismiss = { addExpense = false },
-            onAdd = { description, amountCents, paidBy, shares ->
+            onSubmit = { description, amountCents, paidBy, shares ->
                 onAddExpense(description, amountCents, paidBy, shares)
                 addExpense = false
             }
@@ -392,6 +422,27 @@ private fun GroupSheet(
         )
     }
 
+    if (renaming) {
+        var name by remember { mutableStateOf(group.name) }
+        var emoji by remember { mutableStateOf(group.emoji) }
+        AlertDialog(
+            onDismissRequest = { renaming = false },
+            title = { Text("Rename group") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LedgerTextField(value = name, onValueChange = { name = it }, label = "Name", modifier = Modifier.fillMaxWidth())
+                    LedgerTextField(value = emoji, onValueChange = { emoji = it }, label = "Emoji", modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = name.isNotBlank(), onClick = { onRename(name, emoji); renaming = false }) {
+                    Text("Save", color = Primary)
+                }
+            },
+            dismissButton = { TextButton(onClick = { renaming = false }) { Text("Cancel", color = OnSurfaceVariant) } }
+        )
+    }
+
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
@@ -410,6 +461,9 @@ private fun GroupSheet(
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(group.emoji.ifBlank { "👥" }, style = MaterialTheme.typography.headlineSmall)
                 Text(group.name, style = MaterialTheme.typography.titleLarge, color = OnSurface, modifier = Modifier.weight(1f))
+                IconButton(onClick = { renaming = true }) {
+                    Icon(Icons.Filled.Edit, "Rename group", tint = OnSurfaceVariant, modifier = Modifier.size(20.dp))
+                }
                 IconButton(onClick = { confirmDelete = true }) {
                     Icon(Icons.Filled.Delete, "Delete group", tint = OnSurfaceVariant, modifier = Modifier.size(20.dp))
                 }
@@ -456,12 +510,19 @@ private fun GroupSheet(
             } else {
                 expenses.forEach { expense ->
                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-                        Column(modifier = Modifier.weight(1f)) {
+                        Column(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(6.dp))
+                                .clickable { editing = expense; onLoadShares(expense.id) }
+                                .padding(vertical = 4.dp)
+                        ) {
                             Text(expense.description, style = MaterialTheme.typography.bodyMedium, color = OnSurface)
                             Text(
                                 "${expense.paidByName} paid ${money.of(expense.amountCents)} · your share ${money.of(expense.yourShareCents)}",
                                 style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
                             )
+                            Text("Tap to correct", style = MaterialTheme.typography.labelSmall, color = Primary)
                         }
                         IconButton(onClick = { onDeleteExpense(expense.id) }) {
                             Icon(Icons.Filled.Close, "Remove", tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))
@@ -485,19 +546,42 @@ private fun GroupSheet(
 }
 
 @Composable
-private fun AddExpenseDialog(
+private fun ExpenseDialog(
     members: List<GroupMember>,
     money: MoneyFormatter,
+    // Null when writing a new expense; the entry being corrected otherwise.
+    existing: SharedExpense? = null,
+    existingShares: List<ExpenseShare> = emptyList(),
     onDismiss: () -> Unit,
-    onAdd: (String, Long, String, List<ShareInput>) -> Unit
+    onSubmit: (String, Long, String, List<ShareInput>) -> Unit
 ) {
-    var description by remember { mutableStateOf("") }
-    var amount by remember { mutableStateOf("") }
-    var paidByIndex by remember { mutableStateOf(members.indexOfFirst { it.isYou }.coerceAtLeast(0)) }
+    val editing = existing != null
+
+    // What each member was down for last time, in the order the members are shown. Absent means they
+    // were not on this expense at all, which reads as zero.
+    val previous = remember(existing?.id, existingShares, members) {
+        members.map { m -> existingShares.firstOrNull { it.memberId == m.id }?.shareCents ?: 0L }
+    }
+
+    var description by remember(existing?.id) { mutableStateOf(existing?.description.orEmpty()) }
+    // Never the raw cents: a field pre-filled with 3600 saves as 3600.00 and multiplies the entry by
+    // a hundred without a word.
+    var amount by remember(existing?.id) { mutableStateOf(existing?.amountCents?.asAmountInput().orEmpty()) }
+    var paidByIndex by remember(existing?.id, members) {
+        mutableStateOf(
+            members.indexOfFirst { if (editing) it.id == existing?.paidByMemberId else it.isYou }.coerceAtLeast(0)
+        )
+    }
     var payerMenu by remember { mutableStateOf(false) }
-    var custom by remember { mutableStateOf(false) }
-    // Only used in custom mode; each entry is what that person's field currently says.
-    var typedShares by remember { mutableStateOf(members.map { "" }) }
+
+    // An entry that was split unevenly opens on the custom side, so correcting the description does
+    // not silently flatten the split back to equal shares.
+    var custom by remember(existing?.id, previous) {
+        mutableStateOf(editing && previous.isNotEmpty() && previous.distinct().size > 1)
+    }
+    var typedShares by remember(existing?.id, previous) {
+        mutableStateOf(if (editing) previous.map { it.asAmountInput() } else members.map { "" })
+    }
 
     val amountCents = amount.toCentsOrNull()
 
@@ -523,7 +607,7 @@ private fun AddExpenseDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Add expense") },
+        title = { Text(if (editing) "Edit expense" else "Add expense") },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -617,14 +701,14 @@ private fun AddExpenseDialog(
                 enabled = description.isNotBlank() && balanced,
                 onClick = {
                     val payer = members[paidByIndex]
-                    onAdd(
+                    onSubmit(
                         description,
                         amountCents!!,
                         payer.id,
                         members.mapIndexed { index, member -> ShareInput(member.id, shares[index]) }
                     )
                 }
-            ) { Text("Add", color = Primary) }
+            ) { Text(if (editing) "Save" else "Add", color = Primary) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = OnSurfaceVariant) } }
     )

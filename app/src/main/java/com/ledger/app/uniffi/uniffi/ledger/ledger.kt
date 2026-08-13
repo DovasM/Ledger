@@ -866,6 +866,8 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -1014,6 +1016,8 @@ internal interface UniffiLib : Library {
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_goal(`ptr`: Pointer,`id`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,`targetAmountCents`: Long,`deadline`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_recurring(`ptr`: Pointer,`id`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`amountCents`: Long,`category`: RustBuffer.ByValue,`frequency`: RustBuffer.ByValue,`nextDate`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_shared_expense(`ptr`: Pointer,`id`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`amountCents`: Long,`paidByMemberId`: RustBuffer.ByValue,`shares`: RustBuffer.ByValue,`occurredAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_transaction(`ptr`: Pointer,`id`: RustBuffer.ByValue,`title`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`amountCents`: Long,`isIncome`: Byte,`note`: RustBuffer.ByValue,`occurredAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -1289,6 +1293,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_recurring(
     ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_shared_expense(
+    ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_transaction(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_wallet(
@@ -1521,6 +1527,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_recurring() != 47584.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_shared_expense() != 16340.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_transaction() != 61079.toShort()) {
@@ -2078,6 +2087,8 @@ public interface LedgerDbInterface {
     fun `updateGoal`(`id`: kotlin.String, `name`: kotlin.String, `targetAmountCents`: kotlin.Long, `deadline`: kotlin.String?): SavingsGoal
     
     fun `updateRecurring`(`id`: kotlin.String, `title`: kotlin.String, `amountCents`: kotlin.Long, `category`: kotlin.String, `frequency`: kotlin.String, `nextDate`: kotlin.String): RecurringTransaction
+    
+    fun `updateSharedExpense`(`id`: kotlin.String, `description`: kotlin.String, `amountCents`: kotlin.Long, `paidByMemberId`: kotlin.String, `shares`: List<ShareInput>, `occurredAt`: kotlin.String?): SharedExpense
     
     fun `updateTransaction`(`id`: kotlin.String, `title`: kotlin.String, `category`: kotlin.String, `amountCents`: kotlin.Long, `isIncome`: kotlin.Boolean, `note`: kotlin.String?, `occurredAt`: kotlin.String?): Transaction
     
@@ -2965,6 +2976,19 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     uniffiRustCallWithError(LedgerException) { _status ->
     UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_update_recurring(
         it, FfiConverterString.lower(`id`),FfiConverterString.lower(`title`),FfiConverterLong.lower(`amountCents`),FfiConverterString.lower(`category`),FfiConverterString.lower(`frequency`),FfiConverterString.lower(`nextDate`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `updateSharedExpense`(`id`: kotlin.String, `description`: kotlin.String, `amountCents`: kotlin.Long, `paidByMemberId`: kotlin.String, `shares`: List<ShareInput>, `occurredAt`: kotlin.String?): SharedExpense {
+            return FfiConverterTypeSharedExpense.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_update_shared_expense(
+        it, FfiConverterString.lower(`id`),FfiConverterString.lower(`description`),FfiConverterLong.lower(`amountCents`),FfiConverterString.lower(`paidByMemberId`),FfiConverterSequenceTypeShareInput.lower(`shares`),FfiConverterOptionalString.lower(`occurredAt`),_status)
 }
     }
     )

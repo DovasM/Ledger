@@ -1334,6 +1334,66 @@ impl LedgerDb {
         })
     }
 
+    /// Correcting an entry that was typed wrong. Deleting and retyping would work, but it loses the
+    /// entry and is a poor answer to a typo.
+    ///
+    /// The shares are replaced wholesale rather than adjusted: working out which of them changed is
+    /// harder than writing the set that is now correct, and doubling them is the obvious way to get
+    /// this wrong. The same adding-up rule applies as when the expense was first written, and it is
+    /// checked before anything is touched, so a correction that does not balance leaves the original
+    /// exactly as it was.
+    ///
+    /// `transaction_id` is deliberately not in the SET — nothing here should quietly unlink an
+    /// expense from the transaction it was paid by.
+    pub fn update_shared_expense(
+        &self,
+        id: String,
+        description: String,
+        amount_cents: i64,
+        paid_by_member_id: String,
+        shares: Vec<ShareInput>,
+        occurred_at: Option<String>,
+    ) -> Result<SharedExpense, LedgerError> {
+        if description.trim().is_empty() { return Err(LedgerError::InvalidInput("description is required".into())); }
+        if amount_cents <= 0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
+        if shares.is_empty() { return Err(LedgerError::InvalidInput("split it between someone".into())); }
+
+        let total: i64 = shares.iter().map(|s| s.share_cents).sum();
+        if total != amount_cents {
+            return Err(LedgerError::InvalidInput(format!(
+                "the shares add up to {} but the expense is {} — every cent has to belong to somebody",
+                total, amount_cents
+            )));
+        }
+
+        self.rt.block_on(async {
+            let mut tx = self.pool.begin().await?;
+
+            let mut sql = String::from("UPDATE shared_expenses SET description=?, amount_cents=?, paid_by_member_id=?");
+            if occurred_at.is_some() { sql.push_str(", occurred_at=?"); }
+            sql.push_str(" WHERE id=?");
+
+            let mut q = sqlx::query(&sql)
+                .bind(description.trim()).bind(amount_cents).bind(&paid_by_member_id);
+            if let Some(when) = &occurred_at { q = q.bind(when); }
+            let changed = q.bind(&id).execute(&mut *tx).await?;
+            if changed.rows_affected() == 0 { return Err(LedgerError::NotFound); }
+
+            sqlx::query("DELETE FROM shared_expense_shares WHERE shared_expense_id=?")
+                .bind(&id).execute(&mut *tx).await?;
+            for s in &shares {
+                sqlx::query("INSERT INTO shared_expense_shares (id, shared_expense_id, member_id, share_cents) VALUES (?,?,?,?)")
+                    .bind(Uuid::new_v4().to_string()).bind(&id).bind(&s.member_id).bind(s.share_cents)
+                    .execute(&mut *tx).await?;
+            }
+            tx.commit().await?;
+
+            let row = sqlx::query_as::<_, SharedExpenseRow>(&format!("{EXPENSE_SELECT} WHERE e.id = ?"))
+                .bind(&id).fetch_one(&self.pool).await?;
+            Ok(row_to_shared_expense(row))
+        })
+    }
+
     pub fn delete_shared_expense(&self, id: String) -> Result<(), LedgerError> {
         self.rt.block_on(async {
             let mut tx = self.pool.begin().await?;

@@ -422,6 +422,11 @@ interface LedgerDb {
                                      sequence<ShareInput> shares, string? occurred_at);
 
     [Throws=LedgerError]
+    SharedExpense update_shared_expense(string id, string description, i64 amount_cents,
+                                        string paid_by_member_id, sequence<ShareInput> shares,
+                                        string? occurred_at);
+
+    [Throws=LedgerError]
     void delete_shared_expense(string id);
 
     [Throws=LedgerError]

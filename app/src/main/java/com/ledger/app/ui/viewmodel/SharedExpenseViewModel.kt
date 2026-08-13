@@ -138,6 +138,46 @@ class SharedExpenseViewModel @Inject constructor(
         }
     }
 
+    /**
+     * Correcting an entry rather than deleting and retyping it. The shares are handed over whole and
+     * replace what was there; the Rust side refuses the lot if they no longer add up, which is why a
+     * mistyped correction cannot leave the group half-changed.
+     */
+    fun updateExpense(
+        id: String,
+        groupId: String,
+        description: String,
+        amountCents: Long,
+        paidByMemberId: String,
+        shares: List<ShareInput>,
+        occurredAt: String? = null,
+        onSuccess: () -> Unit = {}
+    ) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                bridge.updateSharedExpense(id, description, amountCents, paidByMemberId, shares, occurredAt)
+                loadShares(id)
+                loadGroup(groupId)
+                load()
+                launch(Dispatchers.Main) { onSuccess() }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message)
+            }
+        }
+    }
+
+    fun renameGroup(id: String, name: String, emoji: String, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                bridge.updateExpenseGroup(id, name, emoji, "#1565C0")
+                load()
+                launch(Dispatchers.Main) { onSuccess() }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message)
+            }
+        }
+    }
+
     fun deleteExpense(id: String, groupId: String) {
         viewModelScope.launch(Dispatchers.IO) {
             try {

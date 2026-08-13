@@ -280,3 +280,102 @@ fn a_split_does_not_change_the_transaction_or_the_wallet_balance() {
     assert_eq!(t.db.list_all_transactions(10, 0).unwrap()[0].amount_cents, 36_000);
     assert_eq!(t.db.get_month_summary(2026, 3).unwrap().total_expenses_cents, 36_000);
 }
+
+// ── Correcting a mistake ─────────────────────────────────────────────────────
+
+/// Deleting and retyping is a poor way to fix a typo, and it loses the entry's place in the list.
+#[test]
+fn an_expense_can_be_corrected() {
+    let t = TestDb::new();
+    let (group, you, sarah, mike) = trip(&t);
+
+    let expense = t.db.add_shared_expense(
+        group.clone(), "Hotal".into(), 36_000, you.clone(), None,
+        vec![share(&you, 12_000), share(&sarah, 12_000), share(&mike, 12_000)], day("2026-03-01"),
+    ).unwrap();
+
+    let fixed = t.db.update_shared_expense(
+        expense.id.clone(), "Hotel".into(), 30_000, sarah.clone(),
+        vec![share(&you, 10_000), share(&sarah, 10_000), share(&mike, 10_000)], day("2026-03-02"),
+    ).unwrap();
+
+    assert_eq!(fixed.description, "Hotel");
+    assert_eq!(fixed.amount_cents, 30_000);
+    assert_eq!(fixed.paid_by_name, "Sarah");
+    assert_eq!(fixed.occurred_at, "2026-03-02T00:00:00Z");
+    assert_eq!(fixed.your_share_cents, 10_000);
+
+    assert_eq!(t.db.list_shared_expenses(group.clone()).unwrap().len(), 1, "correcting must not add a second entry");
+    assert_eq!(t.db.list_expense_groups().unwrap()[0].total_cents, 30_000);
+
+    // The balances follow the correction: Sarah paid it now, so she is owed her two-thirds.
+    let members = t.db.list_group_members(group).unwrap();
+    let of = |id: &str| members.iter().find(|m| m.id == id).unwrap();
+    assert_eq!(of(&sarah).balance_cents, 20_000);
+    assert_eq!(of(&you).balance_cents, -10_000);
+    assert_eq!(members.iter().map(|m| m.balance_cents).sum::<i64>(), 0);
+}
+
+/// The shares are replaced, not added to — otherwise every correction would double them and the
+/// group would quietly stop adding up.
+#[test]
+fn correcting_replaces_the_shares_rather_than_piling_them_up() {
+    let t = TestDb::new();
+    let (group, you, sarah, mike) = trip(&t);
+    let expense = t.db.add_shared_expense(
+        group, "Hotel".into(), 36_000, you.clone(), None,
+        vec![share(&you, 12_000), share(&sarah, 12_000), share(&mike, 12_000)], day("2026-03-01"),
+    ).unwrap();
+
+    t.db.update_shared_expense(
+        expense.id.clone(), "Hotel".into(), 36_000, you.clone(),
+        vec![share(&you, 20_000), share(&sarah, 16_000)], day("2026-03-01"),
+    ).unwrap();
+
+    let shares = t.db.list_expense_shares(expense.id).unwrap();
+    assert_eq!(shares.len(), 2, "the old three shares must be gone, not kept alongside the new two");
+    assert_eq!(shares.iter().map(|s| s.share_cents).sum::<i64>(), 36_000);
+    assert!(shares.iter().all(|s| s.member_id != mike), "Mike was taken off this expense");
+}
+
+/// A correction that does not add up is refused, and — the part that matters — the entry it was
+/// meant to correct is left exactly as it was.
+#[test]
+fn a_correction_that_does_not_add_up_leaves_the_original_alone() {
+    let t = TestDb::new();
+    let (group, you, sarah, mike) = trip(&t);
+    let expense = t.db.add_shared_expense(
+        group.clone(), "Hotel".into(), 36_000, you.clone(), None,
+        vec![share(&you, 12_000), share(&sarah, 12_000), share(&mike, 12_000)], day("2026-03-01"),
+    ).unwrap();
+
+    let refused = t.db.update_shared_expense(
+        expense.id.clone(), "Hotel".into(), 36_000, you.clone(),
+        vec![share(&you, 1_000), share(&sarah, 1_000)], day("2026-03-01"),
+    );
+    assert!(refused.is_err());
+
+    let still = &t.db.list_shared_expenses(group).unwrap()[0];
+    assert_eq!(still.amount_cents, 36_000);
+    assert_eq!(still.description, "Hotel");
+    assert_eq!(t.db.list_expense_shares(expense.id).unwrap().len(), 3, "the original shares survive a refused edit");
+}
+
+#[test]
+fn correcting_an_expense_that_is_not_there_fails() {
+    let t = TestDb::new();
+    let (_, you, _, _) = trip(&t);
+    assert!(t.db.update_shared_expense(
+        "no-such-expense".into(), "Hotel".into(), 1_000, you.clone(), vec![share(&you, 1_000)], day("2026-03-01"),
+    ).is_err());
+}
+
+#[test]
+fn a_group_can_be_renamed() {
+    let t = TestDb::new();
+    let (group, _, _, _) = trip(&t);
+    let renamed = t.db.update_expense_group(group, "Trip to Riga".into(), "🚗".into(), "#6A1B9A".into()).unwrap();
+    assert_eq!(renamed.name, "Trip to Riga");
+    assert_eq!(renamed.emoji, "🚗");
+    assert!(t.db.update_expense_group("nope".into(), "x".into(), String::new(), "#000000".into()).is_err());
+}

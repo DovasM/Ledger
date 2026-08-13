@@ -930,6 +930,23 @@ this mistake.
 Balances are `paid − owes` per member, derived like every other total here, and they always sum to
 zero: every euro somebody put in is owed to them by somebody else.
 
+**Shares can be typed by hand, not only split evenly.** The data layer always took explicit shares —
+that is what `ShareInput` is for — so the uneven case needed no schema change, only a second mode in
+the dialog. It starts from the even split rather than from empty fields, because the usual ask is
+one person a little more and another a little less. `ShareSplit` (`ui/util/`) does the checking as
+the numbers are typed: `remainder` is what is unassigned (negative when the shares overshoot),
+`isBalanced` gates the button, and `assignRemainderTo` hands the leftover cents to one person, since
+rounding an uneven split by hand always leaves a few. It lives outside Compose because it is the
+part that can be wrong.
+
+**`update_shared_expense` replaces the shares wholesale** rather than reconciling which of them
+changed — working out the difference is harder than writing the set that is now correct, and
+appending without clearing is the obvious way to double a group's totals. It validates *before*
+touching a row, so a correction that does not add up leaves the original exactly as it was; both
+failure modes have a test that was confirmed to fail without the guard. `transaction_id` is
+deliberately absent from the `SET`, so correcting a description never unlinks the expense from the
+transaction that paid it.
+
 **`current_schema_version()` is exposed over the FFI** so neither a test nor a screen has to write
 the number down. Both did, and both went stale the moment `m10` was added.
 
