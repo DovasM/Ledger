@@ -53,6 +53,8 @@ fun SharedExpensesScreen(
 
     var newGroup by remember { mutableStateOf(false) }
     var openGroupId by remember { mutableStateOf<String?>(null) }
+    // Adding an expense straight from the list, without having to open the group first.
+    var expenseForGroupId by remember { mutableStateOf<String?>(null) }
 
     if (newGroup) {
         NewGroupDialog(
@@ -61,6 +63,29 @@ fun SharedExpensesScreen(
                 viewModel.createGroup(name, emoji, "#1565C0", members) { newGroup = false }
             }
         )
+    }
+
+    expenseForGroupId?.let { id ->
+        val members = state.members[id].orEmpty()
+        if (members.isEmpty()) {
+            // Loading, or a group with nobody in it. Saying so beats a button that does nothing.
+            AlertDialog(
+                onDismissRequest = { expenseForGroupId = null },
+                title = { Text("No one to split with yet") },
+                text = { Text("Open the group and add someone first.") },
+                confirmButton = { TextButton(onClick = { expenseForGroupId = null }) { Text("OK", color = Primary) } }
+            )
+        } else {
+            AddExpenseDialog(
+                members = members,
+                money = money,
+                onDismiss = { expenseForGroupId = null },
+                onAdd = { description, amountCents, paidBy, shares ->
+                    viewModel.addExpense(id, description, amountCents, paidBy, shares)
+                    expenseForGroupId = null
+                }
+            )
+        }
     }
 
     openGroupId?.let { id ->
@@ -148,7 +173,12 @@ fun SharedExpensesScreen(
                 }
             } else {
                 state.groups.forEach { group ->
-                    GroupCard(group, money) { openGroupId = group.id; viewModel.loadGroup(group.id) }
+                    GroupCard(
+                        group = group,
+                        money = money,
+                        onOpen = { openGroupId = group.id; viewModel.loadGroup(group.id) },
+                        onAddExpense = { expenseForGroupId = group.id; viewModel.loadGroup(group.id) }
+                    )
                 }
             }
 
@@ -170,34 +200,58 @@ fun SharedExpensesScreen(
 }
 
 @Composable
-private fun GroupCard(group: ExpenseGroup, money: MoneyFormatter, onClick: () -> Unit) {
+private fun GroupCard(
+    group: ExpenseGroup,
+    money: MoneyFormatter,
+    onOpen: () -> Unit,
+    onAddExpense: () -> Unit
+) {
     LedgerCard(modifier = Modifier.fillMaxWidth()) {
-        Surface(onClick = onClick, color = Color.Transparent) {
-            Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(group.emoji.ifBlank { "👥" }, style = MaterialTheme.typography.titleLarge)
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(group.name, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
-                        Text(
-                            "${group.memberCount} people · ${group.expenseCount} expenses · ${money.of(group.totalCents)} total",
-                            style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
-                        )
+        Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Surface(onClick = onOpen, color = Color.Transparent) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Text(group.emoji.ifBlank { "👥" }, style = MaterialTheme.typography.titleLarge)
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(group.name, style = MaterialTheme.typography.titleSmall, color = OnSurface, fontWeight = FontWeight.SemiBold)
+                            Text(
+                                "${group.memberCount} people · ${group.expenseCount} expenses · ${money.of(group.totalCents)} total",
+                                style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                            )
+                        }
+                        // Without this the card gives no sign that there is anything behind it.
+                        Icon(Icons.Filled.ChevronRight, "Open group", tint = OnSurfaceVariant, modifier = Modifier.size(20.dp))
                     }
+                    Text(
+                        when {
+                            group.expenseCount == 0 -> "Nothing recorded yet"
+                            group.netBalanceCents > 0 -> "You are owed ${money.of(group.netBalanceCents)}"
+                            group.netBalanceCents < 0 -> "You owe ${money.of(-group.netBalanceCents)}"
+                            else -> "Settled up"
+                        },
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = when {
+                            group.expenseCount == 0 -> OnSurfaceVariant
+                            group.netBalanceCents > 0 -> Primary
+                            group.netBalanceCents < 0 -> Tertiary
+                            else -> OnSurfaceVariant
+                        },
+                        fontWeight = FontWeight.Medium
+                    )
                 }
-                Text(
-                    when {
-                        group.netBalanceCents > 0 -> "You are owed ${money.of(group.netBalanceCents)}"
-                        group.netBalanceCents < 0 -> "You owe ${money.of(-group.netBalanceCents)}"
-                        else -> "Settled up"
-                    },
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = when {
-                        group.netBalanceCents > 0 -> Primary
-                        group.netBalanceCents < 0 -> Tertiary
-                        else -> OnSurfaceVariant
-                    },
-                    fontWeight = FontWeight.Medium
-                )
+            }
+
+            // The amount goes in here. Reaching it only by opening the group left the list showing a
+            // single + that makes another group, which is not what anyone is looking for.
+            Button(
+                onClick = onAddExpense,
+                modifier = Modifier.fillMaxWidth().height(44.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                shape = RoundedCornerShape(6.dp)
+            ) {
+                Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                Spacer(Modifier.width(8.dp))
+                Text("Add expense", style = MaterialTheme.typography.labelLarge)
             }
         }
     }
@@ -301,6 +355,14 @@ private fun GroupSheet(
     var addMember by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
 
+    if (addExpense && members.isEmpty()) {
+        AlertDialog(
+            onDismissRequest = { addExpense = false },
+            title = { Text("No one to split with yet") },
+            text = { Text("Add someone to the group first.") },
+            confirmButton = { TextButton(onClick = { addExpense = false }) { Text("OK", color = Primary) } }
+        )
+    }
     if (addExpense && members.isNotEmpty()) {
         AddExpenseDialog(
             members = members,
