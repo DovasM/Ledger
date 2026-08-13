@@ -25,6 +25,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.ledger.app.ui.components.*
 import com.ledger.app.ui.theme.*
+import com.ledger.app.ui.util.ShareSplit
+import com.ledger.app.ui.util.asAmountInput
 import com.ledger.app.ui.util.MoneyFormatter
 import com.ledger.app.ui.util.rememberMoneyFormatter
 import com.ledger.app.ui.util.toCentsOrNull
@@ -493,20 +495,40 @@ private fun AddExpenseDialog(
     var amount by remember { mutableStateOf("") }
     var paidByIndex by remember { mutableStateOf(members.indexOfFirst { it.isYou }.coerceAtLeast(0)) }
     var payerMenu by remember { mutableStateOf(false) }
+    var custom by remember { mutableStateOf(false) }
+    // Only used in custom mode; each entry is what that person's field currently says.
+    var typedShares by remember { mutableStateOf(members.map { "" }) }
 
     val amountCents = amount.toCentsOrNull()
-    // Worked out by the same code the Rust side would use, so what is shown is what gets stored —
-    // including which person picks up the odd cent when it will not divide evenly.
-    val shares = remember(amountCents, members.size) {
+
+    // The even split comes from the Rust helper, so what is shown is exactly what would be stored,
+    // including which person picks up the odd cent.
+    val evenShares = remember(amountCents, members.size) {
         if (amountCents == null || amountCents <= 0) emptyList()
         else splitEqually(amountCents, members.size)
+    }
+
+    val customShares = typedShares.map { it.toCentsOrNull() ?: 0L }
+    val shares = if (custom) customShares else evenShares
+    val left = if (amountCents == null) 0L else ShareSplit.remainder(amountCents, shares)
+    val balanced = amountCents != null && ShareSplit.isBalanced(amountCents, shares)
+
+    // Switching to custom starts from the even split rather than from empty fields, so the usual
+    // case — one person a little more, another a little less — is a couple of edits.
+    LaunchedEffect(custom, evenShares) {
+        if (custom && evenShares.isNotEmpty() && typedShares.all { it.isBlank() }) {
+            typedShares = evenShares.map { it.asAmountInput() }
+        }
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Add expense") },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
                 LedgerTextField(value = description, onValueChange = { description = it }, label = "What was it", modifier = Modifier.fillMaxWidth())
                 LedgerTextField(
                     value = amount,
@@ -530,20 +552,69 @@ private fun AddExpenseDialog(
                     }
                 }
 
-                if (shares.isNotEmpty()) {
-                    Text("Split evenly", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
-                    members.forEachIndexed { index, member ->
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text(member.name, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
-                            Text(money.of(shares[index]), style = MaterialTheme.typography.bodySmall, color = OnSurface)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    FilterChip(
+                        selected = !custom, onClick = { custom = false },
+                        label = { Text("Split evenly", style = MaterialTheme.typography.labelSmall) },
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Primary, selectedLabelColor = OnPrimary)
+                    )
+                    FilterChip(
+                        selected = custom, onClick = { custom = true },
+                        label = { Text("Different amounts", style = MaterialTheme.typography.labelSmall) },
+                        colors = FilterChipDefaults.filterChipColors(selectedContainerColor = Primary, selectedLabelColor = OnPrimary)
+                    )
+                }
+
+                if (!custom) {
+                    if (evenShares.isNotEmpty()) {
+                        members.forEachIndexed { index, member ->
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text(member.name, style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant)
+                                Text(money.of(evenShares[index]), style = MaterialTheme.typography.bodySmall, color = OnSurface)
+                            }
                         }
                     }
+                } else {
+                    members.forEachIndexed { index, member ->
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            LedgerTextField(
+                                value = typedShares.getOrElse(index) { "" },
+                                onValueChange = { v ->
+                                    if (v.all { it.isDigit() || it == '.' || it == ',' }) {
+                                        typedShares = typedShares.toMutableList().also { it[index] = v }
+                                    }
+                                },
+                                label = member.name,
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                modifier = Modifier.weight(1f)
+                            )
+                            // Rounding an uneven split by hand always leaves a few cents over; this
+                            // puts them on one person instead of making you work it out.
+                            if (left != 0L) {
+                                TextButton(onClick = {
+                                    val fixed = ShareSplit.assignRemainderTo(amountCents ?: 0L, customShares, index)
+                                    typedShares = fixed.map { it.asAmountInput() }
+                                }) { Text("+rest", style = MaterialTheme.typography.labelSmall, color = Primary) }
+                            }
+                        }
+                    }
+
+                    Text(
+                        when {
+                            amountCents == null -> "Enter the amount first"
+                            left > 0L -> "${money.of(left)} still to assign"
+                            left < 0L -> "${money.of(-left)} more than the expense"
+                            else -> "Adds up"
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (balanced) Primary else Tertiary
+                    )
                 }
             }
         },
         confirmButton = {
             TextButton(
-                enabled = description.isNotBlank() && shares.isNotEmpty(),
+                enabled = description.isNotBlank() && balanced,
                 onClick = {
                     val payer = members[paidByIndex]
                     onAdd(

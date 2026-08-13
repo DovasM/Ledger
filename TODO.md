@@ -79,6 +79,12 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 ## Transaction Splitting & Shared Expenses
 
 - [ ] **Split transaction between wallets** — allow a single transaction to be divided across multiple wallets (e.g. $100 paid 60% from Checking, 40% from Cash). Needs a `TransactionSplit` Room entity linking transaction → wallet → amount
+- [ ] **A shared expense and its transaction are still two separate entries** — recording that you paid 100 for a
+  group dinner means writing the transaction (which moves your balance) and the shared expense (which tracks who
+  owes you) separately. That was the design: the transaction stays whole so the reports keep saying what actually
+  left the wallet. But nothing links the two yet, so it has to be typed twice. The next step is the Add/Edit
+  transaction screens offering to record a split for the transaction being saved, and the shared expense filling
+  in  when you were the payer
 - [ ] **Link transaction to shared expense** — Add/Edit transaction screens need a "Shared Expense" section where the user can assign the transaction to an existing group or create a new split on the spot (who owes what)
 - [ ] **Combo: wallet split + shared expense** — support a transaction that is both split across wallets AND shared with other people simultaneously
 - [x] **SharedExpensesScreen shows real data** — `m10` adds groups, members, expenses and per-person shares;
