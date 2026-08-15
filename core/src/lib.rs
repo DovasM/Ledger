@@ -353,6 +353,33 @@ impl LedgerDb {
                 .execute(&self.pool).await?;
             if changed.rows_affected() == 0 { return Err(LedgerError::NotFound); }
 
+            // A split of this transaction is the same event seen from the other side, so it follows
+            // the correction rather than being left describing the old amount. The shares are
+            // restated against the new total, keeping whatever shape they had.
+            let split: Option<(String, i64)> = sqlx::query_as(
+                "SELECT id, amount_cents FROM shared_expenses WHERE transaction_id = ?"
+            ).bind(&id).fetch_optional(&self.pool).await?;
+
+            if let Some((expense_id, old_amount)) = split {
+                sqlx::query("UPDATE shared_expenses SET description=?, amount_cents=?, occurred_at=COALESCE(?,occurred_at) WHERE id=?")
+                    .bind(&title).bind(amount_cents).bind(&occurred_at).bind(&expense_id)
+                    .execute(&self.pool).await?;
+
+                if old_amount != amount_cents {
+                    let rows: Vec<(String, i64)> = sqlx::query_as(
+                        "SELECT id, share_cents FROM shared_expense_shares WHERE shared_expense_id = ? ORDER BY rowid"
+                    ).bind(&expense_id).fetch_all(&self.pool).await?;
+
+                    let restated = rescale_shares(
+                        rows.iter().map(|(_, c)| *c).collect(), old_amount, amount_cents,
+                    );
+                    for ((share_id, _), cents) in rows.iter().zip(restated) {
+                        sqlx::query("UPDATE shared_expense_shares SET share_cents=? WHERE id=?")
+                            .bind(cents).bind(share_id).execute(&self.pool).await?;
+                    }
+                }
+            }
+
             let row = sqlx::query_as::<_, TransactionRow>(&format!("{TX_SELECT} WHERE t.id = ?"))
                 .bind(&id).fetch_optional(&self.pool).await?
                 .ok_or(LedgerError::NotFound)?;
@@ -1515,6 +1542,70 @@ impl LedgerDb {
         self.delete_shared_expense(id)
     }
 
+    /// Splitting a transaction that has already been written.
+    ///
+    /// The other direction of the wallet link, and the safer one: the transaction exists, it has
+    /// already moved the wallet, and the split simply records who owes you a piece of it. Nothing
+    /// here touches a balance — the one thing that must not happen is the money counting twice.
+    ///
+    /// The amount and the date come from the transaction rather than being asked for again, because
+    /// two figures for one event is how they drift apart.
+    pub fn split_transaction(
+        &self,
+        transaction_id: String,
+        group_id: String,
+        shares: Vec<ShareInput>,
+    ) -> Result<SharedExpense, LedgerError> {
+        let (title, amount_cents, occurred_at) = self.rt.block_on(async {
+            let row: Option<(String, i64, bool, String)> = sqlx::query_as(
+                "SELECT title, amount_cents, is_income, occurred_at FROM transactions WHERE id = ?"
+            ).bind(&transaction_id).fetch_optional(&self.pool).await?;
+            let (title, amount, is_income, occurred) = row.ok_or(LedgerError::NotFound)?;
+
+            // Money coming in is not a cost to share out; splitting it would record everyone as
+            // owing you a piece of your own salary.
+            if is_income {
+                return Err(LedgerError::InvalidInput("income is not something to split".into()));
+            }
+
+            // Splitting the same transaction twice would put its whole amount into the group a
+            // second time, and every balance after it would be wrong.
+            let (already,): (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM shared_expenses WHERE transaction_id = ?"
+            ).bind(&transaction_id).fetch_one(&self.pool).await?;
+            if already > 0 {
+                return Err(LedgerError::InvalidInput("this transaction is already split".into()));
+            }
+
+            Ok::<(String, i64, String), LedgerError>((title, amount, occurred))
+        })?;
+
+        // Everybody named has to be in the group being split into, or the shares would sum to the
+        // amount while belonging to people whose balances nobody here reads.
+        self.rt.block_on(async {
+            for s in &shares {
+                let (belongs,): (i64,) = sqlx::query_as(
+                    "SELECT COUNT(*) FROM group_members WHERE id = ? AND group_id = ?"
+                ).bind(&s.member_id).bind(&group_id).fetch_one(&self.pool).await?;
+                if belongs == 0 {
+                    return Err(LedgerError::InvalidInput("everyone in the split has to be in this group".into()));
+                }
+            }
+            Ok::<(), LedgerError>(())
+        })?;
+
+        let you = self.rt.block_on(async {
+            let row: Option<(String,)> = sqlx::query_as(
+                "SELECT id FROM group_members WHERE group_id = ? AND is_you = 1"
+            ).bind(&group_id).fetch_optional(&self.pool).await?;
+            row.map(|r| r.0).ok_or(LedgerError::NotFound)
+        })?;
+
+        self.add_shared_expense(
+            group_id, title, amount_cents, you, Some(transaction_id), shares, Some(occurred_at),
+        )
+    }
+
     pub fn delete_shared_expense(&self, id: String) -> Result<(), LedgerError> {
         self.rt.block_on(async {
             let mut tx = self.pool.begin().await?;
@@ -1878,6 +1969,33 @@ const EXPENSE_SELECT: &str = "SELECT e.id, e.group_id, e.transaction_id, e.descr
 ///
 /// 100.00 three ways is 33.333…, which has no exact answer in cents. Rounding each share
 /// independently loses the odd cent and the group silently stops adding up, so the remainder is
+/// Restates a split against a new total, keeping its shape.
+///
+/// A bill corrected from 90 to 120 was probably still split the same way, so an even split stays
+/// even and an uneven one stays uneven in the same proportion. Each share is scaled down to a whole
+/// cent and whatever the rounding leaves over is handed out a cent at a time from the first, for the
+/// same reason `split_equally` does it: the alternative is rounding each share on its own and
+/// watching the total drift away from the amount.
+pub fn rescale_shares(shares: Vec<i64>, old_total: i64, new_total: i64) -> Vec<i64> {
+    if shares.is_empty() { return shares; }
+    // Nothing to scale from — fall back to an even cut rather than dividing by zero.
+    if old_total <= 0 { return split_equally(new_total, shares.len() as i32); }
+
+    let mut scaled: Vec<i64> = shares.iter()
+        .map(|s| ((*s as i128 * new_total as i128) / old_total as i128) as i64)
+        .collect();
+    let n = scaled.len();
+    let mut left = new_total - scaled.iter().sum::<i64>();
+    let mut i = 0;
+    while left != 0 {
+        let step = if left > 0 { 1 } else { -1 };
+        scaled[i % n] += step;
+        left -= step;
+        i += 1;
+    }
+    scaled
+}
+
 /// handed out deliberately instead: the first person pays the extra penny.
 pub fn split_equally(amount_cents: i64, people: i32) -> Vec<i64> {
     if people <= 0 { return Vec::new(); }

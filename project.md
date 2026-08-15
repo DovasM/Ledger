@@ -978,6 +978,31 @@ than asking: being paid back is income, paying somebody back is an expense. A pa
 other people is refused here — the group changes, no wallet of yours does, and `record_settlement`
 is the call for that.
 
+### Splitting from the transaction screen
+
+The other direction of the wallet link. Starting from the group is right when the split is the point;
+it is the wrong way round when you are simply entering what you spent and it happened to be shared,
+because it means abandoning a half-typed transaction and entering the amount somewhere else.
+
+`split_transaction` takes a transaction that already exists and records who owes a piece of it. Its
+amount and date come from the transaction rather than being asked for again — two figures for one
+event is how they drift. Nothing here touches a balance: the wallet moved when the transaction was
+written, and the money counting twice is the one thing that must not happen.
+
+Refused: splitting the same transaction twice (its whole amount would enter the group again),
+splitting income (everyone would owe you a piece of your own salary), shares naming somebody from
+another group, and shares that do not sum to the transaction.
+
+Correcting the transaction afterwards carries the split with it, the mirror of a corrected split
+carrying the transaction. The shares are restated by `rescale_shares`, which keeps the shape of the
+split — even stays even, uneven stays uneven in proportion — and hands the rounding remainder out a
+cent at a time, for the same reason `split_equally` does.
+
+The screen offers this only for an expense, and not alongside line-item split mode, which already
+writes one transaction per line and would have to ask per line to mean anything. Uneven shares are
+not offered here; the section says so rather than letting somebody hunt for an editor that is on the
+group screen.
+
 ### Two queries, one balance
 
 `GROUP_SELECT` derives `net_balance_cents` **independently** of `MEMBER_SELECT`, for the one member who

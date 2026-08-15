@@ -30,6 +30,10 @@ import com.ledger.app.ui.theme.*
 import com.ledger.app.ui.util.capitalizeFirst
 import com.ledger.app.ui.viewmodel.CategoryViewModel
 import com.ledger.app.ui.viewmodel.SettingsViewModel
+import com.ledger.app.ui.viewmodel.SharedExpenseViewModel
+import uniffi.ledger.ShareInput
+import com.ledger.app.ui.util.rememberMoneyFormatter
+import uniffi.ledger.splitEqually
 import com.ledger.app.ui.viewmodel.TagViewModel
 import com.ledger.app.ui.viewmodel.TransactionViewModel
 import com.ledger.app.ui.viewmodel.WalletViewModel
@@ -44,18 +48,30 @@ fun AddTransactionScreen(
     walletViewModel: WalletViewModel = hiltViewModel(),
     tagViewModel: TagViewModel = hiltViewModel(),
     categoryViewModel: CategoryViewModel = hiltViewModel(),
-    settingsViewModel: SettingsViewModel = hiltViewModel()
+    settingsViewModel: SettingsViewModel = hiltViewModel(),
+    sharedViewModel: SharedExpenseViewModel = hiltViewModel()
 ) {
     val aiEnabled by settingsViewModel.aiEnabled.collectAsStateWithLifecycle()
     val walletState    by walletViewModel.state.collectAsStateWithLifecycle()
     val tagState       by tagViewModel.state.collectAsStateWithLifecycle()
     val categoryState  by categoryViewModel.state.collectAsStateWithLifecycle()
 
+    val money = rememberMoneyFormatter()
+    val sharedState by sharedViewModel.state.collectAsStateWithLifecycle()
     val txState by transactionViewModel.state.collectAsStateWithLifecycle()
     val titleSuggestions = remember(txState.transactions) {
         txState.transactions.map { it.title }.filter { it.isNotBlank() }.distinct().sorted()
     }
     var titleSuggestionsVisible by remember { mutableStateOf(false) }
+
+    var shareThis by remember { mutableStateOf(false) }
+    var shareGroupIndex by remember { mutableStateOf(0) }
+    var shareGroupMenu by remember { mutableStateOf(false) }
+    // A group's members are only fetched when that group is opened, so ask for them the moment one
+    // is picked — otherwise the shares below would sit empty with nothing to explain why.
+    LaunchedEffect(shareThis, shareGroupIndex, sharedState.groups) {
+        if (shareThis) sharedState.groups.getOrNull(shareGroupIndex)?.let { sharedViewModel.loadGroup(it.id) }
+    }
 
     var amount by remember { mutableStateOf("") }
     var title by remember { mutableStateOf("") }
@@ -430,6 +446,81 @@ fun AddTransactionScreen(
                 }
             }
 
+            // Splitting from here rather than from the group screen. The transaction is what you
+            // came to write; that it was shared is a second fact about it, so it is asked for here
+            // instead of sending you elsewhere to type the amount again.
+            //
+            // Only for an expense, and not alongside line-item split mode, which already writes one
+            // transaction per line and would have to ask this per line to mean anything.
+            val canShare = isExpense && !splitMode && sharedState.groups.isNotEmpty()
+            if (canShare) {
+                Spacer(Modifier.height(4.dp))
+                LedgerCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Split this with a group", style = MaterialTheme.typography.bodyMedium, color = OnSurface)
+                                Text(
+                                    "The whole amount still leaves this wallet — the others owe you their share",
+                                    style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                                )
+                            }
+                            Switch(checked = shareThis, onCheckedChange = { shareThis = it })
+                        }
+
+                        if (shareThis) {
+                            val groups = sharedState.groups
+                            val group = groups.getOrNull(shareGroupIndex)
+                            Box {
+                                TextButton(onClick = { shareGroupMenu = true }) {
+                                    Text("Group: ${group?.name ?: "—"}", color = accentColor)
+                                }
+                                DropdownMenu(expanded = shareGroupMenu, onDismissRequest = { shareGroupMenu = false }) {
+                                    groups.forEachIndexed { index, g ->
+                                        DropdownMenuItem(
+                                            text = { Text("${g.emoji.ifBlank { "👥" }}  ${g.name}") },
+                                            onClick = { shareGroupIndex = index; shareGroupMenu = false }
+                                        )
+                                    }
+                                }
+                            }
+
+                            val members = group?.let { sharedState.members[it.id] }.orEmpty()
+                            val cents = amountValue?.toCents()
+                            if (members.isEmpty()) {
+                                Text(
+                                    "Loading the people in this group…",
+                                    style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                                )
+                            } else if (cents == null || cents <= 0) {
+                                // Says what is missing rather than showing an empty list of shares.
+                                Text(
+                                    "Enter the amount and it will be split between ${members.size} people.",
+                                    style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                                )
+                            } else {
+                                val even = splitEqually(cents, members.size)
+                                members.forEachIndexed { index, member ->
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text(
+                                            if (member.isYou) "${member.name} (you)" else member.name,
+                                            style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                                        )
+                                        Text(money.of(even[index]), style = MaterialTheme.typography.bodySmall, color = OnSurface)
+                                    }
+                                }
+                                Text(
+                                    // Uneven shares live on the group screen, and saying so beats
+                                    // letting somebody hunt for an editor that is not here.
+                                    "Split evenly. To give people different amounts, edit it in the group afterwards.",
+                                    style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             val splitItems = lineItems.mapNotNull { li ->
                 val amt = li.amount.replace(',', '.').toDoubleOrNull()
                 if (amt != null && amt > 0) TransactionViewModel.LineItem(li.name, amt.toCents(), li.category) else null
@@ -456,15 +547,26 @@ fun AddTransactionScreen(
                         }
                     } else if (isFormValid && walletId != null) {
                         submitting = true
+                        val cents = amountValue!!.toCents()
+                        val shareGroup = if (canShare && shareThis) sharedState.groups.getOrNull(shareGroupIndex) else null
+                        val shareMembers = shareGroup?.let { sharedState.members[it.id] }.orEmpty()
+                        val shares = if (shareGroup != null && shareMembers.isNotEmpty()) {
+                            splitEqually(cents, shareMembers.size).mapIndexed { index, part ->
+                                ShareInput(shareMembers[index].id, part)
+                            }
+                        } else emptyList()
+
                         transactionViewModel.createTransaction(
                             walletId = walletId,
                             title = title.ifBlank { selectedCategory },
                             category = selectedCategory,
-                            amountCents = amountValue!!.toCents(),
+                            amountCents = cents,
                             isIncome = !isExpense,
                             note = note.ifBlank { null },
                             occurredAt = iso,
-                            tagNames = selectedTags.toList()
+                            tagNames = selectedTags.toList(),
+                            splitIntoGroupId = if (shares.isNotEmpty()) shareGroup?.id else null,
+                            splitShares = shares
                         ) { navController.popBackStack() }
                     }
                 },

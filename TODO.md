@@ -77,9 +77,8 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 
 ## Transaction Splitting & Shared Expenses
 
-- [ ] **Split from the Add Transaction screen** — the reverse direction of the wallet link: while typing a
-  transaction, offer to split it, rather than starting from the group. Today the entry point is the + menu,
-  which is fine but means deciding to split before you start typing
+- [ ] **Splitting from Edit Transaction** — a transaction already saved cannot be split after the fact, only
+  one being written. `split_transaction` takes any transaction, so this is screen work only
 - [ ] **Per-person totals across groups** — share both a flat and a trip with the same person and you see two
   balances to add up yourself
 - [ ] **A summary you can send** — debts close over a message; one button that prepares "Trip: Sarah 120, Mike 120"

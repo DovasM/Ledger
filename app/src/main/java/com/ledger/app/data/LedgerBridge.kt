@@ -224,6 +224,9 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
     override fun addSharedExpenseFromWallet(groupId: String, description: String, amountCents: Long, paidByMemberId: String, walletId: String, category: String, shares: List<ShareInput>, occurredAt: String?) =
         db.addSharedExpenseFromWallet(groupId, description, amountCents, paidByMemberId, walletId, category, shares, occurredAt)
 
+    override fun splitTransaction(transactionId: String, groupId: String, shares: List<ShareInput>) =
+        db.splitTransaction(transactionId, groupId, shares)
+
     override fun deleteSharedExpense(id: String) = db.deleteSharedExpense(id)
 
     override fun deleteSharedExpenseWithTransaction(id: String) = db.deleteSharedExpenseWithTransaction(id)
