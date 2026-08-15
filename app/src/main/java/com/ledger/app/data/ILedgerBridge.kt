@@ -84,6 +84,7 @@ interface ILedgerBridge {
     fun addSharedExpense(groupId: String, description: String, amountCents: Long, paidByMemberId: String, transactionId: String?, shares: List<ShareInput>, occurredAt: String?): SharedExpense
     fun updateSharedExpense(id: String, description: String, amountCents: Long, paidByMemberId: String, shares: List<ShareInput>, occurredAt: String?): SharedExpense
     fun addSharedExpenseFromWallet(groupId: String, description: String, amountCents: Long, paidByMemberId: String, walletId: String, category: String, shares: List<ShareInput>, occurredAt: String?): SharedExpense
+    fun splitTransaction(transactionId: String, groupId: String, shares: List<ShareInput>): SharedExpense
     fun deleteSharedExpense(id: String)
     fun deleteSharedExpenseWithTransaction(id: String)
     fun deleteSharedExpenseKeepingTransaction(id: String)

@@ -17,6 +17,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import uniffi.ledger.MonthSummary
+import uniffi.ledger.ShareInput
 import uniffi.ledger.Transaction
 import kotlin.math.abs
 import javax.inject.Inject
@@ -97,6 +98,10 @@ class TransactionViewModel @Inject constructor(
         amountCents: Long, isIncome: Boolean, note: String?,
         occurredAt: String? = null,
         tagNames: List<String> = emptyList(),
+        // Set when this expense was shared. The split is written against the transaction that was
+        // just saved rather than typed a second time on another screen.
+        splitIntoGroupId: String? = null,
+        splitShares: List<ShareInput> = emptyList(),
         onSuccess: () -> Unit = {}
     ) {
         viewModelScope.launch(Dispatchers.IO) {
@@ -105,6 +110,13 @@ class TransactionViewModel @Inject constructor(
                 for (name in tagNames) {
                     val tag = bridge.createTag(name)
                     bridge.addTagToTransaction(tx.id, tag.id)
+                }
+                // After the transaction, because the split has to name it. A split that fails
+                // surfaces as an error over a transaction that is already saved and correct — the
+                // transaction is the fact that matters, and it is not thrown away because the
+                // bookkeeping beside it did not take.
+                if (splitIntoGroupId != null && splitShares.isNotEmpty()) {
+                    bridge.splitTransaction(tx.id, splitIntoGroupId, splitShares)
                 }
                 loadAll()
                 widgetUpdater.refresh()

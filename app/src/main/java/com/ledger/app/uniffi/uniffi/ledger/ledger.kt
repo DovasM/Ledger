@@ -884,6 +884,10 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -1035,6 +1039,8 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_set_price_alert_active(`ptr`: Pointer,`id`: RustBuffer.ByValue,`active`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_split_transaction(`ptr`: Pointer,`transactionId`: RustBuffer.ByValue,`groupId`: RustBuffer.ByValue,`shares`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_suggest_settlements(`ptr`: Pointer,`groupId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_budget(`ptr`: Pointer,`id`: RustBuffer.ByValue,`categoryId`: RustBuffer.ByValue,`walletId`: RustBuffer.ByValue,`limitAmountCents`: Long,`period`: RustBuffer.ByValue,`alertThreshold`: Double,`carryOver`: Byte,uniffi_out_err: UniffiRustCallStatus, 
@@ -1077,6 +1083,8 @@ internal interface UniffiLib : Library {
     ): Pointer
     fun uniffi_uniffi_ledger_fn_func_open_database(`dbPath`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
+    fun uniffi_uniffi_ledger_fn_func_rescale_shares(`shares`: RustBuffer.ByValue,`oldTotal`: Long,`newTotal`: Long,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_func_split_equally(`amountCents`: Long,`people`: Int,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun ffi_uniffi_ledger_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -1196,6 +1204,8 @@ internal interface UniffiLib : Library {
     fun uniffi_uniffi_ledger_checksum_func_llama_create(
     ): Short
     fun uniffi_uniffi_ledger_checksum_func_open_database(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_func_rescale_shares(
     ): Short
     fun uniffi_uniffi_ledger_checksum_func_split_equally(
     ): Short
@@ -1327,6 +1337,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_set_price_alert_active(
     ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_split_transaction(
+    ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_suggest_settlements(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_budget(
@@ -1383,6 +1395,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_func_open_database() != 59108.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_func_rescale_shares() != 40685.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_func_split_equally() != 9869.toShort()) {
@@ -1578,6 +1593,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_set_price_alert_active() != 45458.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_split_transaction() != 7794.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_suggest_settlements() != 37726.toShort()) {
@@ -2161,6 +2179,8 @@ public interface LedgerDbInterface {
     fun `restoreBackup`(`path`: kotlin.String): BackupInfo
     
     fun `setPriceAlertActive`(`id`: kotlin.String, `active`: kotlin.Boolean): PriceAlert
+    
+    fun `splitTransaction`(`transactionId`: kotlin.String, `groupId`: kotlin.String, `shares`: List<ShareInput>): SharedExpense
     
     fun `suggestSettlements`(`groupId`: kotlin.String): List<SettlementSuggestion>
     
@@ -3074,6 +3094,19 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     uniffiRustCallWithError(LedgerException) { _status ->
     UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_set_price_alert_active(
         it, FfiConverterString.lower(`id`),FfiConverterBoolean.lower(`active`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `splitTransaction`(`transactionId`: kotlin.String, `groupId`: kotlin.String, `shares`: List<ShareInput>): SharedExpense {
+            return FfiConverterTypeSharedExpense.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_split_transaction(
+        it, FfiConverterString.lower(`transactionId`),FfiConverterString.lower(`groupId`),FfiConverterSequenceTypeShareInput.lower(`shares`),_status)
 }
     }
     )
@@ -5373,6 +5406,15 @@ public object FfiConverterSequenceTypeWallet: FfiConverterRustBuffer<List<Wallet
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_func_open_database(
         FfiConverterString.lower(`dbPath`),_status)
+}
+    )
+    }
+    
+ fun `rescaleShares`(`shares`: List<kotlin.Long>, `oldTotal`: kotlin.Long, `newTotal`: kotlin.Long): List<kotlin.Long> {
+            return FfiConverterSequenceLong.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_func_rescale_shares(
+        FfiConverterSequenceLong.lower(`shares`),FfiConverterLong.lower(`oldTotal`),FfiConverterLong.lower(`newTotal`),_status)
 }
     )
     }

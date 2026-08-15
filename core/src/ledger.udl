@@ -6,6 +6,7 @@ namespace ledger {
     // Splitting evenly has no exact answer in cents; the remainder is handed out deliberately
     // rather than rounded away. Exposed so the screen can show the shares before they are saved.
     sequence<i64> split_equally(i64 amount_cents, i32 people);
+sequence<i64> rescale_shares(sequence<i64> shares, i64 old_total, i64 new_total);
     i64 current_schema_version();
     [Throws=LlamaError]
     LlamaEngine llama_create(string model_path, u32 n_ctx);
@@ -450,6 +451,9 @@ interface LedgerDb {
     SharedExpense add_shared_expense_from_wallet(string group_id, string description, i64 amount_cents,
                                                  string paid_by_member_id, string wallet_id, string category,
                                                  sequence<ShareInput> shares, string? occurred_at);
+
+    [Throws=LedgerError]
+    SharedExpense split_transaction(string transaction_id, string group_id, sequence<ShareInput> shares);
 
     [Throws=LedgerError]
     void delete_shared_expense(string id);
