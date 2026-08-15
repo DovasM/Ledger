@@ -947,6 +947,37 @@ failure modes have a test that was confirmed to fail without the guard. `transac
 deliberately absent from the `SET`, so correcting a description never unlinks the expense from the
 transaction that paid it.
 
+### The split and the wallet
+
+A split and the money that moved are **two records of one event**, written together and kept in step.
+`add_shared_expense_from_wallet` records one transaction for the **whole** amount — not your share,
+because your wallet really did lose all of it — plus the split beside it. Only an expense *you* paid
+for can take this route; somebody else paying is refused rather than quietly inventing a transaction
+that would put the wallet out by the amount.
+
+Neither row may outlive the other's failure. The split is validated before the transaction is
+written, and anything that still fails afterwards rolls the transaction back. That rollback is easy
+to believe untested: `a_refused_split_writes_no_transaction` passes without it, because the shares
+are checked up front and never reach it. `a_split_refused_after_the_transaction_is_written_takes_it_back`
+uses a blank description — refused deeper in, after the money has left — and does fail without it.
+
+Three ways the two can drift, each closed:
+
+- **Correcting the split** updates the linked transaction's title, amount and date. Otherwise the
+  wallet says 360 and the group says 300, both believable, neither obviously wrong.
+- **Deleting the transaction** from the transactions screen sets `transaction_id` back to NULL on
+  any split or settlement naming it. Whoever deletes it there has no reason to know it was part of a
+  split, and a link to a row that is gone is worse than no link.
+- **Deleting the split** asks which of the two opposite cases it is — the dinner never happened
+  (`delete_shared_expense_with_transaction`), or it happened and you no longer care who owed what
+  (`..._keeping_transaction`). Guessing either leaves money missing from the wallet or takes back a
+  payment that was real.
+
+`record_settlement_to_wallet` reads the direction from which side of the payment you are on rather
+than asking: being paid back is income, paying somebody back is an expense. A payment between two
+other people is refused here — the group changes, no wallet of yours does, and `record_settlement`
+is the call for that.
+
 ### Settling up
 
 A settlement is **not** an expense — nothing was bought — so it lives in its own `m11` table rather

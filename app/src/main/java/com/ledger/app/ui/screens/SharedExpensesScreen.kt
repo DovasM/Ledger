@@ -32,6 +32,7 @@ import com.ledger.app.ui.util.MoneyFormatter
 import com.ledger.app.ui.util.rememberMoneyFormatter
 import com.ledger.app.ui.util.toCentsOrNull
 import com.ledger.app.ui.viewmodel.SharedExpenseViewModel
+import uniffi.ledger.Category
 import uniffi.ledger.ExpenseGroup
 import uniffi.ledger.ExpenseShare
 import uniffi.ledger.GroupMember
@@ -39,6 +40,7 @@ import uniffi.ledger.ShareInput
 import uniffi.ledger.Settlement
 import uniffi.ledger.SettlementSuggestion
 import uniffi.ledger.SharedExpense
+import uniffi.ledger.Wallet
 import uniffi.ledger.splitEqually
 
 /**
@@ -86,9 +88,11 @@ fun SharedExpensesScreen(
             ExpenseDialog(
                 members = members,
                 money = money,
+                wallets = state.wallets,
+                categories = state.expenseCategories,
                 onDismiss = { expenseForGroupId = null },
-                onSubmit = { description, amountCents, paidBy, shares ->
-                    viewModel.addExpense(id, description, amountCents, paidBy, shares)
+                onSubmit = { description, amountCents, paidBy, shares, walletId, category ->
+                    viewModel.submitExpense(id, description, amountCents, paidBy, shares, walletId, category)
                     expenseForGroupId = null
                 }
             )
@@ -99,8 +103,13 @@ fun SharedExpensesScreen(
         SettleUpDialog(
             suggestions = state.suggestions[id].orEmpty(),
             money = money,
+            wallets = state.wallets,
+            categories = state.expenseCategories,
+            yourMemberId = state.members[id]?.firstOrNull { it.isYou }?.id,
             onDismiss = { settleForGroupId = null },
-            onSettle = { from, to, amount -> viewModel.settle(id, from, to, amount) }
+            onSettle = { from, to, amount, walletId, category ->
+                viewModel.submitSettlement(id, from, to, amount, walletId, category)
+            }
         )
     }
 
@@ -117,16 +126,20 @@ fun SharedExpensesScreen(
                 shares = state.shares,
                 settlements = state.settlements[id].orEmpty(),
                 suggestions = state.suggestions[id].orEmpty(),
-                onAddExpense = { description, amountCents, paidBy, shares ->
-                    viewModel.addExpense(id, description, amountCents, paidBy, shares)
+                wallets = state.wallets,
+                categories = state.expenseCategories,
+                onAddExpense = { description, amountCents, paidBy, shares, walletId, category ->
+                    viewModel.submitExpense(id, description, amountCents, paidBy, shares, walletId, category)
                 },
                 onEditExpense = { expenseId, description, amountCents, paidBy, shares ->
                     viewModel.updateExpense(expenseId, id, description, amountCents, paidBy, shares)
                 },
                 onLoadShares = { viewModel.loadShares(it) },
-                onDeleteExpense = { viewModel.deleteExpense(it, id) },
+                onDeleteExpense = { expenseId, alsoTransaction -> viewModel.deleteExpense(expenseId, id, alsoTransaction) },
                 onAddMember = { viewModel.addMember(id, it) },
-                onSettle = { from, to, amount -> viewModel.settle(id, from, to, amount) },
+                onSettle = { from, to, amount, walletId, category ->
+                    viewModel.submitSettlement(id, from, to, amount, walletId, category)
+                },
                 onDeleteSettlement = { viewModel.deleteSettlement(it, id) },
                 onRename = { name, emoji -> viewModel.renameGroup(id, name, emoji) },
                 onDeleteGroup = { viewModel.deleteGroup(id) { openGroupId = null } }
@@ -392,12 +405,15 @@ private fun GroupSheet(
     shares: Map<String, List<ExpenseShare>>,
     settlements: List<Settlement>,
     suggestions: List<SettlementSuggestion>,
-    onAddExpense: (String, Long, String, List<ShareInput>) -> Unit,
+    wallets: List<Wallet>,
+    categories: List<Category>,
+    onAddExpense: (String, Long, String, List<ShareInput>, String?, String?) -> Unit,
     onEditExpense: (String, String, Long, String, List<ShareInput>) -> Unit,
     onLoadShares: (String) -> Unit,
-    onDeleteExpense: (String) -> Unit,
+    // The boolean is whether the transaction behind it goes too.
+    onDeleteExpense: (String, Boolean) -> Unit,
     onAddMember: (String) -> Unit,
-    onSettle: (String, String, Long) -> Unit,
+    onSettle: (String, String, Long, String?, String?) -> Unit,
     onDeleteSettlement: (String) -> Unit,
     onRename: (String, String) -> Unit,
     onDeleteGroup: () -> Unit
@@ -407,6 +423,9 @@ private fun GroupSheet(
     // The entry being corrected. Its shares are fetched when it is picked, because the list itself
     // only carries your own share.
     var editing by remember { mutableStateOf<SharedExpense?>(null) }
+    // Deleting is not undoable and, once a split is linked to a transaction, it is not even one
+    // question. Asked rather than done.
+    var removing by remember { mutableStateOf<SharedExpense?>(null) }
     var addMember by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
@@ -416,10 +435,12 @@ private fun GroupSheet(
         ExpenseDialog(
             members = members,
             money = money,
+            wallets = wallets,
+            categories = categories,
             existing = expense,
             existingShares = shares[expense.id].orEmpty(),
             onDismiss = { editing = null },
-            onSubmit = { description, amountCents, paidBy, newShares ->
+            onSubmit = { description, amountCents, paidBy, newShares, _, _ ->
                 onEditExpense(expense.id, description, amountCents, paidBy, newShares)
                 editing = null
             }
@@ -438,9 +459,11 @@ private fun GroupSheet(
         ExpenseDialog(
             members = members,
             money = money,
+            wallets = wallets,
+            categories = categories,
             onDismiss = { addExpense = false },
-            onSubmit = { description, amountCents, paidBy, shares ->
-                onAddExpense(description, amountCents, paidBy, shares)
+            onSubmit = { description, amountCents, paidBy, shares, walletId, category ->
+                onAddExpense(description, amountCents, paidBy, shares, walletId, category)
                 addExpense = false
             }
         )
@@ -461,13 +484,64 @@ private fun GroupSheet(
         )
     }
 
+    removing?.let { expense ->
+        val linked = expense.transactionId != null
+        // Defaults to taking the transaction with it, because a split being deleted almost always
+        // means the thing never happened. The opposite case is one tap away and spelled out.
+        var alsoTransaction by remember(expense.id) { mutableStateOf(true) }
+        AlertDialog(
+            onDismissRequest = { removing = null },
+            title = { Text("Delete this expense?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "${expense.description} · ${money.of(expense.amountCents)}",
+                        style = MaterialTheme.typography.bodyMedium, color = OnSurface
+                    )
+                    if (linked) {
+                        Text(
+                            "This one took money out of your wallet.",
+                            style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Put the money back too", style = MaterialTheme.typography.bodyMedium, color = OnSurface)
+                                Text(
+                                    if (alsoTransaction) "The transaction goes with it"
+                                    else "The transaction stays — the money really did leave",
+                                    style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                                )
+                            }
+                            Switch(checked = alsoTransaction, onCheckedChange = { alsoTransaction = it })
+                        }
+                    } else {
+                        Text(
+                            "No wallet of yours is affected.",
+                            style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteExpense(expense.id, linked && alsoTransaction)
+                    removing = null
+                }) { Text("Delete", color = Error) }
+            },
+            dismissButton = { TextButton(onClick = { removing = null }) { Text("Cancel", color = OnSurfaceVariant) } }
+        )
+    }
+
     if (settling) {
         SettleUpDialog(
             suggestions = suggestions,
             money = money,
+            wallets = wallets,
+            categories = categories,
+            yourMemberId = members.firstOrNull { it.isYou }?.id,
             onDismiss = { settling = false },
-            onSettle = { from, to, amount ->
-                onSettle(from, to, amount)
+            onSettle = { from, to, amount, walletId, category ->
+                onSettle(from, to, amount, walletId, category)
                 // Left open on purpose: closing a group usually takes more than one payment, and the
                 // list rebuilds itself from the new balances after each one.
             }
@@ -602,9 +676,16 @@ private fun GroupSheet(
                                 "${expense.paidByName} paid ${money.of(expense.amountCents)} · your share ${money.of(expense.yourShareCents)}",
                                 style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
                             )
-                            Text("Tap to correct", style = MaterialTheme.typography.labelSmall, color = Primary)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Tap to correct", style = MaterialTheme.typography.labelSmall, color = Primary)
+                                // Whether a split moved real money is the one thing about it you
+                                // cannot see from the amount, so it is said rather than implied.
+                                if (expense.transactionId != null) {
+                                    Text("· in your wallet", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                }
+                            }
                         }
-                        IconButton(onClick = { onDeleteExpense(expense.id) }) {
+                        IconButton(onClick = { removing = expense }) {
                             Icon(Icons.Filled.Close, "Remove", tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))
                         }
                     }
@@ -639,11 +720,15 @@ private fun GroupSheet(
 private fun ExpenseDialog(
     members: List<GroupMember>,
     money: MoneyFormatter,
+    wallets: List<Wallet>,
+    categories: List<Category>,
     // Null when writing a new expense; the entry being corrected otherwise.
     existing: SharedExpense? = null,
     existingShares: List<ExpenseShare> = emptyList(),
     onDismiss: () -> Unit,
-    onSubmit: (String, Long, String, List<ShareInput>) -> Unit
+    // The last two are the wallet and category to record it against, or null to record the split
+    // alone and leave every wallet untouched.
+    onSubmit: (String, Long, String, List<ShareInput>, String?, String?) -> Unit
 ) {
     val editing = existing != null
 
@@ -672,6 +757,17 @@ private fun ExpenseDialog(
     var typedShares by remember(existing?.id, previous) {
         mutableStateOf(if (editing) previous.map { it.asAmountInput() } else members.map { "" })
     }
+
+    // Only an expense you paid for moves a wallet of yours. When somebody else paid you owe them a
+    // share, but nothing of yours moved, so the whole wallet section is absent rather than present
+    // and refusing to work.
+    val youArePayer = members.getOrNull(paidByIndex)?.isYou == true
+    // Correcting an entry does not re-ask this: the transaction it is already linked to follows the
+    // correction, and a second one would be a duplicate.
+    val canRecord = youArePayer && !editing && wallets.isNotEmpty() && categories.isNotEmpty()
+    var recordInWallet by remember { mutableStateOf(true) }
+    var walletIndex by remember(wallets) { mutableStateOf(0) }
+    var categoryIndex by remember(categories) { mutableStateOf(0) }
 
     val amountCents = amount.toCentsOrNull()
 
@@ -724,6 +820,36 @@ private fun ExpenseDialog(
                             )
                         }
                     }
+                }
+
+                if (canRecord) {
+                    HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Take it from my wallet", style = MaterialTheme.typography.bodyMedium, color = OnSurface)
+                            Text(
+                                // Says the whole amount out loud, because paying for a group and
+                                // being charged only your share is the mistake this invites.
+                                if (amountCents != null) "The full ${money.of(amountCents)} leaves; the others owe you their share"
+                                else "The full amount leaves; the others owe you their share",
+                                style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                            )
+                        }
+                        Switch(checked = recordInWallet, onCheckedChange = { recordInWallet = it })
+                    }
+                    if (recordInWallet) {
+                        PickerRow("Wallet", wallets, wallets.getOrNull(walletIndex),
+                            { "${it.name} · ${money.of(it.balanceCents)}" },
+                            { w -> walletIndex = wallets.indexOf(w) })
+                        PickerRow("Category", categories, categories.getOrNull(categoryIndex),
+                            { it.name }, { c -> categoryIndex = categories.indexOf(c) })
+                    }
+                    HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
+                } else if (!editing && !youArePayer) {
+                    Text(
+                        "Nothing leaves your wallet — ${members.getOrNull(paidByIndex)?.name ?: "they"} paid this one.",
+                        style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                    )
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -791,11 +917,14 @@ private fun ExpenseDialog(
                 enabled = description.isNotBlank() && balanced,
                 onClick = {
                     val payer = members[paidByIndex]
+                    val useWallet = canRecord && recordInWallet
                     onSubmit(
                         description,
                         amountCents!!,
                         payer.id,
-                        members.mapIndexed { index, member -> ShareInput(member.id, shares[index]) }
+                        members.mapIndexed { index, member -> ShareInput(member.id, shares[index]) },
+                        if (useWallet) wallets.getOrNull(walletIndex)?.id else null,
+                        if (useWallet) categories.getOrNull(categoryIndex)?.name else null
                     )
                 }
             ) { Text(if (editing) "Save" else "Add", color = Primary) }
@@ -817,11 +946,23 @@ private fun ExpenseDialog(
 private fun SettleUpDialog(
     suggestions: List<SettlementSuggestion>,
     money: MoneyFormatter,
+    wallets: List<Wallet>,
+    categories: List<Category>,
+    // Which member is the app's user, so the dialog knows whether a wallet of theirs is involved at
+    // all. Null when the group has not finished loading.
+    yourMemberId: String?,
     onDismiss: () -> Unit,
-    onSettle: (String, String, Long) -> Unit
+    onSettle: (String, String, Long, String?, String?) -> Unit
 ) {
     // Keyed by position, because the same pair can appear once only in a plan.
     var typed by remember(suggestions) { mutableStateOf(suggestions.map { it.amountCents.asAmountInput() }) }
+    var recordInWallet by remember { mutableStateOf(true) }
+    var walletIndex by remember(wallets) { mutableStateOf(0) }
+    var categoryIndex by remember(categories) { mutableStateOf(0) }
+    // Two other people squaring up between themselves changes the group and no wallet of yours.
+    val anyOfYours = yourMemberId != null &&
+        suggestions.any { it.fromMemberId == yourMemberId || it.toMemberId == yourMemberId }
+    val canRecord = anyOfYours && wallets.isNotEmpty() && categories.isNotEmpty()
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -843,6 +984,27 @@ private fun SettleUpDialog(
                         else "${suggestions.size} payments close this group.",
                         style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
                     )
+                    if (canRecord) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Record in my wallet", style = MaterialTheme.typography.bodyMedium, color = OnSurface)
+                                Text(
+                                    "Money coming back to you is income; paying somebody back is an expense",
+                                    style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                                )
+                            }
+                            Switch(checked = recordInWallet, onCheckedChange = { recordInWallet = it })
+                        }
+                        if (recordInWallet) {
+                            PickerRow("Wallet", wallets, wallets.getOrNull(walletIndex),
+                                { "${it.name} · ${money.of(it.balanceCents)}" },
+                                { w -> walletIndex = wallets.indexOf(w) })
+                            PickerRow("Category", categories, categories.getOrNull(categoryIndex),
+                                { it.name }, { c -> categoryIndex = categories.indexOf(c) })
+                        }
+                        HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
+                    }
+
                     suggestions.forEachIndexed { index, suggestion ->
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                             Text(
@@ -862,8 +1024,19 @@ private fun SettleUpDialog(
                                     modifier = Modifier.weight(1f)
                                 )
                                 val cents = typed.getOrElse(index) { "" }.toCentsOrNull()
+                                // A payment between two other people never touches a wallet, even
+                                // when the switch is on for the rest of the plan.
+                                val mine = yourMemberId != null &&
+                                    (suggestion.fromMemberId == yourMemberId || suggestion.toMemberId == yourMemberId)
+                                val useWallet = canRecord && recordInWallet && mine
                                 Button(
-                                    onClick = { onSettle(suggestion.fromMemberId, suggestion.toMemberId, cents!!) },
+                                    onClick = {
+                                        onSettle(
+                                            suggestion.fromMemberId, suggestion.toMemberId, cents!!,
+                                            if (useWallet) wallets.getOrNull(walletIndex)?.id else null,
+                                            if (useWallet) categories.getOrNull(categoryIndex)?.name else null
+                                        )
+                                    },
                                     enabled = cents != null && cents > 0,
                                     colors = ButtonDefaults.buttonColors(containerColor = Primary),
                                     shape = RoundedCornerShape(6.dp)
@@ -882,4 +1055,79 @@ private fun SettleUpDialog(
         },
         confirmButton = { TextButton(onClick = onDismiss) { Text("Done", color = Primary) } }
     )
+}
+
+/** A labelled dropdown. Three of these are needed now and they should look like one thing. */
+@Composable
+private fun <T> PickerRow(
+    label: String,
+    options: List<T>,
+    selected: T?,
+    display: (T) -> String,
+    onPick: (T) -> Unit
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(6.dp))
+                .clickable(enabled = options.isNotEmpty()) { open = true }
+                .padding(vertical = 6.dp)
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    selected?.let(display) ?: "—",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (selected == null) OnSurfaceVariant else OnSurface,
+                    modifier = Modifier.weight(1f), maxLines = 1
+                )
+                Icon(Icons.Filled.ArrowDropDown, null, tint = OnSurfaceVariant, modifier = Modifier.size(20.dp))
+            }
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(display(option)) },
+                    onClick = { onPick(option); open = false }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One route for both places an expense can be added from. A wallet id means the money really moved
+ * and the two records are written together; null means the split alone.
+ */
+private fun SharedExpenseViewModel.submitExpense(
+    groupId: String,
+    description: String,
+    amountCents: Long,
+    paidBy: String,
+    shares: List<ShareInput>,
+    walletId: String?,
+    category: String?
+) {
+    if (walletId != null && category != null) {
+        addExpenseFromWallet(groupId, description, amountCents, paidBy, walletId, category, shares)
+    } else {
+        addExpense(groupId, description, amountCents, paidBy, shares)
+    }
+}
+
+private fun SharedExpenseViewModel.submitSettlement(
+    groupId: String,
+    from: String,
+    to: String,
+    amountCents: Long,
+    walletId: String?,
+    category: String?
+) {
+    if (walletId != null && category != null) {
+        settleToWallet(groupId, from, to, amountCents, walletId, category)
+    } else {
+        settle(groupId, from, to, amountCents)
+    }
 }

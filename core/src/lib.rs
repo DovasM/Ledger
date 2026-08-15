@@ -367,6 +367,13 @@ impl LedgerDb {
             // PRAGMA foreign_keys=ON. Clear the links here so they cannot pile up.
             sqlx::query("DELETE FROM transaction_tags WHERE transaction_id=?")
                 .bind(&id).execute(&mut *tx).await?;
+            // A split or a payment may point at this transaction, and whoever deletes it from the
+            // transactions screen has no reason to know that. Drop the link rather than leave it
+            // naming a row that is gone — the split itself is still true.
+            sqlx::query("UPDATE shared_expenses SET transaction_id = NULL WHERE transaction_id=?")
+                .bind(&id).execute(&mut *tx).await?;
+            sqlx::query("UPDATE settlements SET transaction_id = NULL WHERE transaction_id=?")
+                .bind(&id).execute(&mut *tx).await?;
             sqlx::query("DELETE FROM transactions WHERE id=?")
                 .bind(&id).execute(&mut *tx).await?;
             tx.commit().await?;
@@ -1413,12 +1420,99 @@ impl LedgerDb {
                     .bind(Uuid::new_v4().to_string()).bind(&id).bind(&s.member_id).bind(s.share_cents)
                     .execute(&mut *tx).await?;
             }
+
+            // The two rows describe one event. Correcting 360 to 300 here and leaving the wallet
+            // saying 360 would give two believable numbers and no way to tell which is wrong.
+            sqlx::query(
+                "UPDATE transactions SET title = ?1, amount_cents = ?2, occurred_at = COALESCE(?3, occurred_at)
+                 WHERE id = (SELECT transaction_id FROM shared_expenses WHERE id = ?4)"
+            )
+            .bind(description.trim()).bind(amount_cents).bind(&occurred_at).bind(&id)
+            .execute(&mut *tx).await?;
+
             tx.commit().await?;
 
             let row = sqlx::query_as::<_, SharedExpenseRow>(&format!("{EXPENSE_SELECT} WHERE e.id = ?"))
                 .bind(&id).fetch_one(&self.pool).await?;
             Ok(row_to_shared_expense(row))
         })
+    }
+
+    /// Recording an expense you paid for: one transaction for the **whole** amount, plus the split.
+    ///
+    /// The transaction is not your share. Your wallet really did lose all 360, and the reports have
+    /// to go on saying so; what the others owe you is the separate fact recorded beside it. Both
+    /// rows land together or neither does, because a transaction with no split behind it is money
+    /// missing from the group and a split with no transaction is money missing from the wallet.
+    pub fn add_shared_expense_from_wallet(
+        &self,
+        group_id: String,
+        description: String,
+        amount_cents: i64,
+        paid_by_member_id: String,
+        wallet_id: String,
+        category: String,
+        shares: Vec<ShareInput>,
+        occurred_at: Option<String>,
+    ) -> Result<SharedExpense, LedgerError> {
+        // Somebody else paying is not a transaction of yours, and inventing one would put the wallet
+        // out by the whole amount.
+        let payer_is_you = self.rt.block_on(async {
+            let (is_you,): (i64,) = sqlx::query_as("SELECT COALESCE(is_you, 0) FROM group_members WHERE id = ?")
+                .bind(&paid_by_member_id).fetch_optional(&self.pool).await?
+                .unwrap_or((0,));
+            Ok::<i64, LedgerError>(is_you)
+        })? == 1;
+        if !payer_is_you {
+            return Err(LedgerError::InvalidInput(
+                "only an expense you paid for moves your wallet — record it without a wallet instead".into()
+            ));
+        }
+
+        // The split is checked first, so a shares list that does not add up cannot leave a
+        // transaction behind with nothing to explain it.
+        let total: i64 = shares.iter().map(|s| s.share_cents).sum();
+        if total != amount_cents {
+            return Err(LedgerError::InvalidInput(format!(
+                "the shares add up to {} but the expense is {} — every cent has to belong to somebody",
+                total, amount_cents
+            )));
+        }
+
+        let transaction = self.create_transaction(
+            wallet_id, description.clone(), category, amount_cents, false, None, occurred_at.clone(),
+        )?;
+
+        match self.add_shared_expense(
+            group_id, description, amount_cents, paid_by_member_id,
+            Some(transaction.id.clone()), shares, occurred_at,
+        ) {
+            Ok(expense) => Ok(expense),
+            Err(e) => {
+                // Nothing was split, so nothing should have left the wallet either.
+                let _ = self.delete_transaction(transaction.id);
+                Err(e)
+            }
+        }
+    }
+
+    /// Deleting the split and the transaction that paid for it. Used when the whole thing was a
+    /// mistake — the dinner never happened.
+    pub fn delete_shared_expense_with_transaction(&self, id: String) -> Result<(), LedgerError> {
+        let linked = self.rt.block_on(async {
+            let row: Option<(Option<String>,)> = sqlx::query_as("SELECT transaction_id FROM shared_expenses WHERE id = ?")
+                .bind(&id).fetch_optional(&self.pool).await?;
+            Ok::<Option<String>, LedgerError>(row.and_then(|r| r.0))
+        })?;
+        self.delete_shared_expense(id)?;
+        if let Some(tx_id) = linked { self.delete_transaction(tx_id)?; }
+        Ok(())
+    }
+
+    /// Deleting the split but keeping the transaction. Used when it happened and you no longer care
+    /// who owed what — the money still left, and the reports must keep saying so.
+    pub fn delete_shared_expense_keeping_transaction(&self, id: String) -> Result<(), LedgerError> {
+        self.delete_shared_expense(id)
     }
 
     pub fn delete_shared_expense(&self, id: String) -> Result<(), LedgerError> {
@@ -1475,6 +1569,53 @@ impl LedgerDb {
                 .bind(&id).fetch_one(&self.pool).await?;
             Ok(row_to_settlement(row))
         })
+    }
+
+    /// A payment that really passed through one of your wallets. Being paid back is income; paying
+    /// somebody back is an expense — the direction is read from which side of it you are on, rather
+    /// than asked for and then possibly answered wrong.
+    ///
+    /// Two other people squaring up between themselves is refused here rather than quietly recorded
+    /// as nothing: the group changes, but no wallet of yours does, and `record_settlement` is the
+    /// call for that.
+    pub fn record_settlement_to_wallet(
+        &self,
+        group_id: String,
+        from_member_id: String,
+        to_member_id: String,
+        amount_cents: i64,
+        wallet_id: String,
+        category: String,
+        occurred_at: Option<String>,
+    ) -> Result<Settlement, LedgerError> {
+        let (you_pay, you_receive) = self.rt.block_on(async {
+            let (from_you,): (i64,) = sqlx::query_as("SELECT COALESCE(is_you, 0) FROM group_members WHERE id = ?")
+                .bind(&from_member_id).fetch_optional(&self.pool).await?.unwrap_or((0,));
+            let (to_you,): (i64,) = sqlx::query_as("SELECT COALESCE(is_you, 0) FROM group_members WHERE id = ?")
+                .bind(&to_member_id).fetch_optional(&self.pool).await?.unwrap_or((0,));
+            Ok::<(bool, bool), LedgerError>((from_you == 1, to_you == 1))
+        })?;
+
+        if !you_pay && !you_receive {
+            return Err(LedgerError::InvalidInput(
+                "no wallet of yours is involved in a payment between two other people".into()
+            ));
+        }
+
+        let title = if you_receive { format!("Paid back — {category}") } else { format!("Paying back — {category}") };
+        let transaction = self.create_transaction(
+            wallet_id, title, category, amount_cents, you_receive, None, occurred_at.clone(),
+        )?;
+
+        match self.record_settlement(
+            group_id, from_member_id, to_member_id, amount_cents, Some(transaction.id.clone()), occurred_at,
+        ) {
+            Ok(settlement) => Ok(settlement),
+            Err(e) => {
+                let _ = self.delete_transaction(transaction.id);
+                Err(e)
+            }
+        }
     }
 
     pub fn list_settlements(&self, group_id: String) -> Result<Vec<Settlement>, LedgerError> {

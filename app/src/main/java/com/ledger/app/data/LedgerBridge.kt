@@ -221,10 +221,20 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
     override fun updateSharedExpense(id: String, description: String, amountCents: Long, paidByMemberId: String, shares: List<ShareInput>, occurredAt: String?) =
         db.updateSharedExpense(id, description, amountCents, paidByMemberId, shares, occurredAt)
 
+    override fun addSharedExpenseFromWallet(groupId: String, description: String, amountCents: Long, paidByMemberId: String, walletId: String, category: String, shares: List<ShareInput>, occurredAt: String?) =
+        db.addSharedExpenseFromWallet(groupId, description, amountCents, paidByMemberId, walletId, category, shares, occurredAt)
+
     override fun deleteSharedExpense(id: String) = db.deleteSharedExpense(id)
+
+    override fun deleteSharedExpenseWithTransaction(id: String) = db.deleteSharedExpenseWithTransaction(id)
+
+    override fun deleteSharedExpenseKeepingTransaction(id: String) = db.deleteSharedExpenseKeepingTransaction(id)
 
     override fun recordSettlement(groupId: String, fromMemberId: String, toMemberId: String, amountCents: Long, transactionId: String?, occurredAt: String?) =
         db.recordSettlement(groupId, fromMemberId, toMemberId, amountCents, transactionId, occurredAt)
+
+    override fun recordSettlementToWallet(groupId: String, fromMemberId: String, toMemberId: String, amountCents: Long, walletId: String, category: String, occurredAt: String?) =
+        db.recordSettlementToWallet(groupId, fromMemberId, toMemberId, amountCents, walletId, category, occurredAt)
 
     override fun listSettlements(groupId: String) = db.listSettlements(groupId)
 
