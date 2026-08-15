@@ -64,7 +64,8 @@ fn a_backup_reports_what_it_wrote() {
     assert_eq!(info.debts, 1);
     assert_eq!(info.budgets, 2);
     assert_eq!(info.recurring, 1);
-    assert_eq!(info.schema_version, 9);
+    assert_eq!(info.schema_version, uniffi_ledger::current_schema_version(),
+        "a fresh backup carries the version this build writes; never a number typed into the test");
 
     let _ = std::fs::remove_file(&dest);
 }

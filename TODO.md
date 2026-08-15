@@ -5,7 +5,6 @@
 Screens needing ViewModel integration. Unchecked ones still use hardcoded or local-only state:
 
 - [ ] **NotificationsScreen** — rewrite with real data (budget alerts, goal milestones, recurring due dates, wallet balance warnings). Push notifications (system-level Android) deferred separately.
-- [ ] **SharedExpensesScreen** — hardcoded group/expense list; needs a SharedExpenseViewModel + Room entity
 - [ ] **EditProfileScreen** — placeholder name "Alex Johnson" / email; needs a UserProfileViewModel or DataStore
 - [x] **AppearanceSettingsScreen** — wired to `SettingsViewModel`; theme/accent/density/number-format persisted via DataStore
 - [x] **NotificationSettingsScreen** — wired to `SettingsViewModel`; all toggles + thresholds persisted via DataStore
@@ -79,9 +78,23 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 ## Transaction Splitting & Shared Expenses
 
 - [ ] **Split transaction between wallets** — allow a single transaction to be divided across multiple wallets (e.g. $100 paid 60% from Checking, 40% from Cash). Needs a `TransactionSplit` Room entity linking transaction → wallet → amount
+- [ ] **Settling up** — recording that somebody paid you back. Today it is a plain income transaction
+  and the group balance has to be corrected by editing the expense, which is the wrong shape for it
+- [ ] **A shared expense and its transaction are still two separate entries** — recording that you paid 100 for a
+  group dinner means writing the transaction (which moves your balance) and the shared expense (which tracks who
+  owes you) separately. That was the design: the transaction stays whole so the reports keep saying what actually
+  left the wallet. But nothing links the two yet, so it has to be typed twice. The next step is the Add/Edit
+  transaction screens offering to record a split for the transaction being saved, and the shared expense filling
+  in  when you were the payer
 - [ ] **Link transaction to shared expense** — Add/Edit transaction screens need a "Shared Expense" section where the user can assign the transaction to an existing group or create a new split on the spot (who owes what)
 - [ ] **Combo: wallet split + shared expense** — support a transaction that is both split across wallets AND shared with other people simultaneously
-- [ ] **SharedExpensesScreen** (already listed above) must reflect these linked transactions rather than being standalone hardcoded data
+- [x] **SharedExpensesScreen shows real data** — `m10` adds groups, members, expenses and per-person shares;
+  the screen creates groups, records who paid what, splits it and shows who owes whom. The demo groups are gone.
+  Shares are stored rows and must sum to the expense exactly, and `split_equally` hands the odd cent to the first
+  person rather than rounding it away — 13 tests, four of them about that cent alone, including the invariant that
+  a group's balances always sum to zero. The transaction behind an expense you paid stays whole, as decided when
+  this was designed: the reports keep saying what actually left the wallet, and a repayment is income like any
+  other. Still to come: linking an expense to a transaction from the Add/Edit screens, and settling up
 
 ## AI Receipt Scanning (ML Kit OCR + Gemma 3n)
 

@@ -128,3 +128,49 @@ pub struct DebtPaymentRow {
     pub kind: String,
     pub occurred_at: String,
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ExpenseGroupRow {
+    pub id: String,
+    pub name: String,
+    pub emoji: String,
+    pub color_hex: String,
+    pub total_cents: i64,
+    pub your_share_cents: i64,
+    pub net_balance_cents: i64,
+    pub member_count: i64,
+    pub expense_count: i64,
+    pub created_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct GroupMemberRow {
+    pub id: String,
+    pub group_id: String,
+    pub name: String,
+    pub is_you: bool,
+    pub paid_cents: i64,
+    pub owes_cents: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct SharedExpenseRow {
+    pub id: String,
+    pub group_id: String,
+    pub transaction_id: Option<String>,
+    pub description: String,
+    pub amount_cents: i64,
+    pub paid_by_member_id: String,
+    pub paid_by_name: String,
+    pub your_share_cents: i64,
+    pub occurred_at: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct ExpenseShareRow {
+    pub id: String,
+    pub shared_expense_id: String,
+    pub member_id: String,
+    pub member_name: String,
+    pub share_cents: i64,
+}

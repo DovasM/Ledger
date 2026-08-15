@@ -636,7 +636,7 @@ runtime (see the cascade note below).
 `core/src/db/mod.rs` owns a `schema_version` table and numbered migrations (`m1_baseline_tables`,
 `m2_category_links`, `m3_indexes`, `m4_transfers_currency_budgets`, `m5_off_budget_wallets`,
 `m6_transaction_occurred_at`, `m7_goal_and_debt_history`, `m8_money_as_cents`,
-`m9_wallet_opening_balance`). Add the next one as `mN_…` plus an
+`m9_wallet_opening_balance`, `m10_shared_expenses`). Add the next one as `mN_…` plus an
 `if applied < N` arm.
 
 **Every migration must be idempotent, without exception.** Databases predating the version table
@@ -903,6 +903,52 @@ someone whose wallets are in euros. `StreakCalculator`'s two integer divisions a
 `m8` converts with `CAST(ROUND(x * 100) AS INTEGER)`. The `ROUND` is load-bearing: `0.29 * 100` is
 `28.999999999999996`, so a bare `CAST` files 29 cents as 28 and loses a cent on every such row.
 `m8_converts_every_amount_exactly` pins that exact value.
+
+### Shared expenses
+
+Splitting a bill has two truths at once: your wallet really did lose the whole 360, and only 120 of
+it was your spending. **The transaction stays whole** — the wallet balance depends on it and the
+reports go on saying what actually left — and what each person owes is tracked beside it in
+`m10`'s tables. When the others pay you back, that is income or a transfer like any other, and the
+arithmetic comes out at 120 without any report having to know about the split.
+
+`shared_expenses.transaction_id` is null when somebody *else* paid: you owe them a share, but
+nothing of yours moved, so there is no transaction to point at.
+
+**Shares are rows, not a percentage**, for the same reason contributions became rows in `m7`: a
+percentage has to be recomputed on every read and leaves the odd cent unaccounted for.
+`add_shared_expense` refuses shares that do not sum to the amount exactly, because a lost cent means
+every balance after it is wrong in a way nobody can trace.
+
+`split_equally` is where that cent is decided. 100.00 three ways is 33.333…, which has no exact
+answer in cents, so the remainder is handed out deliberately — the first person pays the extra penny
+— rather than each share being rounded independently and the difference vanishing. It is exposed
+over the FFI so the screen shows exactly the shares that will be stored, and
+`the_balances_of_a_group_always_sum_to_zero` is the invariant that catches any future version of
+this mistake.
+
+Balances are `paid − owes` per member, derived like every other total here, and they always sum to
+zero: every euro somebody put in is owed to them by somebody else.
+
+**Shares can be typed by hand, not only split evenly.** The data layer always took explicit shares —
+that is what `ShareInput` is for — so the uneven case needed no schema change, only a second mode in
+the dialog. It starts from the even split rather than from empty fields, because the usual ask is
+one person a little more and another a little less. `ShareSplit` (`ui/util/`) does the checking as
+the numbers are typed: `remainder` is what is unassigned (negative when the shares overshoot),
+`isBalanced` gates the button, and `assignRemainderTo` hands the leftover cents to one person, since
+rounding an uneven split by hand always leaves a few. It lives outside Compose because it is the
+part that can be wrong.
+
+**`update_shared_expense` replaces the shares wholesale** rather than reconciling which of them
+changed — working out the difference is harder than writing the set that is now correct, and
+appending without clearing is the obvious way to double a group's totals. It validates *before*
+touching a row, so a correction that does not add up leaves the original exactly as it was; both
+failure modes have a test that was confirmed to fail without the guard. `transaction_id` is
+deliberately absent from the `SET`, so correcting a description never unlinks the expense from the
+transaction that paid it.
+
+**`current_schema_version()` is exposed over the FFI** so neither a test nor a screen has to write
+the number down. Both did, and both went stale the moment `m10` was added.
 
 ### Backup and restore
 

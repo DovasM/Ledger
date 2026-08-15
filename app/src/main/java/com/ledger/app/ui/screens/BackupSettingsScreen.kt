@@ -278,8 +278,11 @@ fun BackupSettingsScreen(
 private fun prettyFolder(uri: String): String =
     java.net.URLDecoder.decode(uri, "UTF-8").substringAfterLast(':').ifBlank { uri }
 
-/** The bump this build writes; an older number on a file means it needs migrating on the way in. */
-private const val CURRENT_BACKUP_FORMAT = 9
+/**
+ * Asked of the Rust side rather than written down here. The number changes with every migration, and
+ * a copy of it in the UI is a copy that goes stale silently.
+ */
+private val CURRENT_BACKUP_FORMAT: Long get() = uniffi.ledger.currentSchemaVersion()
 
 @Composable
 private fun BackupContents(info: BackupInfo) {
