@@ -978,6 +978,19 @@ than asking: being paid back is income, paying somebody back is an expense. A pa
 other people is refused here — the group changes, no wallet of yours does, and `record_settlement`
 is the call for that.
 
+### Two queries, one balance
+
+`GROUP_SELECT` derives `net_balance_cents` **independently** of `MEMBER_SELECT`, for the one member who
+is you. They have to be changed together and once were not: settlements were added to
+`MEMBER_SELECT` alone, so the balances inside the sheet moved after a payment while the group card
+and the owed/owing totals summed from it sat perfectly still. Paying somebody back looked like
+nothing had happened.
+
+Every settlement test read `list_group_members`, so none of them saw it. The regression test now
+asserts the two agree — `assert_eq!(group.net_balance_cents, balance_of(member))` — which is the
+thing that would have caught it, rather than another assertion on the same query as before. Adding a
+term to one of these without the other is the mistake to watch for.
+
 ### Settling up
 
 A settlement is **not** an expense — nothing was bought — so it lives in its own `m11` table rather

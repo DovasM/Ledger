@@ -247,3 +247,50 @@ fn nobody_is_asked_to_pay_more_than_they_owe() {
     }
     let _ = (sarah, mike);
 }
+
+// ── The number on the card, which is a different query ───────────────────────
+
+/// The group row derives its own balance, separately from the member rows, and the settlement tests
+/// above all read the member rows. So they all passed while the figure actually on the screen — the
+/// group card, and the "you owe" total summed from it — never moved after a payment.
+#[test]
+fn paying_somebody_back_changes_the_number_on_the_group_card() {
+    let t = TestDb::new();
+    let (group, you, sarah, mike) = trip(&t);
+    // Sarah paid 300 for the three of you, so you owe her 100.
+    t.db.add_shared_expense(group.clone(), "Hotel".into(), 30_000, sarah.clone(), None,
+        vec![share(&you, 10_000), share(&sarah, 10_000), share(&mike, 10_000)], day("2026-03-01")).unwrap();
+
+    let before = &t.db.list_expense_groups().unwrap()[0];
+    assert_eq!(before.net_balance_cents, -10_000, "you owe 100");
+    assert_eq!(before.net_balance_cents, balance_of(&t, &group, &you), "the card and the member agree");
+
+    // Part of it, which is the case that reads as nothing happening at all.
+    t.db.record_settlement(group.clone(), you.clone(), sarah.clone(), 4_000, None, day("2026-03-05")).unwrap();
+
+    let after = &t.db.list_expense_groups().unwrap()[0];
+    assert_eq!(after.net_balance_cents, -6_000, "60 of the 100 is left");
+    assert_eq!(after.net_balance_cents, balance_of(&t, &group, &you), "the card and the member still agree");
+
+    // And the rest of it closes the card out.
+    t.db.record_settlement(group.clone(), you.clone(), sarah.clone(), 6_000, None, day("2026-03-06")).unwrap();
+    assert_eq!(t.db.list_expense_groups().unwrap()[0].net_balance_cents, 0);
+
+    // The total of what was spent is not affected by any of this — a payment is not an expense.
+    assert_eq!(t.db.list_expense_groups().unwrap()[0].total_cents, 30_000);
+    assert_eq!(t.db.list_expense_groups().unwrap()[0].expense_count, 1);
+}
+
+/// The other direction: being paid back reduces what you are owed on the card.
+#[test]
+fn being_paid_back_changes_the_card_too() {
+    let t = TestDb::new();
+    let (group, you, sarah, mike) = trip(&t);
+    t.db.add_shared_expense(group.clone(), "Hotel".into(), 30_000, you.clone(), None,
+        vec![share(&you, 10_000), share(&sarah, 10_000), share(&mike, 10_000)], day("2026-03-01")).unwrap();
+    assert_eq!(t.db.list_expense_groups().unwrap()[0].net_balance_cents, 20_000);
+
+    t.db.record_settlement(group.clone(), mike, you, 10_000, None, day("2026-03-05")).unwrap();
+    assert_eq!(t.db.list_expense_groups().unwrap()[0].net_balance_cents, 10_000, "only Sarah's share is left");
+    let _ = (group, sarah);
+}

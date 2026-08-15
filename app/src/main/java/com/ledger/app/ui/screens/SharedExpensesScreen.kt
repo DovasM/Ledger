@@ -956,6 +956,11 @@ private fun SettleUpDialog(
 ) {
     // Keyed by position, because the same pair can appear once only in a plan.
     var typed by remember(suggestions) { mutableStateOf(suggestions.map { it.amountCents.asAmountInput() }) }
+    // The dialog stays open after a payment so a group can be closed in one visit, which leaves the
+    // same Record button under the same finger while the new balances are still being read back.
+    // Tapped twice, it recorded the payment twice. Each row latches until the plan is rebuilt — and
+    // the rebuild resets this, because `remember(suggestions)` keys on the new list.
+    var recorded by remember(suggestions) { mutableStateOf(emptySet<Int>()) }
     var recordInWallet by remember { mutableStateOf(true) }
     var walletIndex by remember(wallets) { mutableStateOf(0) }
     var categoryIndex by remember(categories) { mutableStateOf(0) }
@@ -1029,18 +1034,20 @@ private fun SettleUpDialog(
                                 val mine = yourMemberId != null &&
                                     (suggestion.fromMemberId == yourMemberId || suggestion.toMemberId == yourMemberId)
                                 val useWallet = canRecord && recordInWallet && mine
+                                val done = index in recorded
                                 Button(
                                     onClick = {
+                                        recorded = recorded + index
                                         onSettle(
                                             suggestion.fromMemberId, suggestion.toMemberId, cents!!,
                                             if (useWallet) wallets.getOrNull(walletIndex)?.id else null,
                                             if (useWallet) categories.getOrNull(categoryIndex)?.name else null
                                         )
                                     },
-                                    enabled = cents != null && cents > 0,
+                                    enabled = !done && cents != null && cents > 0,
                                     colors = ButtonDefaults.buttonColors(containerColor = Primary),
                                     shape = RoundedCornerShape(6.dp)
-                                ) { Text("Record", style = MaterialTheme.typography.labelMedium) }
+                                ) { Text(if (done) "Recorded" else "Record", style = MaterialTheme.typography.labelMedium) }
                             }
                             if (typed.getOrElse(index) { "" }.toCentsOrNull().let { it != null && it != suggestion.amountCents }) {
                                 Text(

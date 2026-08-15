@@ -1799,6 +1799,11 @@ async fn count_contents(pool: &SqlitePool) -> Result<BackupInfo, LedgerError> {
 
 // Totals are summed on read, like every other total in this schema. A group's numbers are only ever
 // as right as the rows underneath them, which is the point.
+// This derives the same balance as MEMBER_SELECT does, for the one member who is you, so the two
+// have to change together. They did not: settlements were added to MEMBER_SELECT alone, so the
+// sheet moved after a payment while the group card — and the owed/owing totals summed from it —
+// sat still. Both now count a payment you made as money you put in and a payment to you as money
+// you took back out.
 const GROUP_SELECT: &str = "SELECT g.id, g.name, g.emoji, g.color_hex, \
      COALESCE((SELECT SUM(amount_cents) FROM shared_expenses WHERE group_id = g.id), 0) AS total_cents, \
      COALESCE((SELECT SUM(s.share_cents) FROM shared_expense_shares s \
@@ -1808,10 +1813,16 @@ const GROUP_SELECT: &str = "SELECT g.id, g.name, g.emoji, g.color_hex, \
      COALESCE((SELECT SUM(amount_cents) FROM shared_expenses e \
                JOIN group_members m ON m.id = e.paid_by_member_id \
                WHERE e.group_id = g.id AND m.is_you = 1), 0) \
+       + COALESCE((SELECT SUM(st.amount_cents) FROM settlements st \
+                   JOIN group_members m ON m.id = st.from_member_id \
+                   WHERE st.group_id = g.id AND m.is_you = 1), 0) \
        - COALESCE((SELECT SUM(s.share_cents) FROM shared_expense_shares s \
                    JOIN group_members m ON m.id = s.member_id \
                    JOIN shared_expenses e ON e.id = s.shared_expense_id \
-                   WHERE e.group_id = g.id AND m.is_you = 1), 0) AS net_balance_cents, \
+                   WHERE e.group_id = g.id AND m.is_you = 1), 0) \
+       - COALESCE((SELECT SUM(st.amount_cents) FROM settlements st \
+                   JOIN group_members m ON m.id = st.to_member_id \
+                   WHERE st.group_id = g.id AND m.is_you = 1), 0) AS net_balance_cents, \
      (SELECT COUNT(*) FROM group_members WHERE group_id = g.id) AS member_count, \
      (SELECT COUNT(*) FROM shared_expenses WHERE group_id = g.id) AS expense_count, \
      g.created_at FROM expense_groups g";
