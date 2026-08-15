@@ -146,6 +146,31 @@ pub struct GroupMember {
     pub balance_cents: i64,
 }
 
+/// Money handed over to square up, as opposed to money spent on something.
+pub struct Settlement {
+    pub id: String,
+    pub group_id: String,
+    pub from_member_id: String,
+    pub from_name: String,
+    pub to_member_id: String,
+    pub to_name: String,
+    pub amount_cents: i64,
+    /// Set when the money moved through one of your wallets. Null when two other people settled
+    /// between themselves.
+    pub transaction_id: Option<String>,
+    pub occurred_at: String,
+}
+
+/// A payment the app thinks should happen, worked out from the balances. Nothing is recorded until
+/// it is confirmed.
+pub struct SettlementSuggestion {
+    pub from_member_id: String,
+    pub from_name: String,
+    pub to_member_id: String,
+    pub to_name: String,
+    pub amount_cents: i64,
+}
+
 pub struct SharedExpense {
     pub id: String,
     pub group_id: String,
@@ -1223,6 +1248,7 @@ impl LedgerDb {
             sqlx::query(
                 "DELETE FROM shared_expense_shares WHERE shared_expense_id IN (SELECT id FROM shared_expenses WHERE group_id=?)"
             ).bind(&id).execute(&mut *tx).await?;
+            sqlx::query("DELETE FROM settlements WHERE group_id=?").bind(&id).execute(&mut *tx).await?;
             sqlx::query("DELETE FROM shared_expenses WHERE group_id=?").bind(&id).execute(&mut *tx).await?;
             sqlx::query("DELETE FROM group_members WHERE group_id=?").bind(&id).execute(&mut *tx).await?;
             sqlx::query("DELETE FROM expense_groups WHERE id=?").bind(&id).execute(&mut *tx).await?;
@@ -1258,11 +1284,12 @@ impl LedgerDb {
         self.rt.block_on(async {
             let (used,): (i64,) = sqlx::query_as(
                 "SELECT (SELECT COUNT(*) FROM shared_expense_shares WHERE member_id = ?1)
-                      + (SELECT COUNT(*) FROM shared_expenses WHERE paid_by_member_id = ?1)"
+                      + (SELECT COUNT(*) FROM shared_expenses WHERE paid_by_member_id = ?1)
+                      + (SELECT COUNT(*) FROM settlements WHERE from_member_id = ?1 OR to_member_id = ?1)"
             ).bind(&id).fetch_one(&self.pool).await?;
             if used > 0 {
                 return Err(LedgerError::InvalidInput(
-                    "this person appears in an expense — remove those first".into()
+                    "this person appears in an expense or a payment — remove those first".into()
                 ));
             }
             sqlx::query("DELETE FROM group_members WHERE id=? AND is_you = 0")
@@ -1404,6 +1431,113 @@ impl LedgerDb {
         })
     }
 
+    // ── Settling up ──────────────────────────────────────────────────────────
+
+    /// `transaction_id` is set when the money moved through one of your wallets. It is null when two
+    /// other people squared up between themselves: the group balance changes, but nothing of yours
+    /// did, so there is no transaction to point at.
+    pub fn record_settlement(
+        &self,
+        group_id: String,
+        from_member_id: String,
+        to_member_id: String,
+        amount_cents: i64,
+        transaction_id: Option<String>,
+        occurred_at: Option<String>,
+    ) -> Result<Settlement, LedgerError> {
+        if amount_cents <= 0 { return Err(LedgerError::InvalidInput("amount must be positive".into())); }
+        if from_member_id == to_member_id {
+            return Err(LedgerError::InvalidInput("paying yourself back is not a payment".into()));
+        }
+
+        self.rt.block_on(async {
+            // Both sides have to belong to this group, or the balances would never come back to zero
+            // and nothing would say why.
+            let (belong,): (i64,) = sqlx::query_as(
+                "SELECT COUNT(*) FROM group_members WHERE group_id = ?1 AND id IN (?2, ?3)"
+            ).bind(&group_id).bind(&from_member_id).bind(&to_member_id).fetch_one(&self.pool).await?;
+            if belong != 2 {
+                return Err(LedgerError::InvalidInput("both people have to be in this group".into()));
+            }
+
+            let id = Uuid::new_v4().to_string();
+            let now = Utc::now().to_rfc3339();
+            let occurred = occurred_at.unwrap_or_else(|| now.clone());
+            sqlx::query(
+                "INSERT INTO settlements (id, group_id, from_member_id, to_member_id, amount_cents, transaction_id, occurred_at, created_at)
+                 VALUES (?,?,?,?,?,?,?,?)"
+            )
+            .bind(&id).bind(&group_id).bind(&from_member_id).bind(&to_member_id)
+            .bind(amount_cents).bind(&transaction_id).bind(&occurred).bind(&now)
+            .execute(&self.pool).await?;
+
+            let row = sqlx::query_as::<_, SettlementRow>(&format!("{SETTLEMENT_SELECT} WHERE s.id = ?"))
+                .bind(&id).fetch_one(&self.pool).await?;
+            Ok(row_to_settlement(row))
+        })
+    }
+
+    pub fn list_settlements(&self, group_id: String) -> Result<Vec<Settlement>, LedgerError> {
+        self.rt.block_on(async {
+            let rows = sqlx::query_as::<_, SettlementRow>(
+                &format!("{SETTLEMENT_SELECT} WHERE s.group_id = ? ORDER BY s.occurred_at DESC, s.created_at DESC, s.id DESC")
+            ).bind(&group_id).fetch_all(&self.pool).await?;
+            Ok(rows.into_iter().map(row_to_settlement).collect())
+        })
+    }
+
+    pub fn delete_settlement(&self, id: String) -> Result<(), LedgerError> {
+        self.rt.block_on(async {
+            sqlx::query("DELETE FROM settlements WHERE id=?").bind(&id).execute(&self.pool).await?;
+            Ok(())
+        })
+    }
+
+    /// Who should pay whom to close the group.
+    ///
+    /// Everybody paying everybody they owe is up to one payment per pair; this gives one per person
+    /// less one, by repeatedly sending the largest debt to the largest credit. Nobody is asked for
+    /// more than they owe, and because each step takes the smaller of the two sides, every balance
+    /// lands exactly on zero rather than near it.
+    pub fn suggest_settlements(&self, group_id: String) -> Result<Vec<SettlementSuggestion>, LedgerError> {
+        let members = self.list_group_members(group_id)?;
+        let named: Vec<(String, String, i64)> = members.into_iter()
+            .map(|m| (m.id, m.name, m.balance_cents))
+            .collect();
+
+        let mut owe: Vec<(String, String, i64)> = named.iter()
+            .filter(|(_, _, b)| *b < 0)
+            .map(|(id, name, b)| (id.clone(), name.clone(), -b))
+            .collect();
+        let mut owed: Vec<(String, String, i64)> = named.iter()
+            .filter(|(_, _, b)| *b > 0)
+            .map(|(id, name, b)| (id.clone(), name.clone(), *b))
+            .collect();
+
+        // Largest first, so the biggest debt is cleared against the biggest credit and each step
+        // retires at least one of the two.
+        owe.sort_by(|a, b| b.2.cmp(&a.2).then(a.0.cmp(&b.0)));
+        owed.sort_by(|a, b| b.2.cmp(&a.2).then(a.0.cmp(&b.0)));
+
+        let mut plan = Vec::new();
+        let (mut i, mut j) = (0usize, 0usize);
+        while i < owe.len() && j < owed.len() {
+            let amount = owe[i].2.min(owed[j].2);
+            if amount > 0 {
+                plan.push(SettlementSuggestion {
+                    from_member_id: owe[i].0.clone(), from_name: owe[i].1.clone(),
+                    to_member_id: owed[j].0.clone(), to_name: owed[j].1.clone(),
+                    amount_cents: amount,
+                });
+            }
+            owe[i].2 -= amount;
+            owed[j].2 -= amount;
+            if owe[i].2 == 0 { i += 1; }
+            if owed[j].2 == 0 { j += 1; }
+        }
+        Ok(plan)
+    }
+
     pub fn list_expense_shares(&self, shared_expense_id: String) -> Result<Vec<ExpenseShare>, LedgerError> {
         self.rt.block_on(async {
             let rows = sqlx::query_as::<_, ExpenseShareRow>(
@@ -1541,9 +1675,43 @@ const GROUP_SELECT: &str = "SELECT g.id, g.name, g.emoji, g.color_hex, \
      (SELECT COUNT(*) FROM shared_expenses WHERE group_id = g.id) AS expense_count, \
      g.created_at FROM expense_groups g";
 
+#[derive(sqlx::FromRow)]
+struct SettlementRow {
+    id: String,
+    group_id: String,
+    from_member_id: String,
+    from_name: String,
+    to_member_id: String,
+    to_name: String,
+    amount_cents: i64,
+    transaction_id: Option<String>,
+    occurred_at: String,
+}
+
+fn row_to_settlement(r: SettlementRow) -> Settlement {
+    Settlement {
+        id: r.id, group_id: r.group_id,
+        from_member_id: r.from_member_id, from_name: r.from_name,
+        to_member_id: r.to_member_id, to_name: r.to_name,
+        amount_cents: r.amount_cents, transaction_id: r.transaction_id,
+        occurred_at: r.occurred_at,
+    }
+}
+
+const SETTLEMENT_SELECT: &str = "SELECT s.id, s.group_id, s.from_member_id, f.name AS from_name, \
+     s.to_member_id, t.name AS to_name, s.amount_cents, s.transaction_id, s.occurred_at \
+     FROM settlements s \
+     JOIN group_members f ON f.id = s.from_member_id \
+     JOIN group_members t ON t.id = s.to_member_id";
+
+// Paying somebody back counts as putting that much more into the group, and being paid back counts
+// as putting that much less in — which is what keeps the balances summing to zero across a
+// settlement instead of quietly leaking the amount that changed hands.
 const MEMBER_SELECT: &str = "SELECT m.id, m.group_id, m.name, m.is_you, \
-     COALESCE((SELECT SUM(amount_cents) FROM shared_expenses WHERE paid_by_member_id = m.id), 0) AS paid_cents, \
-     COALESCE((SELECT SUM(share_cents) FROM shared_expense_shares WHERE member_id = m.id), 0) AS owes_cents \
+     COALESCE((SELECT SUM(amount_cents) FROM shared_expenses WHERE paid_by_member_id = m.id), 0) \
+       + COALESCE((SELECT SUM(amount_cents) FROM settlements WHERE from_member_id = m.id), 0) AS paid_cents, \
+     COALESCE((SELECT SUM(share_cents) FROM shared_expense_shares WHERE member_id = m.id), 0) \
+       + COALESCE((SELECT SUM(amount_cents) FROM settlements WHERE to_member_id = m.id), 0) AS owes_cents \
      FROM group_members m";
 
 const EXPENSE_SELECT: &str = "SELECT e.id, e.group_id, e.transaction_id, e.description, e.amount_cents, \

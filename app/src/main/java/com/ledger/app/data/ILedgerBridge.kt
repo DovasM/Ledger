@@ -84,6 +84,10 @@ interface ILedgerBridge {
     fun addSharedExpense(groupId: String, description: String, amountCents: Long, paidByMemberId: String, transactionId: String?, shares: List<ShareInput>, occurredAt: String?): SharedExpense
     fun updateSharedExpense(id: String, description: String, amountCents: Long, paidByMemberId: String, shares: List<ShareInput>, occurredAt: String?): SharedExpense
     fun deleteSharedExpense(id: String)
+    fun recordSettlement(groupId: String, fromMemberId: String, toMemberId: String, amountCents: Long, transactionId: String?, occurredAt: String?): Settlement
+    fun listSettlements(groupId: String): List<Settlement>
+    fun deleteSettlement(id: String)
+    fun suggestSettlements(groupId: String): List<SettlementSuggestion>
     fun listExpenseShares(sharedExpenseId: String): List<ExpenseShare>
 
     // ── Backup & restore ──────────────────────────────────────────────────────

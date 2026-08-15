@@ -13,6 +13,8 @@ import uniffi.ledger.ExpenseGroup
 import uniffi.ledger.ExpenseShare
 import uniffi.ledger.GroupMember
 import uniffi.ledger.ShareInput
+import uniffi.ledger.Settlement
+import uniffi.ledger.SettlementSuggestion
 import uniffi.ledger.SharedExpense
 import javax.inject.Inject
 
@@ -23,6 +25,10 @@ data class SharedExpenseUiState(
     val members: Map<String, List<GroupMember>> = emptyMap(),
     val expenses: Map<String, List<SharedExpense>> = emptyMap(),
     val shares: Map<String, List<ExpenseShare>> = emptyMap(),
+    val settlements: Map<String, List<Settlement>> = emptyMap(),
+    // Who the app thinks should pay whom. Recomputed whenever a group is reloaded, because every
+    // expense and every payment changes the answer.
+    val suggestions: Map<String, List<SettlementSuggestion>> = emptyMap(),
     val isLoading: Boolean = false,
     val error: String? = null
 )
@@ -53,9 +59,13 @@ class SharedExpenseViewModel @Inject constructor(
             try {
                 val members = bridge.listGroupMembers(groupId)
                 val expenses = bridge.listSharedExpenses(groupId)
+                val settlements = bridge.listSettlements(groupId)
+                val suggestions = bridge.suggestSettlements(groupId)
                 _state.value = _state.value.copy(
                     members = _state.value.members + (groupId to members),
-                    expenses = _state.value.expenses + (groupId to expenses)
+                    expenses = _state.value.expenses + (groupId to expenses),
+                    settlements = _state.value.settlements + (groupId to settlements),
+                    suggestions = _state.value.suggestions + (groupId to suggestions)
                 )
             } catch (e: Exception) {
                 _state.value = _state.value.copy(error = e.message)
@@ -182,6 +192,35 @@ class SharedExpenseViewModel @Inject constructor(
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 bridge.deleteSharedExpense(id)
+                loadGroup(groupId)
+                load()
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message)
+            }
+        }
+    }
+
+    /**
+     * Recording that somebody handed money over. The suggested amount is only a default — a partial
+     * payment is a normal thing and is recorded as what was actually paid, not as what was owed.
+     */
+    fun settle(groupId: String, fromMemberId: String, toMemberId: String, amountCents: Long, onSuccess: () -> Unit = {}) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                bridge.recordSettlement(groupId, fromMemberId, toMemberId, amountCents, null, null)
+                loadGroup(groupId)
+                load()
+                launch(Dispatchers.Main) { onSuccess() }
+            } catch (e: Exception) {
+                _state.value = _state.value.copy(error = e.message)
+            }
+        }
+    }
+
+    fun deleteSettlement(id: String, groupId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                bridge.deleteSettlement(id)
                 loadGroup(groupId)
                 load()
             } catch (e: Exception) {

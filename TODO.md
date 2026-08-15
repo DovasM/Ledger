@@ -78,8 +78,9 @@ Widgets" section of `project.md`. Every new widget should use that snapshot, not
 ## Transaction Splitting & Shared Expenses
 
 - [ ] **Split transaction between wallets** — allow a single transaction to be divided across multiple wallets (e.g. $100 paid 60% from Checking, 40% from Cash). Needs a `TransactionSplit` Room entity linking transaction → wallet → amount
-- [ ] **Settling up** — recording that somebody paid you back. Today it is a plain income transaction
-  and the group balance has to be corrected by editing the expense, which is the wrong shape for it
+- [ ] **A settlement does not touch your wallet either** — `settlements.transaction_id` exists and is
+  always null: recording that Mike paid you 120 changes the group balance but no wallet gains the
+  120. Same shape of gap as the one below, and probably the same fix
 - [ ] **A shared expense and its transaction are still two separate entries** — recording that you paid 100 for a
   group dinner means writing the transaction (which moves your balance) and the shared expense (which tracks who
   owes you) separately. That was the design: the transaction stays whole so the reports keep saying what actually

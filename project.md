@@ -636,7 +636,7 @@ runtime (see the cascade note below).
 `core/src/db/mod.rs` owns a `schema_version` table and numbered migrations (`m1_baseline_tables`,
 `m2_category_links`, `m3_indexes`, `m4_transfers_currency_budgets`, `m5_off_budget_wallets`,
 `m6_transaction_occurred_at`, `m7_goal_and_debt_history`, `m8_money_as_cents`,
-`m9_wallet_opening_balance`, `m10_shared_expenses`). Add the next one as `mN_…` plus an
+`m9_wallet_opening_balance`, `m10_shared_expenses`, `m11_settlements`). Add the next one as `mN_…` plus an
 `if applied < N` arm.
 
 **Every migration must be idempotent, without exception.** Databases predating the version table
@@ -946,6 +946,26 @@ touching a row, so a correction that does not add up leaves the original exactly
 failure modes have a test that was confirmed to fail without the guard. `transaction_id` is
 deliberately absent from the `SET`, so correcting a description never unlinks the expense from the
 transaction that paid it.
+
+### Settling up
+
+A settlement is **not** an expense — nothing was bought — so it lives in its own `m11` table rather
+than in `shared_expenses`, where it would inflate every group total it touched. It is a transfer of
+credit: whoever pays has now put that much more into the group and whoever receives has put that
+much less, which is why `MEMBER_SELECT` adds settlements paid to `paid_cents` and settlements
+received to `owes_cents`, and why the balances still sum to zero across one.
+
+Overpaying is deliberately allowed and swings the balance the other way rather than being clamped —
+clamping would silently lose the difference. What is refused is a payment of nothing, paying
+yourself, and either side belonging to another group, since that last one would put the totals
+permanently out of true with nothing to say why.
+
+`suggest_settlements` works out **who pays whom**, because everybody paying everybody they owe is up
+to one payment per pair — six for four people — where one per person less one is enough. It sends
+the largest debt to the largest credit repeatedly; each step takes the *smaller* of the two sides,
+which is what retires one of them exactly and lands every balance on zero rather than near it.
+`making_every_suggested_payment_closes_the_group` is the property that matters, run over splits
+chosen because they do not divide evenly; taking the larger side instead fails it.
 
 **`current_schema_version()` is exposed over the FFI** so neither a test nor a screen has to write
 the number down. Both did, and both went stale the moment `m10` was added.

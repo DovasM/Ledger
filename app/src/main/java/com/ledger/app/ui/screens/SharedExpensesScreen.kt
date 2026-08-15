@@ -36,6 +36,8 @@ import uniffi.ledger.ExpenseGroup
 import uniffi.ledger.ExpenseShare
 import uniffi.ledger.GroupMember
 import uniffi.ledger.ShareInput
+import uniffi.ledger.Settlement
+import uniffi.ledger.SettlementSuggestion
 import uniffi.ledger.SharedExpense
 import uniffi.ledger.splitEqually
 
@@ -59,6 +61,7 @@ fun SharedExpensesScreen(
     var openGroupId by remember { mutableStateOf<String?>(null) }
     // Adding an expense straight from the list, without having to open the group first.
     var expenseForGroupId by remember { mutableStateOf<String?>(null) }
+    var settleForGroupId by remember { mutableStateOf<String?>(null) }
 
     if (newGroup) {
         NewGroupDialog(
@@ -92,6 +95,15 @@ fun SharedExpensesScreen(
         }
     }
 
+    settleForGroupId?.let { id ->
+        SettleUpDialog(
+            suggestions = state.suggestions[id].orEmpty(),
+            money = money,
+            onDismiss = { settleForGroupId = null },
+            onSettle = { from, to, amount -> viewModel.settle(id, from, to, amount) }
+        )
+    }
+
     openGroupId?.let { id ->
         val group = state.groups.find { it.id == id }
         if (group != null) {
@@ -103,6 +115,8 @@ fun SharedExpensesScreen(
                 onDismiss = { openGroupId = null },
                 onLoad = { viewModel.loadGroup(id) },
                 shares = state.shares,
+                settlements = state.settlements[id].orEmpty(),
+                suggestions = state.suggestions[id].orEmpty(),
                 onAddExpense = { description, amountCents, paidBy, shares ->
                     viewModel.addExpense(id, description, amountCents, paidBy, shares)
                 },
@@ -112,6 +126,8 @@ fun SharedExpensesScreen(
                 onLoadShares = { viewModel.loadShares(it) },
                 onDeleteExpense = { viewModel.deleteExpense(it, id) },
                 onAddMember = { viewModel.addMember(id, it) },
+                onSettle = { from, to, amount -> viewModel.settle(id, from, to, amount) },
+                onDeleteSettlement = { viewModel.deleteSettlement(it, id) },
                 onRename = { name, emoji -> viewModel.renameGroup(id, name, emoji) },
                 onDeleteGroup = { viewModel.deleteGroup(id) { openGroupId = null } }
             )
@@ -187,7 +203,8 @@ fun SharedExpensesScreen(
                         group = group,
                         money = money,
                         onOpen = { openGroupId = group.id; viewModel.loadGroup(group.id) },
-                        onAddExpense = { expenseForGroupId = group.id; viewModel.loadGroup(group.id) }
+                        onAddExpense = { expenseForGroupId = group.id; viewModel.loadGroup(group.id) },
+                        onSettleUp = { settleForGroupId = group.id; viewModel.loadGroup(group.id) }
                     )
                 }
             }
@@ -214,7 +231,8 @@ private fun GroupCard(
     group: ExpenseGroup,
     money: MoneyFormatter,
     onOpen: () -> Unit,
-    onAddExpense: () -> Unit
+    onAddExpense: () -> Unit,
+    onSettleUp: () -> Unit
 ) {
     LedgerCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -251,17 +269,30 @@ private fun GroupCard(
                 }
             }
 
-            // The amount goes in here. Reaching it only by opening the group left the list showing a
-            // single + that makes another group, which is not what anyone is looking for.
-            Button(
-                onClick = onAddExpense,
-                modifier = Modifier.fillMaxWidth().height(44.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                shape = RoundedCornerShape(6.dp)
-            ) {
-                Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Add expense", style = MaterialTheme.typography.labelLarge)
+            // Both of the things anyone comes to this screen for, on the card itself. Reaching them
+            // only by opening the group left the list showing a single + that makes another group,
+            // which is not what anyone is looking for.
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(
+                    onClick = onAddExpense,
+                    modifier = Modifier.weight(1f).height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Add expense", style = MaterialTheme.typography.labelLarge)
+                }
+                // Shown once there is anything to settle at all. Whether this particular group is
+                // already square is a question only the balances can answer, and the dialog says so
+                // plainly rather than the button pretending to know.
+                if (group.expenseCount > 0) {
+                    OutlinedButton(
+                        onClick = onSettleUp,
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        shape = RoundedCornerShape(6.dp)
+                    ) { Text("Settle up", style = MaterialTheme.typography.labelLarge, color = Primary) }
+                }
             }
         }
     }
@@ -356,11 +387,15 @@ private fun GroupSheet(
     onDismiss: () -> Unit,
     onLoad: () -> Unit,
     shares: Map<String, List<ExpenseShare>>,
+    settlements: List<Settlement>,
+    suggestions: List<SettlementSuggestion>,
     onAddExpense: (String, Long, String, List<ShareInput>) -> Unit,
     onEditExpense: (String, String, Long, String, List<ShareInput>) -> Unit,
     onLoadShares: (String) -> Unit,
     onDeleteExpense: (String) -> Unit,
     onAddMember: (String) -> Unit,
+    onSettle: (String, String, Long) -> Unit,
+    onDeleteSettlement: (String) -> Unit,
     onRename: (String, String) -> Unit,
     onDeleteGroup: () -> Unit
 ) {
@@ -372,6 +407,7 @@ private fun GroupSheet(
     var addMember by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
+    var settling by remember { mutableStateOf(false) }
 
     editing?.let { expense ->
         ExpenseDialog(
@@ -422,6 +458,19 @@ private fun GroupSheet(
         )
     }
 
+    if (settling) {
+        SettleUpDialog(
+            suggestions = suggestions,
+            money = money,
+            onDismiss = { settling = false },
+            onSettle = { from, to, amount ->
+                onSettle(from, to, amount)
+                // Left open on purpose: closing a group usually takes more than one payment, and the
+                // list rebuilds itself from the new balances after each one.
+            }
+        )
+    }
+
     if (renaming) {
         var name by remember { mutableStateOf(group.name) }
         var emoji by remember { mutableStateOf(group.emoji) }
@@ -466,6 +515,34 @@ private fun GroupSheet(
                 }
                 IconButton(onClick = { confirmDelete = true }) {
                     Icon(Icons.Filled.Delete, "Delete group", tint = OnSurfaceVariant, modifier = Modifier.size(20.dp))
+                }
+            }
+
+            // Both actions sit above the lists. Buried under the members and every expense, the
+            // "Add expense" button was off the bottom of a long group and might as well not have
+            // existed.
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(
+                    onClick = { addExpense = true },
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Add expense", style = MaterialTheme.typography.labelLarge)
+                }
+                OutlinedButton(
+                    onClick = { settling = true },
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    enabled = suggestions.isNotEmpty(),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Text(
+                        if (suggestions.isEmpty()) "Settled up" else "Settle up",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = if (suggestions.isEmpty()) OnSurfaceVariant else Primary
+                    )
                 }
             }
 
@@ -531,15 +608,25 @@ private fun GroupSheet(
                 }
             }
 
-            Button(
-                onClick = { addExpense = true },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                shape = RoundedCornerShape(6.dp)
-            ) {
-                Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Add expense", style = MaterialTheme.typography.labelLarge)
+            // What has already been handed over. Without it a mistyped payment would be invisible
+            // and there would be no way to take it back.
+            if (settlements.isNotEmpty()) {
+                HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
+                Text("Payments", style = MaterialTheme.typography.titleSmall, color = OnSurfaceVariant, fontWeight = FontWeight.SemiBold)
+                settlements.forEach { paid ->
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "${paid.fromName} paid ${paid.toName} ${money.of(paid.amountCents)}",
+                                style = MaterialTheme.typography.bodyMedium, color = OnSurface
+                            )
+                            Text(paid.occurredAt.take(10), style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                        }
+                        IconButton(onClick = { onDeleteSettlement(paid.id) }) {
+                            Icon(Icons.Filled.Close, "Undo payment", tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
             }
         }
     }
@@ -711,5 +798,85 @@ private fun ExpenseDialog(
             ) { Text(if (editing) "Save" else "Add", color = Primary) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = OnSurfaceVariant) } }
+    )
+}
+
+/**
+ * Squaring up.
+ *
+ * The app already knows every balance, so it says who should pay whom rather than handing over an
+ * empty form — and it works out the fewest payments that close the group, which with four people is
+ * three instead of six. Each suggested amount is only a default: paying back part of what is owed is
+ * a normal thing, so the figure stays editable and what gets recorded is what actually changed
+ * hands.
+ */
+@Composable
+private fun SettleUpDialog(
+    suggestions: List<SettlementSuggestion>,
+    money: MoneyFormatter,
+    onDismiss: () -> Unit,
+    onSettle: (String, String, Long) -> Unit
+) {
+    // Keyed by position, because the same pair can appear once only in a plan.
+    var typed by remember(suggestions) { mutableStateOf(suggestions.map { it.amountCents.asAmountInput() }) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (suggestions.isEmpty()) "Nothing to settle" else "Settle up") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                if (suggestions.isEmpty()) {
+                    // A dead end that explains itself, rather than an empty list.
+                    Text(
+                        "Everyone is square. Nothing is owed either way.",
+                        style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        if (suggestions.size == 1) "One payment closes this group."
+                        else "${suggestions.size} payments close this group.",
+                        style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                    )
+                    suggestions.forEachIndexed { index, suggestion ->
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                "${suggestion.fromName} pays ${suggestion.toName}",
+                                style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                LedgerTextField(
+                                    value = typed.getOrElse(index) { "" },
+                                    onValueChange = { v ->
+                                        if (v.all { it.isDigit() || it == '.' || it == ',' }) {
+                                            typed = typed.toMutableList().also { it[index] = v }
+                                        }
+                                    },
+                                    label = "Amount",
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                val cents = typed.getOrElse(index) { "" }.toCentsOrNull()
+                                Button(
+                                    onClick = { onSettle(suggestion.fromMemberId, suggestion.toMemberId, cents!!) },
+                                    enabled = cents != null && cents > 0,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) { Text("Record", style = MaterialTheme.typography.labelMedium) }
+                            }
+                            if (typed.getOrElse(index) { "" }.toCentsOrNull().let { it != null && it != suggestion.amountCents }) {
+                                Text(
+                                    "Suggested ${money.of(suggestion.amountCents)}",
+                                    style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done", color = Primary) } }
     )
 }

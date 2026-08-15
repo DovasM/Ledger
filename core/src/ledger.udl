@@ -145,6 +145,26 @@ dictionary SharedExpense {
     string occurred_at;
 };
 
+dictionary Settlement {
+    string id;
+    string group_id;
+    string from_member_id;
+    string from_name;
+    string to_member_id;
+    string to_name;
+    i64 amount_cents;
+    string? transaction_id;
+    string occurred_at;
+};
+
+dictionary SettlementSuggestion {
+    string from_member_id;
+    string from_name;
+    string to_member_id;
+    string to_name;
+    i64 amount_cents;
+};
+
 dictionary ExpenseShare {
     string id;
     string shared_expense_id;
@@ -431,6 +451,19 @@ interface LedgerDb {
 
     [Throws=LedgerError]
     sequence<ExpenseShare> list_expense_shares(string shared_expense_id);
+
+    [Throws=LedgerError]
+    Settlement record_settlement(string group_id, string from_member_id, string to_member_id,
+                                 i64 amount_cents, string? transaction_id, string? occurred_at);
+
+    [Throws=LedgerError]
+    sequence<Settlement> list_settlements(string group_id);
+
+    [Throws=LedgerError]
+    void delete_settlement(string id);
+
+    [Throws=LedgerError]
+    sequence<SettlementSuggestion> suggest_settlements(string group_id);
 
     // ── Backup & restore ──────────────────────────────────────────────────────
     [Throws=LedgerError]

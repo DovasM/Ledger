@@ -223,6 +223,15 @@ class LedgerBridge @Inject constructor() : ILedgerBridge {
 
     override fun deleteSharedExpense(id: String) = db.deleteSharedExpense(id)
 
+    override fun recordSettlement(groupId: String, fromMemberId: String, toMemberId: String, amountCents: Long, transactionId: String?, occurredAt: String?) =
+        db.recordSettlement(groupId, fromMemberId, toMemberId, amountCents, transactionId, occurredAt)
+
+    override fun listSettlements(groupId: String) = db.listSettlements(groupId)
+
+    override fun deleteSettlement(id: String) = db.deleteSettlement(id)
+
+    override fun suggestSettlements(groupId: String) = db.suggestSettlements(groupId)
+
     override fun listExpenseShares(sharedExpenseId: String) = db.listExpenseShares(sharedExpenseId)
 
     // ── Backup & restore ──────────────────────────────────────────────────────
