@@ -187,6 +187,12 @@ fun DashboardScreen(
                 AddActionCard(Icons.Filled.AccountBalanceWallet, "Add Wallet", "Bank account, cash, or investment", Color(0xFF6A1B9A)) {
                     showAddSheet = false; navController.navigate(Screen.AddWallet.route)
                 }
+                // Splitting a bill is something you record, so it belongs in the menu you open to
+                // record things — not filed under Settings, where it was reachable only by someone
+                // who already knew it existed.
+                AddActionCard(Icons.Filled.Group, "Split an expense", "Share a cost and track who owes what", Color(0xFF00838F)) {
+                    showAddSheet = false; navController.navigate(Screen.SharedExpenses.route)
+                }
                 AddActionCard(Icons.Filled.LocalOffer, "New Category", "Custom category with icon", Color(0xFFE65100)) {
                     showAddSheet = false; navController.navigate(Screen.AddCategory.route)
                 }

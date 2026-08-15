@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 /// The highest migration this build knows how to run. A backup taken by a newer build carries a
 /// higher number and must be refused rather than half-understood.
-pub const CURRENT_SCHEMA_VERSION: i64 = 10;
+pub const CURRENT_SCHEMA_VERSION: i64 = 11;
 
 /// Every table holding user data, in an order that inserts parents before children. schema_version
 /// is deliberately absent: a restore keeps the running app's own version.
@@ -13,7 +13,7 @@ pub const USER_TABLES: &[&str] = &[
     "categories", "wallets", "tags", "transactions", "transaction_tags", "transfers",
     "savings_goals", "goal_contributions", "debts", "debt_payments", "budgets",
     "recurring_transactions", "price_alerts",
-    "expense_groups", "group_members", "shared_expenses", "shared_expense_shares",
+    "expense_groups", "group_members", "shared_expenses", "shared_expense_shares", "settlements",
 ];
 
 pub async fn open_pool(db_path: &str) -> Result<SqlitePool, sqlx::Error> {
@@ -85,6 +85,10 @@ async fn run_migrations(pool: &SqlitePool) -> Result<(), sqlx::Error> {
     if applied < 10 {
         m10_shared_expenses(pool).await?;
         record_version(pool, 10).await?;
+    }
+    if applied < 11 {
+        m11_settlements(pool).await?;
+        record_version(pool, 11).await?;
     }
 
     Ok(())
@@ -1002,5 +1006,34 @@ async fn migrate_transaction_categories(pool: &SqlitePool) -> Result<(), sqlx::E
         }
     }
 
+    Ok(())
+}
+
+// Paying each other back. A settlement is not an expense — nothing was bought — so it does not
+// belong in shared_expenses, where it would inflate every group total it touched. It is a transfer
+// of credit: whoever pays has now put that much more into the group, and whoever receives has put
+// that much less, which is why the balances still sum to zero afterwards.
+async fn m11_settlements(pool: &SqlitePool) -> Result<(), sqlx::Error> {
+    sqlx::query(
+        r#"
+        CREATE TABLE IF NOT EXISTS settlements (
+            id             TEXT PRIMARY KEY,
+            group_id       TEXT NOT NULL REFERENCES expense_groups(id),
+            from_member_id TEXT NOT NULL REFERENCES group_members(id),
+            to_member_id   TEXT NOT NULL REFERENCES group_members(id),
+            amount_cents   INTEGER NOT NULL,
+            -- Set when the money really moved through one of your wallets. Null when two other
+            -- people settled between themselves and only the group balance changed.
+            transaction_id TEXT REFERENCES transactions(id),
+            occurred_at    TEXT NOT NULL,
+            created_at     TEXT NOT NULL
+        );
+        CREATE INDEX IF NOT EXISTS idx_settle_group ON settlements(group_id);
+        CREATE INDEX IF NOT EXISTS idx_settle_from  ON settlements(from_member_id);
+        CREATE INDEX IF NOT EXISTS idx_settle_to    ON settlements(to_member_id);
+        "#,
+    )
+    .execute(pool)
+    .await?;
     Ok(())
 }

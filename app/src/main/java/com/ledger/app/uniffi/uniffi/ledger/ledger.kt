@@ -868,6 +868,22 @@ internal interface UniffiForeignFutureCompleteVoid : com.sun.jna.Callback {
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -898,6 +914,8 @@ internal interface UniffiLib : Library {
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_add_group_member(`ptr`: Pointer,`groupId`: RustBuffer.ByValue,`name`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_add_shared_expense(`ptr`: Pointer,`groupId`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`amountCents`: Long,`paidByMemberId`: RustBuffer.ByValue,`transactionId`: RustBuffer.ByValue,`shares`: RustBuffer.ByValue,`occurredAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_add_shared_expense_from_wallet(`ptr`: Pointer,`groupId`: RustBuffer.ByValue,`description`: RustBuffer.ByValue,`amountCents`: Long,`paidByMemberId`: RustBuffer.ByValue,`walletId`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`shares`: RustBuffer.ByValue,`occurredAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_add_tag_to_transaction(`ptr`: Pointer,`transactionId`: RustBuffer.ByValue,`tagId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -947,7 +965,13 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_recurring(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_settlement(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_shared_expense(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_shared_expense_keeping_transaction(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_shared_expense_with_transaction(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_delete_tag(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -985,6 +1009,8 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_recurring(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_settlements(`ptr`: Pointer,`groupId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_shared_expenses(`ptr`: Pointer,`groupId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_tags(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
@@ -997,6 +1023,10 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_list_wallets(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_record_settlement(`ptr`: Pointer,`groupId`: RustBuffer.ByValue,`fromMemberId`: RustBuffer.ByValue,`toMemberId`: RustBuffer.ByValue,`amountCents`: Long,`transactionId`: RustBuffer.ByValue,`occurredAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_record_settlement_to_wallet(`ptr`: Pointer,`groupId`: RustBuffer.ByValue,`fromMemberId`: RustBuffer.ByValue,`toMemberId`: RustBuffer.ByValue,`amountCents`: Long,`walletId`: RustBuffer.ByValue,`category`: RustBuffer.ByValue,`occurredAt`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_remove_group_member(`ptr`: Pointer,`id`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_remove_tag_from_transaction(`ptr`: Pointer,`transactionId`: RustBuffer.ByValue,`tagId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1004,6 +1034,8 @@ internal interface UniffiLib : Library {
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_restore_backup(`ptr`: Pointer,`path`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_set_price_alert_active(`ptr`: Pointer,`id`: RustBuffer.ByValue,`active`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_uniffi_ledger_fn_method_ledgerdb_suggest_settlements(`ptr`: Pointer,`groupId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_uniffi_ledger_fn_method_ledgerdb_update_budget(`ptr`: Pointer,`id`: RustBuffer.ByValue,`categoryId`: RustBuffer.ByValue,`walletId`: RustBuffer.ByValue,`limitAmountCents`: Long,`period`: RustBuffer.ByValue,`alertThreshold`: Double,`carryOver`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -1175,6 +1207,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_add_shared_expense(
     ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_add_shared_expense_from_wallet(
+    ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_add_tag_to_transaction(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_backup_database(
@@ -1223,7 +1257,13 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_recurring(
     ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_settlement(
+    ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_shared_expense(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_shared_expense_keeping_transaction(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_shared_expense_with_transaction(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_tag(
     ): Short
@@ -1261,6 +1301,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_recurring(
     ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_settlements(
+    ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_shared_expenses(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_tags(
@@ -1273,6 +1315,10 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_list_wallets(
     ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_record_settlement(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_record_settlement_to_wallet(
+    ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_remove_group_member(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_remove_tag_from_transaction(
@@ -1280,6 +1326,8 @@ internal interface UniffiLib : Library {
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_restore_backup(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_set_price_alert_active(
+    ): Short
+    fun uniffi_uniffi_ledger_checksum_method_ledgerdb_suggest_settlements(
     ): Short
     fun uniffi_uniffi_ledger_checksum_method_ledgerdb_update_budget(
     ): Short
@@ -1350,6 +1398,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_add_shared_expense() != 21384.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_add_shared_expense_from_wallet() != 44982.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_add_tag_to_transaction() != 47708.toShort()) {
@@ -1424,7 +1475,16 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_recurring() != 172.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_settlement() != 35339.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_shared_expense() != 64177.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_shared_expense_keeping_transaction() != 42655.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_shared_expense_with_transaction() != 56073.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_delete_tag() != 42138.toShort()) {
@@ -1481,6 +1541,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_recurring() != 53704.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_settlements() != 48602.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_shared_expenses() != 46827.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1499,6 +1562,12 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_list_wallets() != 51314.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_record_settlement() != 3155.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_record_settlement_to_wallet() != 4648.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_remove_group_member() != 58234.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1509,6 +1578,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_set_price_alert_active() != 45458.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_suggest_settlements() != 37726.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_uniffi_ledger_checksum_method_ledgerdb_update_budget() != 16118.toShort()) {
@@ -1970,6 +2042,8 @@ public interface LedgerDbInterface {
     
     fun `addSharedExpense`(`groupId`: kotlin.String, `description`: kotlin.String, `amountCents`: kotlin.Long, `paidByMemberId`: kotlin.String, `transactionId`: kotlin.String?, `shares`: List<ShareInput>, `occurredAt`: kotlin.String?): SharedExpense
     
+    fun `addSharedExpenseFromWallet`(`groupId`: kotlin.String, `description`: kotlin.String, `amountCents`: kotlin.Long, `paidByMemberId`: kotlin.String, `walletId`: kotlin.String, `category`: kotlin.String, `shares`: List<ShareInput>, `occurredAt`: kotlin.String?): SharedExpense
+    
     fun `addTagToTransaction`(`transactionId`: kotlin.String, `tagId`: kotlin.String)
     
     fun `backupDatabase`(`destPath`: kotlin.String): BackupInfo
@@ -2018,7 +2092,13 @@ public interface LedgerDbInterface {
     
     fun `deleteRecurring`(`id`: kotlin.String)
     
+    fun `deleteSettlement`(`id`: kotlin.String)
+    
     fun `deleteSharedExpense`(`id`: kotlin.String)
+    
+    fun `deleteSharedExpenseKeepingTransaction`(`id`: kotlin.String)
+    
+    fun `deleteSharedExpenseWithTransaction`(`id`: kotlin.String)
     
     fun `deleteTag`(`id`: kotlin.String)
     
@@ -2056,6 +2136,8 @@ public interface LedgerDbInterface {
     
     fun `listRecurring`(): List<RecurringTransaction>
     
+    fun `listSettlements`(`groupId`: kotlin.String): List<Settlement>
+    
     fun `listSharedExpenses`(`groupId`: kotlin.String): List<SharedExpense>
     
     fun `listTags`(): List<Tag>
@@ -2068,6 +2150,10 @@ public interface LedgerDbInterface {
     
     fun `listWallets`(): List<Wallet>
     
+    fun `recordSettlement`(`groupId`: kotlin.String, `fromMemberId`: kotlin.String, `toMemberId`: kotlin.String, `amountCents`: kotlin.Long, `transactionId`: kotlin.String?, `occurredAt`: kotlin.String?): Settlement
+    
+    fun `recordSettlementToWallet`(`groupId`: kotlin.String, `fromMemberId`: kotlin.String, `toMemberId`: kotlin.String, `amountCents`: kotlin.Long, `walletId`: kotlin.String, `category`: kotlin.String, `occurredAt`: kotlin.String?): Settlement
+    
     fun `removeGroupMember`(`id`: kotlin.String)
     
     fun `removeTagFromTransaction`(`transactionId`: kotlin.String, `tagId`: kotlin.String)
@@ -2075,6 +2161,8 @@ public interface LedgerDbInterface {
     fun `restoreBackup`(`path`: kotlin.String): BackupInfo
     
     fun `setPriceAlertActive`(`id`: kotlin.String, `active`: kotlin.Boolean): PriceAlert
+    
+    fun `suggestSettlements`(`groupId`: kotlin.String): List<SettlementSuggestion>
     
     fun `updateBudget`(`id`: kotlin.String, `categoryId`: kotlin.String?, `walletId`: kotlin.String?, `limitAmountCents`: kotlin.Long, `period`: kotlin.String, `alertThreshold`: kotlin.Double, `carryOver`: kotlin.Boolean): Budget
     
@@ -2224,6 +2312,19 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     uniffiRustCallWithError(LedgerException) { _status ->
     UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_add_shared_expense(
         it, FfiConverterString.lower(`groupId`),FfiConverterString.lower(`description`),FfiConverterLong.lower(`amountCents`),FfiConverterString.lower(`paidByMemberId`),FfiConverterOptionalString.lower(`transactionId`),FfiConverterSequenceTypeShareInput.lower(`shares`),FfiConverterOptionalString.lower(`occurredAt`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `addSharedExpenseFromWallet`(`groupId`: kotlin.String, `description`: kotlin.String, `amountCents`: kotlin.Long, `paidByMemberId`: kotlin.String, `walletId`: kotlin.String, `category`: kotlin.String, `shares`: List<ShareInput>, `occurredAt`: kotlin.String?): SharedExpense {
+            return FfiConverterTypeSharedExpense.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_add_shared_expense_from_wallet(
+        it, FfiConverterString.lower(`groupId`),FfiConverterString.lower(`description`),FfiConverterLong.lower(`amountCents`),FfiConverterString.lower(`paidByMemberId`),FfiConverterString.lower(`walletId`),FfiConverterString.lower(`category`),FfiConverterSequenceTypeShareInput.lower(`shares`),FfiConverterOptionalString.lower(`occurredAt`),_status)
 }
     }
     )
@@ -2535,11 +2636,47 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     
 
     
+    @Throws(LedgerException::class)override fun `deleteSettlement`(`id`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_settlement(
+        it, FfiConverterString.lower(`id`),_status)
+}
+    }
+    
+    
+
+    
     @Throws(LedgerException::class)override fun `deleteSharedExpense`(`id`: kotlin.String)
         = 
     callWithPointer {
     uniffiRustCallWithError(LedgerException) { _status ->
     UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_shared_expense(
+        it, FfiConverterString.lower(`id`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(LedgerException::class)override fun `deleteSharedExpenseKeepingTransaction`(`id`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_shared_expense_keeping_transaction(
+        it, FfiConverterString.lower(`id`),_status)
+}
+    }
+    
+    
+
+    
+    @Throws(LedgerException::class)override fun `deleteSharedExpenseWithTransaction`(`id`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_delete_shared_expense_with_transaction(
         it, FfiConverterString.lower(`id`),_status)
 }
     }
@@ -2777,6 +2914,19 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     
 
     
+    @Throws(LedgerException::class)override fun `listSettlements`(`groupId`: kotlin.String): List<Settlement> {
+            return FfiConverterSequenceTypeSettlement.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_list_settlements(
+        it, FfiConverterString.lower(`groupId`),_status)
+}
+    }
+    )
+    }
+    
+
+    
     @Throws(LedgerException::class)override fun `listSharedExpenses`(`groupId`: kotlin.String): List<SharedExpense> {
             return FfiConverterSequenceTypeSharedExpense.lift(
     callWithPointer {
@@ -2855,6 +3005,32 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     
 
     
+    @Throws(LedgerException::class)override fun `recordSettlement`(`groupId`: kotlin.String, `fromMemberId`: kotlin.String, `toMemberId`: kotlin.String, `amountCents`: kotlin.Long, `transactionId`: kotlin.String?, `occurredAt`: kotlin.String?): Settlement {
+            return FfiConverterTypeSettlement.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_record_settlement(
+        it, FfiConverterString.lower(`groupId`),FfiConverterString.lower(`fromMemberId`),FfiConverterString.lower(`toMemberId`),FfiConverterLong.lower(`amountCents`),FfiConverterOptionalString.lower(`transactionId`),FfiConverterOptionalString.lower(`occurredAt`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `recordSettlementToWallet`(`groupId`: kotlin.String, `fromMemberId`: kotlin.String, `toMemberId`: kotlin.String, `amountCents`: kotlin.Long, `walletId`: kotlin.String, `category`: kotlin.String, `occurredAt`: kotlin.String?): Settlement {
+            return FfiConverterTypeSettlement.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_record_settlement_to_wallet(
+        it, FfiConverterString.lower(`groupId`),FfiConverterString.lower(`fromMemberId`),FfiConverterString.lower(`toMemberId`),FfiConverterLong.lower(`amountCents`),FfiConverterString.lower(`walletId`),FfiConverterString.lower(`category`),FfiConverterOptionalString.lower(`occurredAt`),_status)
+}
+    }
+    )
+    }
+    
+
+    
     @Throws(LedgerException::class)override fun `removeGroupMember`(`id`: kotlin.String)
         = 
     callWithPointer {
@@ -2898,6 +3074,19 @@ open class LedgerDb: Disposable, AutoCloseable, LedgerDbInterface {
     uniffiRustCallWithError(LedgerException) { _status ->
     UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_set_price_alert_active(
         it, FfiConverterString.lower(`id`),FfiConverterBoolean.lower(`active`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    @Throws(LedgerException::class)override fun `suggestSettlements`(`groupId`: kotlin.String): List<SettlementSuggestion> {
+            return FfiConverterSequenceTypeSettlementSuggestion.lift(
+    callWithPointer {
+    uniffiRustCallWithError(LedgerException) { _status ->
+    UniffiLib.INSTANCE.uniffi_uniffi_ledger_fn_method_ledgerdb_suggest_settlements(
+        it, FfiConverterString.lower(`groupId`),_status)
 }
     }
     )
@@ -4044,6 +4233,110 @@ public object FfiConverterTypeSavingsGoal: FfiConverterRustBuffer<SavingsGoal> {
 
 
 
+data class Settlement (
+    var `id`: kotlin.String, 
+    var `groupId`: kotlin.String, 
+    var `fromMemberId`: kotlin.String, 
+    var `fromName`: kotlin.String, 
+    var `toMemberId`: kotlin.String, 
+    var `toName`: kotlin.String, 
+    var `amountCents`: kotlin.Long, 
+    var `transactionId`: kotlin.String?, 
+    var `occurredAt`: kotlin.String
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeSettlement: FfiConverterRustBuffer<Settlement> {
+    override fun read(buf: ByteBuffer): Settlement {
+        return Settlement(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterLong.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: Settlement) = (
+            FfiConverterString.allocationSize(value.`id`) +
+            FfiConverterString.allocationSize(value.`groupId`) +
+            FfiConverterString.allocationSize(value.`fromMemberId`) +
+            FfiConverterString.allocationSize(value.`fromName`) +
+            FfiConverterString.allocationSize(value.`toMemberId`) +
+            FfiConverterString.allocationSize(value.`toName`) +
+            FfiConverterLong.allocationSize(value.`amountCents`) +
+            FfiConverterOptionalString.allocationSize(value.`transactionId`) +
+            FfiConverterString.allocationSize(value.`occurredAt`)
+    )
+
+    override fun write(value: Settlement, buf: ByteBuffer) {
+            FfiConverterString.write(value.`id`, buf)
+            FfiConverterString.write(value.`groupId`, buf)
+            FfiConverterString.write(value.`fromMemberId`, buf)
+            FfiConverterString.write(value.`fromName`, buf)
+            FfiConverterString.write(value.`toMemberId`, buf)
+            FfiConverterString.write(value.`toName`, buf)
+            FfiConverterLong.write(value.`amountCents`, buf)
+            FfiConverterOptionalString.write(value.`transactionId`, buf)
+            FfiConverterString.write(value.`occurredAt`, buf)
+    }
+}
+
+
+
+data class SettlementSuggestion (
+    var `fromMemberId`: kotlin.String, 
+    var `fromName`: kotlin.String, 
+    var `toMemberId`: kotlin.String, 
+    var `toName`: kotlin.String, 
+    var `amountCents`: kotlin.Long
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeSettlementSuggestion: FfiConverterRustBuffer<SettlementSuggestion> {
+    override fun read(buf: ByteBuffer): SettlementSuggestion {
+        return SettlementSuggestion(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterLong.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: SettlementSuggestion) = (
+            FfiConverterString.allocationSize(value.`fromMemberId`) +
+            FfiConverterString.allocationSize(value.`fromName`) +
+            FfiConverterString.allocationSize(value.`toMemberId`) +
+            FfiConverterString.allocationSize(value.`toName`) +
+            FfiConverterLong.allocationSize(value.`amountCents`)
+    )
+
+    override fun write(value: SettlementSuggestion, buf: ByteBuffer) {
+            FfiConverterString.write(value.`fromMemberId`, buf)
+            FfiConverterString.write(value.`fromName`, buf)
+            FfiConverterString.write(value.`toMemberId`, buf)
+            FfiConverterString.write(value.`toName`, buf)
+            FfiConverterLong.write(value.`amountCents`, buf)
+    }
+}
+
+
+
 data class ShareInput (
     var `memberId`: kotlin.String, 
     var `shareCents`: kotlin.Long
@@ -4830,6 +5123,62 @@ public object FfiConverterSequenceTypeSavingsGoal: FfiConverterRustBuffer<List<S
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeSavingsGoal.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeSettlement: FfiConverterRustBuffer<List<Settlement>> {
+    override fun read(buf: ByteBuffer): List<Settlement> {
+        val len = buf.getInt()
+        return List<Settlement>(len) {
+            FfiConverterTypeSettlement.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<Settlement>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeSettlement.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<Settlement>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeSettlement.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeSettlementSuggestion: FfiConverterRustBuffer<List<SettlementSuggestion>> {
+    override fun read(buf: ByteBuffer): List<SettlementSuggestion> {
+        val len = buf.getInt()
+        return List<SettlementSuggestion>(len) {
+            FfiConverterTypeSettlementSuggestion.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<SettlementSuggestion>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeSettlementSuggestion.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<SettlementSuggestion>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeSettlementSuggestion.write(it, buf)
         }
     }
 }

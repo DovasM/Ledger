@@ -636,7 +636,7 @@ runtime (see the cascade note below).
 `core/src/db/mod.rs` owns a `schema_version` table and numbered migrations (`m1_baseline_tables`,
 `m2_category_links`, `m3_indexes`, `m4_transfers_currency_budgets`, `m5_off_budget_wallets`,
 `m6_transaction_occurred_at`, `m7_goal_and_debt_history`, `m8_money_as_cents`,
-`m9_wallet_opening_balance`, `m10_shared_expenses`). Add the next one as `mN_…` plus an
+`m9_wallet_opening_balance`, `m10_shared_expenses`, `m11_settlements`). Add the next one as `mN_…` plus an
 `if applied < N` arm.
 
 **Every migration must be idempotent, without exception.** Databases predating the version table
@@ -946,6 +946,70 @@ touching a row, so a correction that does not add up leaves the original exactly
 failure modes have a test that was confirmed to fail without the guard. `transaction_id` is
 deliberately absent from the `SET`, so correcting a description never unlinks the expense from the
 transaction that paid it.
+
+### The split and the wallet
+
+A split and the money that moved are **two records of one event**, written together and kept in step.
+`add_shared_expense_from_wallet` records one transaction for the **whole** amount — not your share,
+because your wallet really did lose all of it — plus the split beside it. Only an expense *you* paid
+for can take this route; somebody else paying is refused rather than quietly inventing a transaction
+that would put the wallet out by the amount.
+
+Neither row may outlive the other's failure. The split is validated before the transaction is
+written, and anything that still fails afterwards rolls the transaction back. That rollback is easy
+to believe untested: `a_refused_split_writes_no_transaction` passes without it, because the shares
+are checked up front and never reach it. `a_split_refused_after_the_transaction_is_written_takes_it_back`
+uses a blank description — refused deeper in, after the money has left — and does fail without it.
+
+Three ways the two can drift, each closed:
+
+- **Correcting the split** updates the linked transaction's title, amount and date. Otherwise the
+  wallet says 360 and the group says 300, both believable, neither obviously wrong.
+- **Deleting the transaction** from the transactions screen sets `transaction_id` back to NULL on
+  any split or settlement naming it. Whoever deletes it there has no reason to know it was part of a
+  split, and a link to a row that is gone is worse than no link.
+- **Deleting the split** asks which of the two opposite cases it is — the dinner never happened
+  (`delete_shared_expense_with_transaction`), or it happened and you no longer care who owed what
+  (`..._keeping_transaction`). Guessing either leaves money missing from the wallet or takes back a
+  payment that was real.
+
+`record_settlement_to_wallet` reads the direction from which side of the payment you are on rather
+than asking: being paid back is income, paying somebody back is an expense. A payment between two
+other people is refused here — the group changes, no wallet of yours does, and `record_settlement`
+is the call for that.
+
+### Two queries, one balance
+
+`GROUP_SELECT` derives `net_balance_cents` **independently** of `MEMBER_SELECT`, for the one member who
+is you. They have to be changed together and once were not: settlements were added to
+`MEMBER_SELECT` alone, so the balances inside the sheet moved after a payment while the group card
+and the owed/owing totals summed from it sat perfectly still. Paying somebody back looked like
+nothing had happened.
+
+Every settlement test read `list_group_members`, so none of them saw it. The regression test now
+asserts the two agree — `assert_eq!(group.net_balance_cents, balance_of(member))` — which is the
+thing that would have caught it, rather than another assertion on the same query as before. Adding a
+term to one of these without the other is the mistake to watch for.
+
+### Settling up
+
+A settlement is **not** an expense — nothing was bought — so it lives in its own `m11` table rather
+than in `shared_expenses`, where it would inflate every group total it touched. It is a transfer of
+credit: whoever pays has now put that much more into the group and whoever receives has put that
+much less, which is why `MEMBER_SELECT` adds settlements paid to `paid_cents` and settlements
+received to `owes_cents`, and why the balances still sum to zero across one.
+
+Overpaying is deliberately allowed and swings the balance the other way rather than being clamped —
+clamping would silently lose the difference. What is refused is a payment of nothing, paying
+yourself, and either side belonging to another group, since that last one would put the totals
+permanently out of true with nothing to say why.
+
+`suggest_settlements` works out **who pays whom**, because everybody paying everybody they owe is up
+to one payment per pair — six for four people — where one per person less one is enough. It sends
+the largest debt to the largest credit repeatedly; each step takes the *smaller* of the two sides,
+which is what retires one of them exactly and lands every balance on zero rather than near it.
+`making_every_suggested_payment_closes_the_group` is the property that matters, run over splits
+chosen because they do not divide evenly; taking the larger side instead fails it.
 
 **`current_schema_version()` is exposed over the FFI** so neither a test nor a screen has to write
 the number down. Both did, and both went stale the moment `m10` was added.

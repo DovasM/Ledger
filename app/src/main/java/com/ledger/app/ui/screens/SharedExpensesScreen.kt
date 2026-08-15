@@ -32,11 +32,15 @@ import com.ledger.app.ui.util.MoneyFormatter
 import com.ledger.app.ui.util.rememberMoneyFormatter
 import com.ledger.app.ui.util.toCentsOrNull
 import com.ledger.app.ui.viewmodel.SharedExpenseViewModel
+import uniffi.ledger.Category
 import uniffi.ledger.ExpenseGroup
 import uniffi.ledger.ExpenseShare
 import uniffi.ledger.GroupMember
 import uniffi.ledger.ShareInput
+import uniffi.ledger.Settlement
+import uniffi.ledger.SettlementSuggestion
 import uniffi.ledger.SharedExpense
+import uniffi.ledger.Wallet
 import uniffi.ledger.splitEqually
 
 /**
@@ -59,6 +63,7 @@ fun SharedExpensesScreen(
     var openGroupId by remember { mutableStateOf<String?>(null) }
     // Adding an expense straight from the list, without having to open the group first.
     var expenseForGroupId by remember { mutableStateOf<String?>(null) }
+    var settleForGroupId by remember { mutableStateOf<String?>(null) }
 
     if (newGroup) {
         NewGroupDialog(
@@ -83,13 +88,29 @@ fun SharedExpensesScreen(
             ExpenseDialog(
                 members = members,
                 money = money,
+                wallets = state.wallets,
+                categories = state.expenseCategories,
                 onDismiss = { expenseForGroupId = null },
-                onSubmit = { description, amountCents, paidBy, shares ->
-                    viewModel.addExpense(id, description, amountCents, paidBy, shares)
+                onSubmit = { description, amountCents, paidBy, shares, walletId, category ->
+                    viewModel.submitExpense(id, description, amountCents, paidBy, shares, walletId, category)
                     expenseForGroupId = null
                 }
             )
         }
+    }
+
+    settleForGroupId?.let { id ->
+        SettleUpDialog(
+            suggestions = state.suggestions[id].orEmpty(),
+            money = money,
+            wallets = state.wallets,
+            categories = state.expenseCategories,
+            yourMemberId = state.members[id]?.firstOrNull { it.isYou }?.id,
+            onDismiss = { settleForGroupId = null },
+            onSettle = { from, to, amount, walletId, category ->
+                viewModel.submitSettlement(id, from, to, amount, walletId, category)
+            }
+        )
     }
 
     openGroupId?.let { id ->
@@ -103,15 +124,23 @@ fun SharedExpensesScreen(
                 onDismiss = { openGroupId = null },
                 onLoad = { viewModel.loadGroup(id) },
                 shares = state.shares,
-                onAddExpense = { description, amountCents, paidBy, shares ->
-                    viewModel.addExpense(id, description, amountCents, paidBy, shares)
+                settlements = state.settlements[id].orEmpty(),
+                suggestions = state.suggestions[id].orEmpty(),
+                wallets = state.wallets,
+                categories = state.expenseCategories,
+                onAddExpense = { description, amountCents, paidBy, shares, walletId, category ->
+                    viewModel.submitExpense(id, description, amountCents, paidBy, shares, walletId, category)
                 },
                 onEditExpense = { expenseId, description, amountCents, paidBy, shares ->
                     viewModel.updateExpense(expenseId, id, description, amountCents, paidBy, shares)
                 },
                 onLoadShares = { viewModel.loadShares(it) },
-                onDeleteExpense = { viewModel.deleteExpense(it, id) },
+                onDeleteExpense = { expenseId, alsoTransaction -> viewModel.deleteExpense(expenseId, id, alsoTransaction) },
                 onAddMember = { viewModel.addMember(id, it) },
+                onSettle = { from, to, amount, walletId, category ->
+                    viewModel.submitSettlement(id, from, to, amount, walletId, category)
+                },
+                onDeleteSettlement = { viewModel.deleteSettlement(it, id) },
                 onRename = { name, emoji -> viewModel.renameGroup(id, name, emoji) },
                 onDeleteGroup = { viewModel.deleteGroup(id) { openGroupId = null } }
             )
@@ -187,7 +216,8 @@ fun SharedExpensesScreen(
                         group = group,
                         money = money,
                         onOpen = { openGroupId = group.id; viewModel.loadGroup(group.id) },
-                        onAddExpense = { expenseForGroupId = group.id; viewModel.loadGroup(group.id) }
+                        onAddExpense = { expenseForGroupId = group.id; viewModel.loadGroup(group.id) },
+                        onSettleUp = { settleForGroupId = group.id; viewModel.loadGroup(group.id) }
                     )
                 }
             }
@@ -214,7 +244,8 @@ private fun GroupCard(
     group: ExpenseGroup,
     money: MoneyFormatter,
     onOpen: () -> Unit,
-    onAddExpense: () -> Unit
+    onAddExpense: () -> Unit,
+    onSettleUp: () -> Unit
 ) {
     LedgerCard(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -251,17 +282,33 @@ private fun GroupCard(
                 }
             }
 
-            // The amount goes in here. Reaching it only by opening the group left the list showing a
-            // single + that makes another group, which is not what anyone is looking for.
-            Button(
-                onClick = onAddExpense,
-                modifier = Modifier.fillMaxWidth().height(44.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                shape = RoundedCornerShape(6.dp)
-            ) {
-                Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Add expense", style = MaterialTheme.typography.labelLarge)
+            // Both of the things anyone comes to this screen for, on the card itself. Reaching them
+            // only by opening the group left the list showing a single + that makes another group,
+            // which is not what anyone is looking for.
+            // Half a card is not enough width for a button with an icon, a default 24dp of padding
+            // either side and a two-word label: the label was the part that gave way. No icons here,
+            // and the padding is cut to what the text actually needs.
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(
+                    onClick = onAddExpense,
+                    modifier = Modifier.weight(1f).height(44.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                    shape = RoundedCornerShape(6.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp)
+                ) {
+                    Text("Add expense", style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                }
+                // Shown once there is anything to settle at all. Whether this particular group is
+                // already square is a question only the balances can answer, and the dialog says so
+                // plainly rather than the button pretending to know.
+                if (group.expenseCount > 0) {
+                    OutlinedButton(
+                        onClick = onSettleUp,
+                        modifier = Modifier.weight(1f).height(44.dp),
+                        shape = RoundedCornerShape(6.dp),
+                        contentPadding = PaddingValues(horizontal = 6.dp)
+                    ) { Text("Settle up", style = MaterialTheme.typography.labelLarge, color = Primary, maxLines = 1) }
+                }
             }
         }
     }
@@ -356,11 +403,18 @@ private fun GroupSheet(
     onDismiss: () -> Unit,
     onLoad: () -> Unit,
     shares: Map<String, List<ExpenseShare>>,
-    onAddExpense: (String, Long, String, List<ShareInput>) -> Unit,
+    settlements: List<Settlement>,
+    suggestions: List<SettlementSuggestion>,
+    wallets: List<Wallet>,
+    categories: List<Category>,
+    onAddExpense: (String, Long, String, List<ShareInput>, String?, String?) -> Unit,
     onEditExpense: (String, String, Long, String, List<ShareInput>) -> Unit,
     onLoadShares: (String) -> Unit,
-    onDeleteExpense: (String) -> Unit,
+    // The boolean is whether the transaction behind it goes too.
+    onDeleteExpense: (String, Boolean) -> Unit,
     onAddMember: (String) -> Unit,
+    onSettle: (String, String, Long, String?, String?) -> Unit,
+    onDeleteSettlement: (String) -> Unit,
     onRename: (String, String) -> Unit,
     onDeleteGroup: () -> Unit
 ) {
@@ -369,18 +423,24 @@ private fun GroupSheet(
     // The entry being corrected. Its shares are fetched when it is picked, because the list itself
     // only carries your own share.
     var editing by remember { mutableStateOf<SharedExpense?>(null) }
+    // Deleting is not undoable and, once a split is linked to a transaction, it is not even one
+    // question. Asked rather than done.
+    var removing by remember { mutableStateOf<SharedExpense?>(null) }
     var addMember by remember { mutableStateOf(false) }
     var confirmDelete by remember { mutableStateOf(false) }
     var renaming by remember { mutableStateOf(false) }
+    var settling by remember { mutableStateOf(false) }
 
     editing?.let { expense ->
         ExpenseDialog(
             members = members,
             money = money,
+            wallets = wallets,
+            categories = categories,
             existing = expense,
             existingShares = shares[expense.id].orEmpty(),
             onDismiss = { editing = null },
-            onSubmit = { description, amountCents, paidBy, newShares ->
+            onSubmit = { description, amountCents, paidBy, newShares, _, _ ->
                 onEditExpense(expense.id, description, amountCents, paidBy, newShares)
                 editing = null
             }
@@ -399,9 +459,11 @@ private fun GroupSheet(
         ExpenseDialog(
             members = members,
             money = money,
+            wallets = wallets,
+            categories = categories,
             onDismiss = { addExpense = false },
-            onSubmit = { description, amountCents, paidBy, shares ->
-                onAddExpense(description, amountCents, paidBy, shares)
+            onSubmit = { description, amountCents, paidBy, shares, walletId, category ->
+                onAddExpense(description, amountCents, paidBy, shares, walletId, category)
                 addExpense = false
             }
         )
@@ -419,6 +481,70 @@ private fun GroupSheet(
                 }
             },
             dismissButton = { TextButton(onClick = { addMember = false }) { Text("Cancel", color = OnSurfaceVariant) } }
+        )
+    }
+
+    removing?.let { expense ->
+        val linked = expense.transactionId != null
+        // Defaults to taking the transaction with it, because a split being deleted almost always
+        // means the thing never happened. The opposite case is one tap away and spelled out.
+        var alsoTransaction by remember(expense.id) { mutableStateOf(true) }
+        AlertDialog(
+            onDismissRequest = { removing = null },
+            title = { Text("Delete this expense?") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text(
+                        "${expense.description} · ${money.of(expense.amountCents)}",
+                        style = MaterialTheme.typography.bodyMedium, color = OnSurface
+                    )
+                    if (linked) {
+                        Text(
+                            "This one took money out of your wallet.",
+                            style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                        )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Put the money back too", style = MaterialTheme.typography.bodyMedium, color = OnSurface)
+                                Text(
+                                    if (alsoTransaction) "The transaction goes with it"
+                                    else "The transaction stays — the money really did leave",
+                                    style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                                )
+                            }
+                            Switch(checked = alsoTransaction, onCheckedChange = { alsoTransaction = it })
+                        }
+                    } else {
+                        Text(
+                            "No wallet of yours is affected.",
+                            style = MaterialTheme.typography.bodySmall, color = OnSurfaceVariant
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onDeleteExpense(expense.id, linked && alsoTransaction)
+                    removing = null
+                }) { Text("Delete", color = Error) }
+            },
+            dismissButton = { TextButton(onClick = { removing = null }) { Text("Cancel", color = OnSurfaceVariant) } }
+        )
+    }
+
+    if (settling) {
+        SettleUpDialog(
+            suggestions = suggestions,
+            money = money,
+            wallets = wallets,
+            categories = categories,
+            yourMemberId = members.firstOrNull { it.isYou }?.id,
+            onDismiss = { settling = false },
+            onSettle = { from, to, amount, walletId, category ->
+                onSettle(from, to, amount, walletId, category)
+                // Left open on purpose: closing a group usually takes more than one payment, and the
+                // list rebuilds itself from the new balances after each one.
+            }
         )
     }
 
@@ -466,6 +592,34 @@ private fun GroupSheet(
                 }
                 IconButton(onClick = { confirmDelete = true }) {
                     Icon(Icons.Filled.Delete, "Delete group", tint = OnSurfaceVariant, modifier = Modifier.size(20.dp))
+                }
+            }
+
+            // Both actions sit above the lists. Buried under the members and every expense, the
+            // "Add expense" button was off the bottom of a long group and might as well not have
+            // existed.
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                Button(
+                    onClick = { addExpense = true },
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                    shape = RoundedCornerShape(6.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp)
+                ) {
+                    Text("Add expense", style = MaterialTheme.typography.labelLarge, maxLines = 1)
+                }
+                OutlinedButton(
+                    onClick = { settling = true },
+                    modifier = Modifier.weight(1f).height(46.dp),
+                    enabled = suggestions.isNotEmpty(),
+                    shape = RoundedCornerShape(6.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp)
+                ) {
+                    Text(
+                        if (suggestions.isEmpty()) "Settled up" else "Settle up",
+                        style = MaterialTheme.typography.labelLarge, maxLines = 1,
+                        color = if (suggestions.isEmpty()) OnSurfaceVariant else Primary
+                    )
                 }
             }
 
@@ -522,24 +676,41 @@ private fun GroupSheet(
                                 "${expense.paidByName} paid ${money.of(expense.amountCents)} · your share ${money.of(expense.yourShareCents)}",
                                 style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
                             )
-                            Text("Tap to correct", style = MaterialTheme.typography.labelSmall, color = Primary)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                Text("Tap to correct", style = MaterialTheme.typography.labelSmall, color = Primary)
+                                // Whether a split moved real money is the one thing about it you
+                                // cannot see from the amount, so it is said rather than implied.
+                                if (expense.transactionId != null) {
+                                    Text("· in your wallet", style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                                }
+                            }
                         }
-                        IconButton(onClick = { onDeleteExpense(expense.id) }) {
+                        IconButton(onClick = { removing = expense }) {
                             Icon(Icons.Filled.Close, "Remove", tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))
                         }
                     }
                 }
             }
 
-            Button(
-                onClick = { addExpense = true },
-                modifier = Modifier.fillMaxWidth().height(48.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                shape = RoundedCornerShape(6.dp)
-            ) {
-                Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Add expense", style = MaterialTheme.typography.labelLarge)
+            // What has already been handed over. Without it a mistyped payment would be invisible
+            // and there would be no way to take it back.
+            if (settlements.isNotEmpty()) {
+                HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
+                Text("Payments", style = MaterialTheme.typography.titleSmall, color = OnSurfaceVariant, fontWeight = FontWeight.SemiBold)
+                settlements.forEach { paid ->
+                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                "${paid.fromName} paid ${paid.toName} ${money.of(paid.amountCents)}",
+                                style = MaterialTheme.typography.bodyMedium, color = OnSurface
+                            )
+                            Text(paid.occurredAt.take(10), style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+                        }
+                        IconButton(onClick = { onDeleteSettlement(paid.id) }) {
+                            Icon(Icons.Filled.Close, "Undo payment", tint = OnSurfaceVariant, modifier = Modifier.size(18.dp))
+                        }
+                    }
+                }
             }
         }
     }
@@ -549,11 +720,15 @@ private fun GroupSheet(
 private fun ExpenseDialog(
     members: List<GroupMember>,
     money: MoneyFormatter,
+    wallets: List<Wallet>,
+    categories: List<Category>,
     // Null when writing a new expense; the entry being corrected otherwise.
     existing: SharedExpense? = null,
     existingShares: List<ExpenseShare> = emptyList(),
     onDismiss: () -> Unit,
-    onSubmit: (String, Long, String, List<ShareInput>) -> Unit
+    // The last two are the wallet and category to record it against, or null to record the split
+    // alone and leave every wallet untouched.
+    onSubmit: (String, Long, String, List<ShareInput>, String?, String?) -> Unit
 ) {
     val editing = existing != null
 
@@ -582,6 +757,17 @@ private fun ExpenseDialog(
     var typedShares by remember(existing?.id, previous) {
         mutableStateOf(if (editing) previous.map { it.asAmountInput() } else members.map { "" })
     }
+
+    // Only an expense you paid for moves a wallet of yours. When somebody else paid you owe them a
+    // share, but nothing of yours moved, so the whole wallet section is absent rather than present
+    // and refusing to work.
+    val youArePayer = members.getOrNull(paidByIndex)?.isYou == true
+    // Correcting an entry does not re-ask this: the transaction it is already linked to follows the
+    // correction, and a second one would be a duplicate.
+    val canRecord = youArePayer && !editing && wallets.isNotEmpty() && categories.isNotEmpty()
+    var recordInWallet by remember { mutableStateOf(true) }
+    var walletIndex by remember(wallets) { mutableStateOf(0) }
+    var categoryIndex by remember(categories) { mutableStateOf(0) }
 
     val amountCents = amount.toCentsOrNull()
 
@@ -634,6 +820,36 @@ private fun ExpenseDialog(
                             )
                         }
                     }
+                }
+
+                if (canRecord) {
+                    HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Take it from my wallet", style = MaterialTheme.typography.bodyMedium, color = OnSurface)
+                            Text(
+                                // Says the whole amount out loud, because paying for a group and
+                                // being charged only your share is the mistake this invites.
+                                if (amountCents != null) "The full ${money.of(amountCents)} leaves; the others owe you their share"
+                                else "The full amount leaves; the others owe you their share",
+                                style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                            )
+                        }
+                        Switch(checked = recordInWallet, onCheckedChange = { recordInWallet = it })
+                    }
+                    if (recordInWallet) {
+                        PickerRow("Wallet", wallets, wallets.getOrNull(walletIndex),
+                            { "${it.name} · ${money.of(it.balanceCents)}" },
+                            { w -> walletIndex = wallets.indexOf(w) })
+                        PickerRow("Category", categories, categories.getOrNull(categoryIndex),
+                            { it.name }, { c -> categoryIndex = categories.indexOf(c) })
+                    }
+                    HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
+                } else if (!editing && !youArePayer) {
+                    Text(
+                        "Nothing leaves your wallet — ${members.getOrNull(paidByIndex)?.name ?: "they"} paid this one.",
+                        style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                    )
                 }
 
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -701,15 +917,224 @@ private fun ExpenseDialog(
                 enabled = description.isNotBlank() && balanced,
                 onClick = {
                     val payer = members[paidByIndex]
+                    val useWallet = canRecord && recordInWallet
                     onSubmit(
                         description,
                         amountCents!!,
                         payer.id,
-                        members.mapIndexed { index, member -> ShareInput(member.id, shares[index]) }
+                        members.mapIndexed { index, member -> ShareInput(member.id, shares[index]) },
+                        if (useWallet) wallets.getOrNull(walletIndex)?.id else null,
+                        if (useWallet) categories.getOrNull(categoryIndex)?.name else null
                     )
                 }
             ) { Text(if (editing) "Save" else "Add", color = Primary) }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", color = OnSurfaceVariant) } }
     )
+}
+
+/**
+ * Squaring up.
+ *
+ * The app already knows every balance, so it says who should pay whom rather than handing over an
+ * empty form — and it works out the fewest payments that close the group, which with four people is
+ * three instead of six. Each suggested amount is only a default: paying back part of what is owed is
+ * a normal thing, so the figure stays editable and what gets recorded is what actually changed
+ * hands.
+ */
+@Composable
+private fun SettleUpDialog(
+    suggestions: List<SettlementSuggestion>,
+    money: MoneyFormatter,
+    wallets: List<Wallet>,
+    categories: List<Category>,
+    // Which member is the app's user, so the dialog knows whether a wallet of theirs is involved at
+    // all. Null when the group has not finished loading.
+    yourMemberId: String?,
+    onDismiss: () -> Unit,
+    onSettle: (String, String, Long, String?, String?) -> Unit
+) {
+    // Keyed by position, because the same pair can appear once only in a plan.
+    var typed by remember(suggestions) { mutableStateOf(suggestions.map { it.amountCents.asAmountInput() }) }
+    // The dialog stays open after a payment so a group can be closed in one visit, which leaves the
+    // same Record button under the same finger while the new balances are still being read back.
+    // Tapped twice, it recorded the payment twice. Each row latches until the plan is rebuilt — and
+    // the rebuild resets this, because `remember(suggestions)` keys on the new list.
+    var recorded by remember(suggestions) { mutableStateOf(emptySet<Int>()) }
+    var recordInWallet by remember { mutableStateOf(true) }
+    var walletIndex by remember(wallets) { mutableStateOf(0) }
+    var categoryIndex by remember(categories) { mutableStateOf(0) }
+    // Two other people squaring up between themselves changes the group and no wallet of yours.
+    val anyOfYours = yourMemberId != null &&
+        suggestions.any { it.fromMemberId == yourMemberId || it.toMemberId == yourMemberId }
+    val canRecord = anyOfYours && wallets.isNotEmpty() && categories.isNotEmpty()
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(if (suggestions.isEmpty()) "Nothing to settle" else "Settle up") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                if (suggestions.isEmpty()) {
+                    // A dead end that explains itself, rather than an empty list.
+                    Text(
+                        "Everyone is square. Nothing is owed either way.",
+                        style = MaterialTheme.typography.bodyMedium, color = OnSurfaceVariant
+                    )
+                } else {
+                    Text(
+                        if (suggestions.size == 1) "One payment closes this group."
+                        else "${suggestions.size} payments close this group.",
+                        style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                    )
+                    if (canRecord) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("Record in my wallet", style = MaterialTheme.typography.bodyMedium, color = OnSurface)
+                                Text(
+                                    "Money coming back to you is income; paying somebody back is an expense",
+                                    style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                                )
+                            }
+                            Switch(checked = recordInWallet, onCheckedChange = { recordInWallet = it })
+                        }
+                        if (recordInWallet) {
+                            PickerRow("Wallet", wallets, wallets.getOrNull(walletIndex),
+                                { "${it.name} · ${money.of(it.balanceCents)}" },
+                                { w -> walletIndex = wallets.indexOf(w) })
+                            PickerRow("Category", categories, categories.getOrNull(categoryIndex),
+                                { it.name }, { c -> categoryIndex = categories.indexOf(c) })
+                        }
+                        HorizontalDivider(color = OutlineVariant.copy(alpha = 0.3f))
+                    }
+
+                    suggestions.forEachIndexed { index, suggestion ->
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text(
+                                "${suggestion.fromName} pays ${suggestion.toName}",
+                                style = MaterialTheme.typography.bodyMedium, color = OnSurface, fontWeight = FontWeight.Medium
+                            )
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                LedgerTextField(
+                                    value = typed.getOrElse(index) { "" },
+                                    onValueChange = { v ->
+                                        if (v.all { it.isDigit() || it == '.' || it == ',' }) {
+                                            typed = typed.toMutableList().also { it[index] = v }
+                                        }
+                                    },
+                                    label = "Amount",
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                                    modifier = Modifier.weight(1f)
+                                )
+                                val cents = typed.getOrElse(index) { "" }.toCentsOrNull()
+                                // A payment between two other people never touches a wallet, even
+                                // when the switch is on for the rest of the plan.
+                                val mine = yourMemberId != null &&
+                                    (suggestion.fromMemberId == yourMemberId || suggestion.toMemberId == yourMemberId)
+                                val useWallet = canRecord && recordInWallet && mine
+                                val done = index in recorded
+                                Button(
+                                    onClick = {
+                                        recorded = recorded + index
+                                        onSettle(
+                                            suggestion.fromMemberId, suggestion.toMemberId, cents!!,
+                                            if (useWallet) wallets.getOrNull(walletIndex)?.id else null,
+                                            if (useWallet) categories.getOrNull(categoryIndex)?.name else null
+                                        )
+                                    },
+                                    enabled = !done && cents != null && cents > 0,
+                                    colors = ButtonDefaults.buttonColors(containerColor = Primary),
+                                    shape = RoundedCornerShape(6.dp)
+                                ) { Text(if (done) "Recorded" else "Record", style = MaterialTheme.typography.labelMedium) }
+                            }
+                            if (typed.getOrElse(index) { "" }.toCentsOrNull().let { it != null && it != suggestion.amountCents }) {
+                                Text(
+                                    "Suggested ${money.of(suggestion.amountCents)}",
+                                    style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done", color = Primary) } }
+    )
+}
+
+/** A labelled dropdown. Three of these are needed now and they should look like one thing. */
+@Composable
+private fun <T> PickerRow(
+    label: String,
+    options: List<T>,
+    selected: T?,
+    display: (T) -> String,
+    onPick: (T) -> Unit
+) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(6.dp))
+                .clickable(enabled = options.isNotEmpty()) { open = true }
+                .padding(vertical = 6.dp)
+        ) {
+            Text(label, style = MaterialTheme.typography.labelSmall, color = OnSurfaceVariant)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    selected?.let(display) ?: "—",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (selected == null) OnSurfaceVariant else OnSurface,
+                    modifier = Modifier.weight(1f), maxLines = 1
+                )
+                Icon(Icons.Filled.ArrowDropDown, null, tint = OnSurfaceVariant, modifier = Modifier.size(20.dp))
+            }
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(display(option)) },
+                    onClick = { onPick(option); open = false }
+                )
+            }
+        }
+    }
+}
+
+/**
+ * One route for both places an expense can be added from. A wallet id means the money really moved
+ * and the two records are written together; null means the split alone.
+ */
+private fun SharedExpenseViewModel.submitExpense(
+    groupId: String,
+    description: String,
+    amountCents: Long,
+    paidBy: String,
+    shares: List<ShareInput>,
+    walletId: String?,
+    category: String?
+) {
+    if (walletId != null && category != null) {
+        addExpenseFromWallet(groupId, description, amountCents, paidBy, walletId, category, shares)
+    } else {
+        addExpense(groupId, description, amountCents, paidBy, shares)
+    }
+}
+
+private fun SharedExpenseViewModel.submitSettlement(
+    groupId: String,
+    from: String,
+    to: String,
+    amountCents: Long,
+    walletId: String?,
+    category: String?
+) {
+    if (walletId != null && category != null) {
+        settleToWallet(groupId, from, to, amountCents, walletId, category)
+    } else {
+        settle(groupId, from, to, amountCents)
+    }
 }
