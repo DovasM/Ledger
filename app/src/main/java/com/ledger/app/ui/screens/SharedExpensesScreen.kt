@@ -272,16 +272,18 @@ private fun GroupCard(
             // Both of the things anyone comes to this screen for, on the card itself. Reaching them
             // only by opening the group left the list showing a single + that makes another group,
             // which is not what anyone is looking for.
+            // Half a card is not enough width for a button with an icon, a default 24dp of padding
+            // either side and a two-word label: the label was the part that gave way. No icons here,
+            // and the padding is cut to what the text actually needs.
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 Button(
                     onClick = onAddExpense,
                     modifier = Modifier.weight(1f).height(44.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                    shape = RoundedCornerShape(6.dp)
+                    shape = RoundedCornerShape(6.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
-                    Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Add expense", style = MaterialTheme.typography.labelLarge)
+                    Text("Add expense", style = MaterialTheme.typography.labelLarge, maxLines = 1)
                 }
                 // Shown once there is anything to settle at all. Whether this particular group is
                 // already square is a question only the balances can answer, and the dialog says so
@@ -290,8 +292,9 @@ private fun GroupCard(
                     OutlinedButton(
                         onClick = onSettleUp,
                         modifier = Modifier.weight(1f).height(44.dp),
-                        shape = RoundedCornerShape(6.dp)
-                    ) { Text("Settle up", style = MaterialTheme.typography.labelLarge, color = Primary) }
+                        shape = RoundedCornerShape(6.dp),
+                        contentPadding = PaddingValues(horizontal = 6.dp)
+                    ) { Text("Settle up", style = MaterialTheme.typography.labelLarge, color = Primary, maxLines = 1) }
                 }
             }
         }
@@ -526,21 +529,21 @@ private fun GroupSheet(
                     onClick = { addExpense = true },
                     modifier = Modifier.weight(1f).height(46.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Primary),
-                    shape = RoundedCornerShape(6.dp)
+                    shape = RoundedCornerShape(6.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
-                    Icon(Icons.Filled.Add, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Add expense", style = MaterialTheme.typography.labelLarge)
+                    Text("Add expense", style = MaterialTheme.typography.labelLarge, maxLines = 1)
                 }
                 OutlinedButton(
                     onClick = { settling = true },
                     modifier = Modifier.weight(1f).height(46.dp),
                     enabled = suggestions.isNotEmpty(),
-                    shape = RoundedCornerShape(6.dp)
+                    shape = RoundedCornerShape(6.dp),
+                    contentPadding = PaddingValues(horizontal = 6.dp)
                 ) {
                     Text(
                         if (suggestions.isEmpty()) "Settled up" else "Settle up",
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.labelLarge, maxLines = 1,
                         color = if (suggestions.isEmpty()) OnSurfaceVariant else Primary
                     )
                 }
